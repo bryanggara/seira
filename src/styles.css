@@ -2169,9 +2169,6 @@ body {
   from { transform: translateY(4px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
-@keyframes slot-fade-in {
-  from { opacity: 0; }
-}
 .reply-bubble {
   width: fit-content;
   max-width: min(100%, 36rem);
