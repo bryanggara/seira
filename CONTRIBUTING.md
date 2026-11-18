@@ -1,4 +1,4 @@
-# Contributing to OpenMausBot
+# Contributing to Seira
 
 Thanks for wanting to help — community PRs have already shipped in this repo, and more are welcome.
 This file tells you how to get a working dev setup, what the codebase expects from a change, and what
@@ -23,7 +23,7 @@ and logged in. macOS is the primary release platform and Ubuntu 24.04 x64 is the
 the harness server itself is portable Node and the test suite runs on macOS, Linux, and Windows.
 
 ```sh
-git clone https://github.com/milind-soni/OpenMausBot && cd OpenMausBot
+git clone https://github.com/seira-bot/seira && cd seira
 pnpm install
 
 pnpm dev:server    # harness server → 127.0.0.1:8799
@@ -65,7 +65,7 @@ and produces one release artifact containing:
 
 Before publishing, confirm that `package.json` has the release version and dispatch the workflow against the same
 commit used for the other platforms. Attach all five Ubuntu files to the matching release in the separate
-[OpenMausBot releases](https://github.com/milind-soni/OpenMausBot/releases). Then verify the checksum
+[Seira releases](https://github.com/seira-bot/seira/releases). Then verify the checksum
 file and install the `.deb` plus launch the AppImage in a clean Ubuntu 24.04 x86_64 GNOME environment. Never combine
 packages built from different commits under one version.
 
@@ -346,7 +346,7 @@ commit used as the comparison base, the head branch, and the checks run after th
 Fork maintainers own the binaries and update channels they publish. Before distributing a fork,
 review the application name and identifiers, signing configuration, update metadata, and every
 `electron-builder` publish target. Never upload fork artifacts or update metadata to the official
-OpenMausBot release repository, and never change the upstream publish target in a feature PR unless
+Seira release repository, and never change the upstream publish target in a feature PR unless
 that release migration was explicitly agreed with the maintainer.
 
 An upstream PR should contain only the portable product change. Keep local build paths, account
@@ -357,10 +357,7 @@ out of its commits and screenshots.
 
 - No DCO sign-off is required. Submit only code you wrote or have the right
   to contribute under the applicable project license.
-- Changes under `enterprise/` (source-available, see [LICENSING.md](LICENSING.md))
-  need the [CLA](CLA.md), signed once by commenting on the pull request
-  when the bot asks. Changes outside `enterprise/` do not require a CLA.
-- `enterprise/`, the cloud seam and the licensing files have code owners; a
+- The licensing files and the files under `.github/` have code owners; a
   maintainer review is required there.
 
 ## CI, in one glance
