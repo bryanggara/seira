@@ -1,7 +1,6 @@
 // The full server in each place a Live call starts from, with Azure chosen: who gets through to Azure, who is refused and
 // what they read. A disposable home and a made-up key. The server's fetch is a stub that notes where it would have gone,
-// so nothing leaves this machine, and a caller who gets through ends at the stub's 503. A shared company workspace has its
-// own case in hosted-access.test.ts.
+// so nothing leaves this machine, and a caller who gets through ends at the stub's 503.
 import { randomBytes } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
