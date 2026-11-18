@@ -72,8 +72,8 @@ function requireUpdaterTarget(resources, label) {
   const updateFile = path.join(resources, "app-update.yml");
   requireFile(updateFile);
   const update = readFileSync(updateFile, "utf8");
-  if (!/^owner: milind-soni$/m.test(update) || !/^repo: OpenMausBot$/m.test(update)) {
-    fail(`${label} app-update.yml does not point at milind-soni/OpenMausBot`);
+  if (!/^owner: seira-bot$/m.test(update) || !/^repo: seira$/m.test(update)) {
+    fail(`${label} app-update.yml does not point at seira-bot/seira`);
   }
 }
 
@@ -454,7 +454,7 @@ try {
     "usr",
     "share",
     "applications",
-    "com.openmausbot.app.desktop",
+    "bot.seira.app.desktop",
   );
   const scalableIcon = path.join(
     extracted,
@@ -473,7 +473,7 @@ try {
     "Name=OpenMausBot",
     "Exec=/opt/OpenMausBot/openmausbot %U",
     "Icon=openmausbot",
-    "StartupWMClass=com.openmausbot.app",
+    "StartupWMClass=bot.seira.app",
     "Categories=Utility;",
   ]) {
     if (!desktop.includes(expected)) fail(`desktop entry is missing ${JSON.stringify(expected)}`);

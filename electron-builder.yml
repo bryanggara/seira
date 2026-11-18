@@ -1,4 +1,4 @@
-appId: com.openmausbot.app
+appId: bot.seira.app
 productName: OpenMausBot
 artifactName: OpenMausBot-${version}-${arch}.${ext}
 
@@ -15,8 +15,8 @@ protocols:
 # stranded on its installed version.
 publish:
   - provider: github
-    owner: milind-soni
-    repo: OpenMausBot
+    owner: seira-bot
+    repo: seira
 
 directories:
   buildResources: build
