@@ -3,6 +3,7 @@ import {
   memo,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
@@ -15,7 +16,7 @@ import { CursorAvatar, type CursorAvatarHandle } from "./CursorAvatar";
 import { avatarCropRadius, botAvatarProfile, clampAvatarFocus, clampAvatarZoom, mascotFaceInk, type BotAvatarCrop, type MascotFaceColor } from "../../shared/bot-avatar";
 import { MASCOT_BODIES, botMascotBody } from "../../shared/mascot-bodies";
 import { botBodyId, isCarvedBody, type BotBodyId } from "../../shared/bot-body";
-import { useFestivalDress, wornBody } from "@/lib/festival-dress";
+import { mascotAccessories, type MascotAccessoryId } from "../../shared/mascot-accessories";
 import { t } from "@/lib/i18n";
 import { CarvedAvatar } from "./CarvedAvatar";
 import { steelBodyImage } from "@/lib/steel-body";
@@ -98,6 +99,7 @@ export type MausAvatarProps = {
   bodyId?: BotBodyId;
   gradient?: [string, string, string];
   faceColor?: MascotFaceColor | null;
+  accessories?: readonly MascotAccessoryId[];
   /** Whose face this is; a decorative mascot has none. */
   kind?: AvatarKind;
 };
@@ -234,6 +236,7 @@ export type BotAvatarProps = Omit<MausAvatarProps, "color" | "gradient"> & {
     avatarFocusY?: number;
     mascotBody?: BotBodyId | null;
     mascotFaceColor?: MascotFaceColor | null;
+    mascotAccessories?: MascotAccessoryId[] | null;
   };
 };
 
@@ -254,8 +257,8 @@ export function resolveBotAvatarOutcome(params: {
 
 export function BotAvatar({ bot, size = 44, label, readable = false, ...mascotProps }: BotAvatarProps) {
   const profile = botAvatarProfile(bot);
-  const festival = useFestivalDress();
   const [imageFailed, setImageFailed] = useState(false);
+  const worn = useMemo(() => mascotAccessories(bot.mascotAccessories), [bot.mascotAccessories]);
 
   useEffect(() => setImageFailed(false), [profile.avatarUrl]);
 
@@ -268,10 +271,11 @@ export function BotAvatar({ bot, size = 44, label, readable = false, ...mascotPr
   if (outcome !== "flatImage") {
     return (
       <MausAvatar
-        bodyId={wornBody(bot.mascotBody, bot.color, festival)}
+        bodyId={bot.mascotBody ?? undefined}
         {...mascotProps}
         color={bot.color}
         faceColor={bot.mascotFaceColor}
+        accessories={worn}
         gradient={readable ? roomAvatarGradient(bot.color) : undefined}
         size={size}
         label={label ?? bot.name}
