@@ -41,7 +41,7 @@ fi
 profile=$APPARMOR_DIR/openmausbot-browser
 if [ ! -e "$profile" ] && [ ! -L "$profile" ]; then exit 0; fi
 if [ -L "$APPARMOR_DIR" ] || [ -L "$profile" ] || [ ! -f "$profile" ]; then
-  echo "OpenMausBot AppArmor profile is unsafe; refusing to remove it: $profile" >&2
+  echo "Seira AppArmor profile is unsafe; refusing to remove it: $profile" >&2
   exit 1
 fi
 if [ "$TEST_MODE" -eq 0 ] && [ -x /usr/bin/ischroot ] && /usr/bin/ischroot; then
@@ -55,11 +55,11 @@ elif [ -x "$APPARMOR_PARSER" ]; then
   # Keep the policy file if unloading genuinely fails so an administrator can
   # inspect/retry the exact rule instead of leaving an invisible kernel rule.
   if ! "$APPARMOR_PARSER" -R "$profile"; then
-    echo "OpenMausBot could not unload its browser AppArmor profile: $profile" >&2
+    echo "Seira could not unload its browser AppArmor profile: $profile" >&2
     exit 1
   fi
 elif [ -r "$APPARMOR_PROFILES" ]; then
-  echo "OpenMausBot needs apparmor_parser to unload its browser profile: $profile" >&2
+  echo "Seira needs apparmor_parser to unload its browser profile: $profile" >&2
   exit 1
 fi
 rm -- "$profile"
