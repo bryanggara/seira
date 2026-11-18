@@ -12,7 +12,7 @@ import nativeText from "./native-text.cjs";
 
 const embedded = (extra = {}) => ({
   mode: "embedded", socketPath: "\\\\.\\pipe\\cua-driver-1234", mcpCommand: "C:\\Program Files\\OpenMausBot\\resources\\cua-driver.exe",
-  mcpArgs: ["mcp", "--embedded", "--socket", "\\\\.\\pipe\\cua-driver-1234"], mcpEnv: { CUA_DRIVER_EMBEDDED: "1", CUA_DRIVER_HOST_BUNDLE_ID: "com.openmausbot.app" }, ...extra,
+  mcpArgs: ["mcp", "--embedded", "--socket", "\\\\.\\pipe\\cua-driver-1234"], mcpEnv: { CUA_DRIVER_EMBEDDED: "1", CUA_DRIVER_HOST_BUNDLE_ID: "bot.seira.app" }, ...extra,
 });
 
 test("a PC lends its apps and screen once its own embedded computer control runs, and never through another driver", () => {
@@ -34,7 +34,7 @@ test("why a PC's apps and screen aren't lent, and the one fix", () => {
   const timedOut = screenStatus({ platform: "win32", connection: { mode: "unavailable", reason: "embedded host failed: StartupTimeout: timeoutMs 10000" } });
   assert.deepEqual({ reason: timedOut.reason, fix: timedOut.fix }, { reason: "not-running", fix: "start" });
   for (const reason of [
-    "embedded host failed: Spawn: binaryPath C:\\OpenMausBot\\resources\\cua-driver-background.exe; reason Access is denied. (os error 5)",
+    "embedded host failed: Spawn: binaryPath C:\\Seira\\resources\\cua-driver-background.exe; reason Access is denied. (os error 5)",
     "embedded host failed: Spawn: reason Operation did not complete successfully because the file contains a virus or potentially unwanted software. (os error 225)",
     "cua-driver binary not found",
     "embedded host failed: Packaged background CUA driver is missing; reinstall OpenMausBot",

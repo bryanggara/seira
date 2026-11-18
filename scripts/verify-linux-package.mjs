@@ -454,7 +454,7 @@ try {
     "usr",
     "share",
     "applications",
-    "com.openmausbot.app.desktop",
+    "bot.seira.app.desktop",
   );
   const scalableIcon = path.join(
     extracted,
@@ -471,9 +471,9 @@ try {
   const desktop = readFileSync(desktopFile, "utf8");
   for (const expected of [
     "Name=OpenMausBot",
-    "Exec=/opt/OpenMausBot/openmausbot %U",
+    "Exec=/opt/Seira/openmausbot %U",
     "Icon=openmausbot",
-    "StartupWMClass=com.openmausbot.app",
+    "StartupWMClass=bot.seira.app",
     "Categories=Utility;",
   ]) {
     if (!desktop.includes(expected)) fail(`desktop entry is missing ${JSON.stringify(expected)}`);
