@@ -4,6 +4,14 @@ Seira can send anonymous product analytics to PostHog (US cloud, `us.i.posthog.c
 which features people set up and use. This page lists every event and every property the app can send. Nothing else is
 sent.
 
+## When it is on
+
+A build sends nothing unless it has a PostHog project key. The key is the build setting `VITE_SEIRA_POSTHOG_TOKEN`,
+read when the app is built. This repository does not contain a key.
+
+A build without a key has no analytics switch in Settings, never downloads `posthog-js`, and sends no event, whatever
+you choose. Everything below describes a build that has a key.
+
 ## What it is
 
 - `posthog-js` loads only while the switch is on. With the switch off, the library is never downloaded and nothing is
