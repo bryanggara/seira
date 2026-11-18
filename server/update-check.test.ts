@@ -100,7 +100,7 @@ describe("server update check", () => {
   });
 
   it("says nothing is available while the repository has no release", async () => {
-    const fetch = vi.fn(async () => missing);
+    const fetch = vi.fn(async (_url: string | URL | Request) => missing);
     const check = createUpdateChecker({ current: "0.1.92", install: "docker", fetch });
     expect(await check()).toEqual({ current: "0.1.92", install: "docker", channel: "newest", available: false, command: "git pull && ./update.sh", restart: false });
     expect(fetch.mock.calls.map(([url]) => String(url))).toEqual([STABLE_CHANNEL_URL, LATEST_RELEASE_URL]);
