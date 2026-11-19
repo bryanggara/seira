@@ -29,6 +29,10 @@ export interface CodexLiveTimeouts {
   rpcMs: number;
   /** Quiet time after a spoken answer before it counts. Defaults to the consent window of chat calls. */
   settleMs?: number;
+  /** Speaking rate that estimates when the voice stops playing an approval question. */
+  spokenCharsPerSecond?: number;
+  /** Time after that estimate in which user speech can still be the voice's echo. */
+  echoTailMs?: number;
 }
 
 export interface LiveCodexApprovalParams {
@@ -82,6 +86,19 @@ export function codexVersionTooOld(output: string | null): boolean {
 }
 
 const wait = (ms: number) => new Promise<void>((resolve) => { setTimeout(resolve, ms).unref?.(); });
+
+/** Every path a `fileChange` item touches, or null when one is unknown. */
+function fileChangePaths(changes: unknown): string[] | null {
+  if (!Array.isArray(changes) || changes.length === 0) return null;
+  const paths: string[] = [];
+  for (const change of changes) {
+    if (typeof change?.path !== "string" || !change.path) return null;
+    paths.push(change.path);
+    const moved = change.kind?.move_path;
+    if (typeof moved === "string" && moved) paths.push(moved);
+  }
+  return paths;
+}
 
 export function codexLiveVoice(deps: CodexLiveDeps): CodexLiveVoice {
   const timeouts: CodexLiveTimeouts = { ...DEFAULT_TIMEOUTS, ...deps.timeouts };
@@ -150,12 +167,16 @@ export function codexLiveVoice(deps: CodexLiveDeps): CodexLiveVoice {
       counts.speeches++;
       request("thread/realtime/appendSpeech", { threadId, text }).catch(() => { counts.appendFailures++; });
     };
+    const changedFiles = new Map<string, string[]>();
     const approval = createLiveCodexApproval({
       speak: appendSpeech,
       onOutcome: (outcome) => { counts.approvals++; emit({ type: "approval", outcome }); },
       timeoutMs: timeouts.approvalMs,
       threadId: () => threadId,
+      files: (params) => (typeof params.itemId === "string" ? changedFiles.get(params.itemId) ?? null : null),
       settleMs: timeouts.settleMs,
+      spokenCharsPerSecond: timeouts.spokenCharsPerSecond,
+      echoTailMs: timeouts.echoTailMs,
     });
 
     const terminate = async () => {
@@ -205,6 +226,7 @@ export function codexLiveVoice(deps: CodexLiveDeps): CodexLiveVoice {
           break;
         case "thread/realtime/transcript/delta":
           if (params.role === "user") approval.userSpeech();
+          if (params.role === "assistant") approval.voiceSpeech();
           if ((params.role === "user" || params.role === "assistant") && typeof params.delta === "string") {
             counts.transcripts++;
             emit({ type: "transcript", role: params.role, delta: params.delta });
@@ -212,12 +234,20 @@ export function codexLiveVoice(deps: CodexLiveDeps): CodexLiveVoice {
           break;
         case "thread/realtime/transcript/done":
           if (params.role === "user" && typeof params.text === "string") approval.heard(params.text);
+          if (params.role === "assistant") approval.voiceDone(typeof params.text === "string" ? params.text : "");
           break;
         case "turn/started":
+          emit({ type: "working" });
+          break;
         case "item/started":
+          if (params.threadId === threadId && params.item?.type === "fileChange" && typeof params.item.id === "string") {
+            const names = fileChangePaths(params.item.changes);
+            if (names) changedFiles.set(params.item.id, names);
+          }
           emit({ type: "working" });
           break;
         case "item/completed":
+          if (params.item?.type === "fileChange" && typeof params.item.id === "string") changedFiles.delete(params.item.id);
           emit({ type: "working" });
           if (params.item?.type === "agentMessage" && typeof params.item.text === "string" && params.item.text.trim()) {
             keptAnswer = params.item.text;
