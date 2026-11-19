@@ -25,6 +25,7 @@ import { chatgptPlanCodexArgs, PLAN_TOKEN_BRIDGE_ENV, planTokenRenewal, startPla
 export { chatgptPlanCodexArgs } from "./codex-plan-token.ts";
 import { captureCliTree, describeSpawnFailure, killCliTree, spawnCli, waitForExit } from "../procs.ts";
 import { cliVersionProbe } from "../cli-version-probe.ts";
+import { codexLiveVoice } from "./codex-live.ts";
 import { codexLaunch, codexLaunchesStarting, codexLaunchSlot, codexRpcTimeoutMs, keepStopping, RELAUNCH_EXIT_WAIT_MS, spawnHoldingSlot, tryCodexLaunchSlot } from "./codex-process.ts";
 import { perTurnCustomMcp } from "../mcp-registry.ts";
 
@@ -1531,6 +1532,25 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
   };
 
   const readCliVersion = cliVersionProbe(config.cli);
+  const live = codexLiveVoice({
+    unsupportedSignIn: plan || Boolean(routed),
+    env: () => {
+      const env = childEnv();
+      if (ownLogin) keepChatsOutOfCodexHistory(env, instanceId);
+      return env;
+    },
+    version: async () => {
+      const probe = await readCliVersion(childEnv());
+      return "version" in probe ? probe.version : null;
+    },
+    approvalParams: (mode, effectiveConfig) => mode === "custom" ? customApprovalParams(effectiveConfig) : namedApprovalParams(mode),
+    permissionProfileUnsupported,
+    withResolvedSandbox,
+    spawn: (args, options) => spawnCli(...codexLaunch(config.cli, args), { ...options, stdio: ["pipe", "pipe", "pipe"] }, "bot"),
+    terminate: (child, signal) => { if (signal === "SIGTERM") void killCliTree(child, 2_000); else child.kill(signal); },
+    clientVersion: serverVersion(),
+    log: (line) => console.info(`[codex] ${line}`),
+  });
   const snapshot = async (): Promise<ProviderSnapshot> => {
     if (planUnavailable) return { state: "unavailable", authenticated: false, chatgptPlan: true, reason: planUnavailable, authenticationUnavailableReason: planUnavailable };
     const env = childEnv();
@@ -1660,6 +1680,7 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         } finally { planSigningOut = false; }
       },
     } : {}),
+    startLiveVoice: (input) => live.start(input),
     snapshot,
     adapter: {
       provider: DRIVER_KIND,
@@ -1708,6 +1729,7 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
     dispose: async () => {
       disposed = true;
       planGeneration++;
+      await live.dispose();
       await authentication.dispose();
       await planAuth?.dispose();
       await Promise.all([...active.values()].map(({ stop }) => stop()));
