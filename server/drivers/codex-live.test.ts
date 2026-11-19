@@ -1,0 +1,452 @@
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
+import { chmodSync, existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+import { EngineLiveVoiceError, type EngineLiveVoiceEvent, type EngineLiveVoiceSession, type EngineLiveVoiceStart, type ProviderInstance } from "../contracts.ts";
+import { removeTempDir } from "../testing/cleanup.ts";
+import { CodexDriver } from "./codex.ts";
+import { codexLiveVoice, codexVersionTooOld, type CodexLiveDeps, type CodexLiveTimeouts, type LiveCodexChild } from "./codex-live.ts";
+
+const FAKE = join(dirname(fileURLToPath(import.meta.url)), "..", "testing", "fake-codex-app-server.ts");
+const FAKE_SDP_ANSWER = "v=0\r\no=fake-codex-answer\r\ns=-\r\nt=0 0\r\n";
+const MODERN = "codex-cli 0.170.0";
+
+const baseEnv = (): Record<string, string | undefined> =>
+  Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("FAKE_CODEX_")));
+
+const until = async (check: () => boolean, ms = 5_000) => {
+  const deadline = Date.now() + ms;
+  while (!check()) {
+    if (Date.now() > deadline) throw new Error("timed out waiting for a condition");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+};
+
+const isGone = (child: ChildProcess) => child.exitCode !== null || child.signalCode !== null;
+
+let scratch: string;
+let counter = 0;
+const toStop: Array<{ stop(): Promise<void> }> = [];
+
+beforeEach(() => {
+  chmodSync(FAKE, 0o755);
+  scratch = mkdtempSync(join(tmpdir(), "omb-codex-live-"));
+});
+
+afterEach(async () => {
+  await Promise.all(toStop.splice(0).map((session) => session.stop()));
+  await removeTempDir(scratch);
+});
+
+interface Harness {
+  live: ReturnType<typeof codexLiveVoice>;
+  logs: string[];
+  events: EngineLiveVoiceEvent[];
+  spawned: Array<{ args: string[]; cwd: string; env: Record<string, string | undefined>; child: LiveCodexChild }>;
+  dump: string;
+  calls(): Array<{ method: string; params: any }>;
+  decision(): unknown;
+  input(overrides?: Partial<EngineLiveVoiceStart>): EngineLiveVoiceStart;
+  start(overrides?: Partial<EngineLiveVoiceStart>): Promise<EngineLiveVoiceSession>;
+}
+
+function harness(options: { fake?: Record<string, string>; timeouts?: Partial<CodexLiveTimeouts>; deps?: Partial<CodexLiveDeps>; version?: string | null } = {}): Harness {
+  const dump = join(scratch, `dump-${counter++}.json`);
+  const logs: string[] = [];
+  const events: EngineLiveVoiceEvent[] = [];
+  const spawned: Harness["spawned"] = [];
+  const fakeEnv = { ...baseEnv(), ...options.fake, FAKE_CODEX_DUMP: dump };
+  const live = codexLiveVoice({
+    unsupportedSignIn: false,
+    env: () => fakeEnv,
+    version: async () => options.version === undefined ? MODERN : options.version,
+    threadParams: (mode) => [{ approvalPolicy: "on-request", sandbox: "workspace-write", approvalsReviewer: mode === "auto" ? "auto_review" : "user" }],
+    spawn: (args, spawnOptions) => {
+      const child = spawn(process.execPath, [FAKE, ...args], { cwd: spawnOptions.cwd, env: spawnOptions.env, stdio: ["pipe", "pipe", "pipe"] });
+      spawned.push({ args, cwd: spawnOptions.cwd, env: spawnOptions.env, child });
+      return child;
+    },
+    clientVersion: "0.0.0-test",
+    log: (line) => logs.push(line),
+    timeouts: { answerMs: 5_000, stopMs: 2_000, killMs: 2_000, approvalMs: 60_000, rpcMs: 5_000, ...options.timeouts },
+    ...options.deps,
+  });
+  const read = () => (existsSync(dump) ? JSON.parse(readFileSync(dump, "utf8")) : { calls: [], decision: null });
+  const input = (overrides: Partial<EngineLiveVoiceStart> = {}): EngineLiveVoiceStart => ({
+    sdp: "offer-sdp",
+    cwd: scratch,
+    approvalMode: "ask",
+    voiceInstructions: "Be brief.",
+    workInstructions: "Do the work.",
+    history: [{ role: "user", text: "hi" }, { role: "assistant", text: "" }, { role: "assistant", text: "hello" }],
+    onEvent: (event) => events.push(event),
+    ...overrides,
+  });
+  return {
+    live, logs, events, spawned, dump, input,
+    calls: () => read().calls,
+    decision: () => read().decision,
+    start: async (overrides) => {
+      const session = await live.start(input(overrides));
+      toStop.push(session);
+      return session;
+    },
+  };
+}
+
+const refusalOf = async (promise: Promise<unknown>) => {
+  const error = await promise.then(() => null, (reason) => reason);
+  expect(error).toBeInstanceOf(EngineLiveVoiceError);
+  return (error as EngineLiveVoiceError).refusal;
+};
+
+describe("codexVersionTooOld", () => {
+  it("compares against 0.170.0 and continues when the version is unknown", () => {
+    expect(codexVersionTooOld("codex-cli 0.169.0")).toBe(true);
+    expect(codexVersionTooOld("codex-cli 0.99.9")).toBe(true);
+    expect(codexVersionTooOld("codex-cli 0.170.0")).toBe(false);
+    expect(codexVersionTooOld("0.170.1")).toBe(false);
+    expect(codexVersionTooOld("codex-cli 1.0.0")).toBe(false);
+    expect(codexVersionTooOld(null)).toBe(false);
+    expect(codexVersionTooOld("unknown build")).toBe(false);
+  });
+});
+
+describe("codexLiveVoice sign-in checks", () => {
+  it.each(["apikey", "none"])("refuses a %s account as not signed in and ends the process", async (account) => {
+    const h = harness({ fake: { FAKE_CODEX_ACCOUNT: account } });
+    expect(await refusalOf(h.live.start(h.input()))).toBe("not-signed-in");
+    expect(h.spawned).toHaveLength(1);
+    expect(isGone(h.spawned[0]!.child)).toBe(true);
+    expect(h.calls().map((call) => call.method)).not.toContain("thread/realtime/start");
+    expect(h.logs).toEqual(["live codex: refused not-signed-in"]);
+  });
+
+  it("refuses an old Codex without starting anything", async () => {
+    const readVersion = (env: Record<string, string>) => execFileSync(process.execPath, [FAKE, "--version"], { env: { ...baseEnv(), ...env } as NodeJS.ProcessEnv }).toString();
+    const h = harness({ deps: { version: async () => readVersion({ FAKE_CODEX_VERSION: "codex-cli 0.169.0" }) } });
+    expect(await refusalOf(h.live.start(h.input()))).toBe("too-old");
+    expect(h.spawned).toHaveLength(0);
+    expect(h.calls()).toEqual([]);
+  });
+
+  it("continues when the version is unknown", async () => {
+    const h = harness({ version: null });
+    const session = await h.start();
+    expect(session.sdp).toBe(FAKE_SDP_ANSWER);
+  });
+
+  it("refuses the Seira plan token, an endpoint and a managed key without a spawn", async () => {
+    const h = harness({ deps: { unsupportedSignIn: true } });
+    expect(await refusalOf(h.live.start(h.input()))).toBe("unsupported-sign-in");
+    expect(h.spawned).toHaveLength(0);
+  });
+});
+
+describe("codexLiveVoice start", () => {
+  it("starts the realtime session with every field and returns the answer unchanged", async () => {
+    const h = harness();
+    const session = await h.start({ cwd: scratch, approvalMode: "auto" });
+    expect(session.sdp).toBe(FAKE_SDP_ANSWER);
+    expect(h.spawned[0]!.args).toEqual(["app-server"]);
+    const calls = h.calls();
+    const methods = calls.map((call) => call.method);
+    expect(methods.slice(0, 3)).toEqual(["initialize", "initialized", "account/read"]);
+    expect(calls[0]!.params.capabilities).toEqual({ experimentalApi: true });
+    expect(calls[2]!.params).toEqual({ refreshToken: false });
+    expect(methods.indexOf("thread/start")).toBeLessThan(methods.indexOf("thread/realtime/start"));
+    expect(calls.find((call) => call.method === "thread/start")!.params).toEqual({
+      cwd: scratch, approvalPolicy: "on-request", sandbox: "workspace-write", approvalsReviewer: "auto_review", ephemeral: false,
+    });
+    expect(calls.find((call) => call.method === "thread/realtime/start")!.params).toEqual({
+      threadId: "codex-thread-1",
+      outputModality: "audio",
+      includeStartupContext: false,
+      transport: { type: "webrtc", sdp: "offer-sdp" },
+      version: "v3",
+      realtimeSessionId: "codex-thread-1",
+      initialItems: [{ role: "developer", text: "Be brief." }, { role: "user", text: "hi" }, { role: "assistant", text: "hello" }],
+      realtimeStartInstructions: "Do the work.",
+    });
+    await until(() => h.events.some((event) => event.type === "started"));
+  });
+
+  it("leaves out the work instructions and the developer item when they are empty", async () => {
+    const h = harness();
+    await h.start({ workInstructions: "  ", voiceInstructions: "", history: [] });
+    const params = h.calls().find((call) => call.method === "thread/realtime/start")!.params;
+    expect(params.initialItems).toEqual([]);
+    expect("realtimeStartInstructions" in params).toBe(false);
+    expect("prompt" in params).toBe(false);
+  });
+
+  it("asks for the effective config only in the custom mode", async () => {
+    const seen: unknown[] = [];
+    const h = harness({ deps: { threadParams: (mode, config) => { seen.push([mode, config]); return [{ approvalPolicy: "never" }]; } } });
+    await h.start({ approvalMode: "custom" });
+    expect(h.calls().map((call) => call.method)).toContain("config/read");
+    expect(seen).toHaveLength(1);
+    expect((seen[0] as unknown[])[0]).toBe("custom");
+    expect((seen[0] as unknown[])[1]).toBeTypeOf("object");
+  });
+
+  it("refuses with no-answer when no SDP comes, and ends the process", async () => {
+    const h = harness({ fake: { FAKE_CODEX_REALTIME_MODE: "silent" }, timeouts: { answerMs: 150 } });
+    const started = Date.now();
+    expect(await refusalOf(h.live.start(h.input()))).toBe("no-answer");
+    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(isGone(h.spawned[0]!.child)).toBe(true);
+    expect(h.logs).toEqual(["live codex: refused no-answer"]);
+  });
+
+  it("refuses with failed when the process cannot start or dies early", async () => {
+    const cannotStart = harness({ deps: { spawn: () => { throw new Error("ENOENT"); } } });
+    expect(await refusalOf(cannotStart.live.start(cannotStart.input()))).toBe("failed");
+
+    const rejected = harness({ fake: { FAKE_CODEX_START_ERROR: JSON.stringify({ code: -32600, message: "no thread" }) } });
+    expect(await refusalOf(rejected.live.start(rejected.input()))).toBe("failed");
+    expect(isGone(rejected.spawned[0]!.child)).toBe(true);
+
+    const dies = harness({ deps: { spawn: (_args, options) =>
+      spawn(process.execPath, ["-e", "process.exit(3)"], { cwd: options.cwd, env: options.env, stdio: ["pipe", "pipe", "pipe"] }) } });
+    expect(await refusalOf(dies.live.start(dies.input()))).toBe("failed");
+  });
+
+  it("escalates to SIGKILL for a process that ignores SIGTERM", async () => {
+    const stubborn = "process.on('SIGTERM', () => {}); process.stdin.resume(); setInterval(() => {}, 1000);";
+    const spawned: ChildProcess[] = [];
+    const h = harness({ timeouts: { rpcMs: 100, killMs: 150 }, deps: { spawn: (_args, options) => {
+      const child = spawn(process.execPath, ["-e", stubborn], { cwd: options.cwd, env: options.env, stdio: ["pipe", "pipe", "pipe"] });
+      spawned.push(child);
+      return child;
+    } } });
+    const started = Date.now();
+    expect(await refusalOf(h.live.start(h.input()))).toBe("failed");
+    expect(Date.now() - started).toBeLessThan(5_000);
+    await until(() => isGone(spawned[0]!));
+    expect(spawned[0]!.signalCode).toBe("SIGKILL");
+  });
+});
+
+describe("codexLiveVoice events", () => {
+  it("maps transcripts and keeps the agent answer until the turn completes, once", async () => {
+    const h = harness({ fake: { FAKE_CODEX_REALTIME_MODE: "turn-answer", FAKE_CODEX_REALTIME_REPLY: "The build passed." } });
+    await h.start();
+    await until(() => h.events.some((event) => event.type === "answer"));
+    expect(h.events).toEqual([
+      { type: "started" },
+      { type: "transcript", role: "user", delta: "spoken question" },
+      { type: "transcript", role: "assistant", delta: "spoken reply" },
+      { type: "answer", text: "The build passed." },
+    ]);
+  });
+
+  it("reports a realtime error as failed error", async () => {
+    const h = harness({ fake: { FAKE_CODEX_REALTIME_MODE: "error" } });
+    await h.start();
+    await until(() => h.events.some((event) => event.type === "failed"));
+    expect(h.events).toContainEqual({ type: "failed", reason: "error" });
+  });
+
+  it("reports an exit that stop did not cause as failed exit", async () => {
+    const h = harness({ fake: { FAKE_CODEX_REALTIME_MODE: "exit" } });
+    const session = await h.start();
+    await until(() => h.events.some((event) => event.type === "failed"));
+    expect(h.events.filter((event) => event.type === "failed")).toEqual([{ type: "failed", reason: "exit" }]);
+    const started = Date.now();
+    await session.stop();
+    expect(Date.now() - started).toBeLessThan(5_000);
+  });
+
+  it("sends appendText as a developer item and appendSpeech as speech", async () => {
+    const h = harness();
+    const session = await h.start();
+    session.appendText("The user opened a file.");
+    session.appendSpeech("One moment.");
+    await until(() => h.calls().some((call) => call.method === "thread/realtime/appendSpeech"));
+    const calls = h.calls();
+    expect(calls.find((call) => call.method === "thread/realtime/appendText")!.params)
+      .toEqual({ threadId: "codex-thread-1", text: "The user opened a file.", role: "developer" });
+    expect(calls.find((call) => call.method === "thread/realtime/appendSpeech")!.params)
+      .toEqual({ threadId: "codex-thread-1", text: "One moment." });
+  });
+});
+
+describe("codexLiveVoice approvals by voice", () => {
+  const asked = (h: Harness) => h.calls().find((call) => call.method === "thread/realtime/appendSpeech")?.params;
+
+  it("accepts on a spoken yes and asks with appendSpeech", async () => {
+    const h = harness({ fake: { FAKE_CODEX_REALTIME_MODE: "approval", FAKE_CODEX_REALTIME_REPLY: "yes" } });
+    await h.start();
+    await until(() => h.events.some((event) => event.type === "approval"));
+    expect(h.events).toContainEqual({ type: "approval", outcome: "accept" });
+    expect(asked(h)).toEqual({ threadId: "codex-thread-1", text: "Codex wants to run a command: rm -rf scratch. Do you allow it? Say yes or no." });
+    await until(() => h.decision() !== null);
+    expect(h.decision()).toEqual({ decision: "accept" });
+  });
+
+  it("declines on a spoken no", async () => {
+    const h = harness({ fake: { FAKE_CODEX_REALTIME_MODE: "approval", FAKE_CODEX_REALTIME_REPLY: "no" } });
+    await h.start();
+    await until(() => h.events.some((event) => event.type === "approval"));
+    expect(h.events).toContainEqual({ type: "approval", outcome: "decline" });
+    await until(() => h.decision() !== null);
+    expect(h.decision()).toEqual({ decision: "decline" });
+  });
+
+  it("declines on timeout when nobody answers", async () => {
+    const h = harness({ fake: { FAKE_CODEX_REALTIME_MODE: "approval", FAKE_CODEX_REALTIME_REPLY: "" }, timeouts: { approvalMs: 150 } });
+    await h.start();
+    await until(() => h.events.some((event) => event.type === "approval"));
+    expect(h.events).toContainEqual({ type: "approval", outcome: "timeout" });
+    await until(() => h.decision() !== null);
+    expect(h.decision()).toEqual({ decision: "decline" });
+  });
+});
+
+describe("codexLiveVoice stop and dispose", () => {
+  it("sends the stop request, ends the process, and is safe to repeat", async () => {
+    const h = harness();
+    const session = await h.start();
+    await until(() => h.events.some((event) => event.type === "started"));
+    const started = Date.now();
+    const first = session.stop();
+    const second = session.stop();
+    expect(second).toBe(first);
+    await Promise.all([first, second]);
+    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(h.calls().map((call) => call.method)).toContain("thread/realtime/stop");
+    expect(h.calls().find((call) => call.method === "thread/realtime/stop")!.params).toEqual({ threadId: "codex-thread-1" });
+    expect(isGone(h.spawned[0]!.child)).toBe(true);
+    await session.stop();
+    expect(h.events.filter((event) => event.type === "failed")).toEqual([]);
+  });
+
+  it("emits nothing after stop starts", async () => {
+    const h = harness({ fake: { FAKE_CODEX_REALTIME_MODE: "exit" } });
+    const session = await h.start();
+    const stopping = session.stop();
+    const before = h.events.length;
+    await stopping;
+    expect(h.events).toHaveLength(before);
+    expect(h.events.some((event) => event.type === "failed")).toBe(false);
+  });
+
+  it("ignores appends after stop", async () => {
+    const h = harness();
+    const session = await h.start();
+    await session.stop();
+    session.appendText("late");
+    session.appendSpeech("late");
+    expect(h.calls().some((call) => call.params?.text === "late")).toBe(false);
+  });
+
+  it("stops every open session on dispose", async () => {
+    const h = harness();
+    await h.start();
+    await h.start();
+    expect(h.spawned).toHaveLength(2);
+    await h.live.dispose();
+    expect(h.spawned.every(({ child }) => isGone(child))).toBe(true);
+  });
+});
+
+describe("codexLiveVoice logging", () => {
+  it("logs counters and outcomes only", async () => {
+    const h = harness({ fake: { FAKE_CODEX_REALTIME_MODE: "turn-answer", FAKE_CODEX_REALTIME_REPLY: "SECRET-ANSWER" } });
+    const session = await h.start({ voiceInstructions: "SECRET-PERSONA", workInstructions: "SECRET-WORK", sdp: "SECRET-OFFER" });
+    session.appendText("SECRET-APPEND");
+    await until(() => h.events.some((event) => event.type === "answer"));
+    await session.stop();
+
+    const approvals = harness({ fake: { FAKE_CODEX_REALTIME_MODE: "approval", FAKE_CODEX_REALTIME_COMMAND: "SECRET-COMMAND" } });
+    const approved = await approvals.start();
+    await until(() => approvals.events.some((event) => event.type === "approval"));
+    await approved.stop();
+
+    const lines = [...h.logs, ...approvals.logs];
+    expect(lines.length).toBeGreaterThan(0);
+    for (const line of lines) expect(line).toMatch(/^live codex: (started|stopped( [A-Za-z]+=\d+)+|refused [a-z-]+)$/);
+    const text = lines.join("\n");
+    for (const secret of ["SECRET-", "spoken question", "spoken reply", "fake-codex-answer"]) expect(text).not.toContain(secret);
+  });
+});
+
+describe("CodexDriver startLiveVoice", () => {
+  let instance: ProviderInstance | undefined;
+
+  afterEach(async () => {
+    await instance?.dispose();
+    instance = undefined;
+  });
+
+  const create = async (environment: Record<string, string>, config: Record<string, unknown> = {}) => {
+    instance = await CodexDriver.create({
+      instanceId: "codex-live-test",
+      displayName: "Codex Live Test",
+      environment: { HOME: scratch, USERPROFILE: scratch, CODEX_HOME: join(scratch, ".codex"), FAKE_CODEX_VERSION: MODERN, ...environment },
+      enabled: true,
+      config: { cli: FAKE, fullAuto: false, ...config },
+    });
+    return instance;
+  };
+  const offer = (): EngineLiveVoiceStart => ({
+    sdp: "offer-sdp", cwd: scratch, approvalMode: "ask", voiceInstructions: "Be brief.", workInstructions: "", history: [], onEvent: () => {},
+  });
+
+  it("starts the app-server with no plan arguments and none of the plan or API credentials", async () => {
+    const dump = join(scratch, "driver-dump.json");
+    const provider = await create({
+      FAKE_CODEX_DUMP: dump,
+      OPENMAUSBOT_CHATGPT_TOKEN: "leak-plan-token",
+      OPENMAUSBOT_CODEX_API_KEY: "leak-api-key",
+      OPENAI_API_KEY: "leak-openai-key",
+    });
+    const session = await provider.startLiveVoice!(offer());
+    expect(session.sdp).toBe(FAKE_SDP_ANSWER);
+    await session.stop();
+    const seen = JSON.parse(readFileSync(dump, "utf8"));
+    expect(seen.argv).toEqual(["app-server"]);
+    for (const name of ["OPENMAUSBOT_CHATGPT_TOKEN", "OPENMAUSBOT_CODEX_API_KEY", "OPENAI_API_KEY"]) expect(seen.env[name]).toBeUndefined();
+    expect(JSON.stringify(seen.env)).not.toContain("leak-");
+    const start = seen.calls.find((call: { method: string }) => call.method === "thread/start");
+    expect(start.params).toMatchObject({ cwd: scratch, approvalPolicy: "on-request", sandbox: "workspace-write", ephemeral: false });
+  });
+
+  it("refuses an old Codex and an unsigned account", async () => {
+    const old = await create({ FAKE_CODEX_VERSION: "codex-cli 0.169.0" });
+    expect(await refusalOf(old.startLiveVoice!(offer()))).toBe("too-old");
+    await old.dispose();
+    instance = undefined;
+    const apiKey = await create({ FAKE_CODEX_ACCOUNT: "apikey" });
+    expect(await refusalOf(apiKey.startLiveVoice!(offer()))).toBe("not-signed-in");
+  });
+
+  it("refuses the ChatGPT plan token, an endpoint and a managed key", async () => {
+    const endpoint = await create({ CODEX_HOME: join(scratch, "endpoint"), OPENMAUSBOT_CODEX_API_KEY: "synthetic-endpoint-key" },
+      { endpoint: { url: "http://127.0.0.1:1/v1", models: ["gateway-model"] } });
+    expect(await refusalOf(endpoint.startLiveVoice!(offer()))).toBe("unsupported-sign-in");
+    await endpoint.dispose();
+
+    const managed = await create({ OPENMAUSBOT_COMPANY_API_KEY: "synthetic-company-fixture" },
+      { managed: { url: "http://127.0.0.1:1/v1", models: ["company-codex-model"] } });
+    expect(await refusalOf(managed.startLiveVoice!(offer()))).toBe("unsupported-sign-in");
+    await managed.dispose();
+
+    const plan = await create({}, { authMode: "chatgpt-plan" });
+    expect(await refusalOf(plan.startLiveVoice!(offer()))).toBe("unsupported-sign-in");
+  });
+
+  it("stops its sessions when the provider is disposed", async () => {
+    const dump = join(scratch, "dispose-dump.json");
+    const provider = await create({ FAKE_CODEX_DUMP: dump });
+    await provider.startLiveVoice!(offer());
+    const pid = JSON.parse(readFileSync(dump, "utf8")).pid as number;
+    await provider.dispose();
+    instance = undefined;
+    await until(() => { try { process.kill(pid, 0); return false; } catch { return true; } });
+  });
+});
