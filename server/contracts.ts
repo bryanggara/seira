@@ -600,8 +600,10 @@ export interface EngineLiveVoiceSession {
 export type EngineLiveVoiceRefusal = "not-signed-in" | "too-old" | "unsupported-sign-in" | "no-answer" | "failed";
 
 export class EngineLiveVoiceError extends Error {
-  constructor(readonly refusal: EngineLiveVoiceRefusal) {
+  readonly refusal: EngineLiveVoiceRefusal;
+  constructor(refusal: EngineLiveVoiceRefusal) {
     super(refusal);
+    this.refusal = refusal;
     this.name = "EngineLiveVoiceError";
   }
 }
