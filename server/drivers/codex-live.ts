@@ -57,6 +57,8 @@ export interface CodexLiveDeps {
   clientVersion: string;
   /** Receives counters and outcomes only. */
   log(line: string): void;
+  /** Clock for the phase timings in the log. Defaults to `Date.now`. */
+  now?(): number;
   timeouts?: Partial<CodexLiveTimeouts>;
 }
 
@@ -92,13 +94,27 @@ export function codexLiveVoice(deps: CodexLiveDeps): CodexLiveVoice {
 
   async function start(input: EngineLiveVoiceStart): Promise<EngineLiveVoiceSession> {
     if (deps.unsupportedSignIn) refuse("unsupported-sign-in");
-    if (codexVersionTooOld(await deps.version().catch(() => null))) refuse("too-old");
+    const clock = deps.now ?? Date.now;
+    const began = clock();
+    const phases = { init: 0, account: 0, thread: 0, answer: 0 };
+    let phase: keyof typeof phases = "init";
+    let phaseBegan = began;
+    const endPhase = (next?: keyof typeof phases) => {
+      const at = clock();
+      phases[phase] = at - phaseBegan;
+      phaseBegan = at;
+      if (next) phase = next;
+      return at;
+    };
+    const timings = (end: number) => `ms=${end - began} init=${phases.init} account=${phases.account} thread=${phases.thread} answer=${phases.answer}`;
+    const versionRead = deps.version().catch(() => null);
+    const tooOld = async () => codexVersionTooOld(await versionRead);
 
     let child: LiveCodexChild;
     try {
       child = deps.spawn(["app-server"], { cwd: input.cwd, env: deps.env() });
     } catch {
-      return refuse("failed");
+      return refuse(await tooOld() ? "too-old" : "failed");
     }
 
     let exited = false;
@@ -197,7 +213,12 @@ export function codexLiveVoice(deps: CodexLiveDeps): CodexLiveVoice {
         case "thread/realtime/transcript/done":
           if (params.role === "user" && typeof params.text === "string") approval.heard(params.text);
           break;
+        case "turn/started":
+        case "item/started":
+          emit({ type: "working" });
+          break;
         case "item/completed":
+          emit({ type: "working" });
           if (params.item?.type === "agentMessage" && typeof params.item.text === "string" && params.item.text.trim()) {
             keptAnswer = params.item.text;
           }
@@ -255,6 +276,12 @@ export function codexLiveVoice(deps: CodexLiveDeps): CodexLiveVoice {
     };
     open.add(session);
 
+    const refuseAfterSpawn = (refusal: EngineLiveVoiceError["refusal"]): never => {
+      const end = endPhase();
+      deps.log(`live codex: refused ${refusal} ${timings(end)}`);
+      throw new EngineLiveVoiceError(refusal);
+    };
+
     let sdp: string;
     try {
       await request("initialize", {
@@ -262,17 +289,20 @@ export function codexLiveVoice(deps: CodexLiveDeps): CodexLiveVoice {
         capabilities: { experimentalApi: true },
       });
       send({ jsonrpc: "2.0", method: "initialized", params: {} });
+      endPhase("account");
 
-      const account = await request("account/read", { refreshToken: false });
+      if (await tooOld()) throw new EngineLiveVoiceError("too-old");
+      const accountRead = request("account/read", { refreshToken: false });
+      const configRead = input.approvalMode === "custom" ? request("config/read", { cwd: input.cwd, includeLayers: false }) : null;
+      configRead?.catch(() => {});
+      const account = await accountRead;
       if (account?.account?.type !== "chatgpt") {
         await terminate();
         open.delete(session);
-        return refuse("not-signed-in");
+        return refuseAfterSpawn("not-signed-in");
       }
-
-      const effectiveConfig = input.approvalMode === "custom"
-        ? (await request("config/read", { cwd: input.cwd, includeLayers: false }))?.config
-        : undefined;
+      const effectiveConfig = configRead ? (await configRead)?.config : undefined;
+      endPhase("thread");
       let params = deps.approvalParams(input.approvalMode, effectiveConfig);
       const startThread = () => request("thread/start", { cwd: input.cwd, ...params.thread, ephemeral: false });
       let started: any;
@@ -287,6 +317,7 @@ export function codexLiveVoice(deps: CodexLiveDeps): CodexLiveVoice {
       const id = started?.thread?.id;
       if (typeof id !== "string" || !id) throw new Error("thread");
       threadId = id;
+      endPhase("answer");
 
       const initialItems = [
         { role: "developer", text: input.voiceInstructions },
@@ -317,12 +348,13 @@ export function codexLiveVoice(deps: CodexLiveDeps): CodexLiveVoice {
       if (error instanceof EngineLiveVoiceError && error.refusal === "not-signed-in") throw error;
       await terminate();
       open.delete(session);
-      const refusal = error instanceof EngineLiveVoiceError ? error.refusal : "failed";
-      return refuse(refusal);
+      const refusal = await tooOld() ? "too-old" : error instanceof EngineLiveVoiceError ? error.refusal : "failed";
+      return refuseAfterSpawn(refusal);
     }
 
     established = true;
-    deps.log("live codex: started");
+    const ready = endPhase();
+    deps.log(`live codex: started ${timings(ready)}`);
     return {
       sdp,
       appendText(text) {

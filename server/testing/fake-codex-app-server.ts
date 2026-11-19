@@ -34,7 +34,9 @@
 //   FAKE_CODEX_ACCOUNT  chatgpt (default) | apikey | none; wins over FAKE_CODEX_ACCOUNT_MODE
 //   FAKE_CODEX_REALTIME_MODE  thread/realtime/start: answer (default: sdp, then started) | silent (no sdp) | error (sdp, started, then
 //     thread/realtime/error) | exit (sdp, started, then exit 1) | approval (sdp, started, then a command approval request; the
-//     next appendSpeech is followed by a user transcript/done) | turn-answer (sdp, started, then an agent message and turn/completed)
+//     next appendSpeech is followed by a user transcript/done) | turn-answer (sdp, started, then an agent message and turn/completed) |
+//     working (sdp, started, then turn/started, item/started, item/completed and turn/completed of the call thread, no transcript) |
+//     working-other-thread (the same steps for another thread)
 //   FAKE_CODEX_REALTIME_REPLY  approval mode: the user's spoken answer (default "yes", empty: no answer); turn-answer mode: the agent message
 //   FAKE_CODEX_REALTIME_APPROVAL  approval mode: JSON {method, params} merged over the default command request
 //   FAKE_CODEX_REALTIME_STALE  approval mode: "1" sends the user's answer as an utterance that began before the question
@@ -1158,6 +1160,12 @@ process.stdin.on("data", (chunk) => {
           if (process.env.FAKE_CODEX_REALTIME_STALE === "1") {
             setTimeout(() => notify("thread/realtime/transcript/done", { threadId, role: "user", text: "yes" }), 100);
           }
+        } else if (realtimeMode === "working" || realtimeMode === "working-other-thread") {
+          const target = realtimeMode === "working" ? threadId : "other-thread";
+          notify("turn/started", { threadId: target, turn: { status: "inProgress" } });
+          notify("item/started", { threadId: target, item: { id: "c1", type: "commandExecution" } });
+          notify("item/completed", { threadId: target, item: { id: "c1", type: "commandExecution" } });
+          notify("turn/completed", { threadId: target, turn: { status: "completed" } });
         } else if (realtimeMode === "turn-answer") {
           notify("thread/realtime/transcript/delta", { threadId, role: "user", delta: "spoken question" });
           notify("thread/realtime/transcript/delta", { threadId, role: "assistant", delta: "spoken reply" });

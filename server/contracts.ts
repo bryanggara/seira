@@ -585,6 +585,8 @@ export type EngineLiveVoiceEvent =
   | { type: "transcript"; role: "user" | "assistant"; delta: string }
   | { type: "answer"; text: string }
   | { type: "approval"; outcome: "accept" | "decline" | "timeout" }
+  /** Codex is doing work for the call. It fires for each step of the call thread's turn, with no payload. */
+  | { type: "working" }
   | { type: "closed"; reason: string | null }
   | { type: "failed"; reason: "error" | "exit" };
 

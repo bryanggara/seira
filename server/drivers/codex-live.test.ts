@@ -138,15 +138,34 @@ describe("codexLiveVoice sign-in checks", () => {
     expect(h.spawned).toHaveLength(1);
     expect(isGone(h.spawned[0]!.child)).toBe(true);
     expect(h.calls().map((call) => call.method)).not.toContain("thread/realtime/start");
-    expect(h.logs).toEqual(["live codex: refused not-signed-in"]);
+    expect(h.logs).toHaveLength(1);
+    expect(h.logs[0]).toMatch(/^live codex: refused not-signed-in ms=\d+ init=\d+ account=\d+ thread=0 answer=0$/);
   });
 
-  it("refuses an old Codex without starting anything", async () => {
+  it("refuses an old Codex before it reads the account, and ends the process", async () => {
     const readVersion = (env: Record<string, string>) => execFileSync(process.execPath, [FAKE, "--version"], { env: { ...baseEnv(), ...env } as NodeJS.ProcessEnv }).toString();
     const h = harness({ deps: { version: async () => readVersion({ FAKE_CODEX_VERSION: "codex-cli 0.169.0" }) } });
     expect(await refusalOf(h.live.start(h.input()))).toBe("too-old");
-    expect(h.spawned).toHaveLength(0);
-    expect(h.calls()).toEqual([]);
+    expect(h.spawned).toHaveLength(1);
+    expect(isGone(h.spawned[0]!.child)).toBe(true);
+    const methods = h.calls().map((call) => call.method);
+    expect(methods).not.toContain("account/read");
+    expect(methods).not.toContain("thread/start");
+    expect(h.logs).toHaveLength(1);
+    expect(h.logs[0]).toMatch(/^live codex: refused too-old ms=\d+ /);
+  });
+
+  it("refuses an old Codex as too-old, not failed, when the process dies at once", async () => {
+    const h = harness({
+      version: "codex-cli 0.169.0",
+      deps: { spawn: (_args, options) => spawn(process.execPath, ["-e", "process.exit(3)"], { cwd: options.cwd, env: options.env, stdio: ["pipe", "pipe", "pipe"] }) },
+    });
+    expect(await refusalOf(h.live.start(h.input()))).toBe("too-old");
+  });
+
+  it("refuses an old Codex as too-old when the process cannot start", async () => {
+    const h = harness({ version: "codex-cli 0.169.0", deps: { spawn: () => { throw new Error("ENOENT"); } } });
+    expect(await refusalOf(h.live.start(h.input()))).toBe("too-old");
   });
 
   it("continues when the version is unknown", async () => {
@@ -215,7 +234,8 @@ describe("codexLiveVoice start", () => {
     expect(await refusalOf(h.live.start(h.input()))).toBe("no-answer");
     expect(Date.now() - started).toBeLessThan(5_000);
     expect(isGone(h.spawned[0]!.child)).toBe(true);
-    expect(h.logs).toEqual(["live codex: refused no-answer"]);
+    expect(h.logs).toHaveLength(1);
+    expect(h.logs[0]).toMatch(/^live codex: refused no-answer ms=\d+ init=\d+ account=\d+ thread=\d+ answer=\d+$/);
   });
 
   it("refuses with failed when the process cannot start or dies early", async () => {
@@ -247,6 +267,69 @@ describe("codexLiveVoice start", () => {
   });
 });
 
+describe("codexLiveVoice start timing", () => {
+  const spyOnRequests = (methods: string[]): Partial<CodexLiveDeps> => ({
+    spawn: (args, spawnOptions) => {
+      const child = spawn(process.execPath, [FAKE, ...args], { cwd: spawnOptions.cwd, env: spawnOptions.env, stdio: ["pipe", "pipe", "pipe"] });
+      const write = child.stdin.write.bind(child.stdin);
+      child.stdin.write = ((chunk: unknown, ...rest: unknown[]) => {
+        try { methods.push(JSON.parse(String(chunk)).method); } catch { /* not a request */ }
+        return (write as (...args: unknown[]) => boolean)(chunk, ...rest);
+      }) as typeof child.stdin.write;
+      return child;
+    },
+  });
+
+  it("reads the version while the process starts, and holds the account read until the version is known", async () => {
+    const order: string[] = [];
+    const methods: string[] = [];
+    let release!: (value: string) => void;
+    const known = new Promise<string>((resolve) => { release = resolve; });
+    const h = harness({ deps: {
+      version: () => { order.push("version"); return known; },
+      ...spyOnRequests(methods),
+      spawn: (args, spawnOptions) => { order.push("spawn"); return spyOnRequests(methods).spawn!(args, spawnOptions); },
+    } });
+    const starting = h.start();
+    await until(() => methods.includes("initialized"));
+    expect(order).toEqual(["version", "spawn"]);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(methods).not.toContain("account/read");
+    release(MODERN);
+    await starting;
+    expect(methods).toContain("account/read");
+  });
+
+  it("sends the account read and the config read together in the custom mode", async () => {
+    const methods: string[] = [];
+    const h = harness({ fake: { FAKE_CODEX_ACCOUNT_MODE: "hang" }, timeouts: { rpcMs: 300 }, deps: spyOnRequests(methods) });
+    expect(await refusalOf(h.live.start(h.input({ approvalMode: "custom" })))).toBe("failed");
+    expect(methods).toContain("account/read");
+    expect(methods).toContain("config/read");
+  });
+
+  it("never starts a thread for an account that is not signed in, even in the custom mode", async () => {
+    const methods: string[] = [];
+    const h = harness({ fake: { FAKE_CODEX_ACCOUNT: "none" }, deps: spyOnRequests(methods) });
+    expect(await refusalOf(h.live.start(h.input({ approvalMode: "custom" })))).toBe("not-signed-in");
+    expect(methods).not.toContain("thread/start");
+  });
+
+  it("logs the time of each phase", async () => {
+    let tick = 0;
+    const h = harness({ deps: { now: () => (tick += 10) } });
+    await h.start();
+    expect(h.logs).toEqual(["live codex: started ms=40 init=10 account=10 thread=10 answer=10"]);
+  });
+
+  it("logs the phases reached when a start fails", async () => {
+    let tick = 0;
+    const h = harness({ fake: { FAKE_CODEX_ACCOUNT: "none" }, deps: { now: () => (tick += 10) } });
+    await refusalOf(h.live.start(h.input()));
+    expect(h.logs).toEqual(["live codex: refused not-signed-in ms=20 init=10 account=10 thread=0 answer=0"]);
+  });
+});
+
 describe("codexLiveVoice events", () => {
   it("maps transcripts and keeps the agent answer until the turn completes, once", async () => {
     const h = harness({ fake: { FAKE_CODEX_REALTIME_MODE: "turn-answer", FAKE_CODEX_REALTIME_REPLY: "The build passed." } });
@@ -256,6 +339,7 @@ describe("codexLiveVoice events", () => {
       { type: "started" },
       { type: "transcript", role: "user", delta: "spoken question" },
       { type: "transcript", role: "assistant", delta: "spoken reply" },
+      { type: "working" },
       { type: "answer", text: "The build passed." },
     ]);
   });
@@ -265,6 +349,20 @@ describe("codexLiveVoice events", () => {
     await h.start();
     await until(() => h.events.some((event) => event.type === "failed"));
     expect(h.events).toContainEqual({ type: "failed", reason: "error" });
+  });
+
+  it("reports each step of a Codex turn as working", async () => {
+    const h = harness({ fake: { FAKE_CODEX_REALTIME_MODE: "working" } });
+    await h.start();
+    await until(() => h.events.filter((event) => event.type === "working").length >= 3);
+    expect(h.events.filter((event) => event.type === "working")).toHaveLength(3);
+  });
+
+  it("ignores the steps of another thread", async () => {
+    const h = harness({ fake: { FAKE_CODEX_REALTIME_MODE: "working-other-thread" } });
+    await h.start();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(h.events.some((event) => event.type === "working")).toBe(false);
   });
 
   it("reports an exit that stop did not cause as failed exit", async () => {
@@ -446,7 +544,7 @@ describe("codexLiveVoice logging", () => {
 
     const lines = [...h.logs, ...approvals.logs];
     expect(lines.length).toBeGreaterThan(0);
-    for (const line of lines) expect(line).toMatch(/^live codex: (started|stopped( [A-Za-z]+=\d+)+|refused [a-z-]+)$/);
+    for (const line of lines) expect(line).toMatch(/^live codex: (started|stopped|refused [a-z-]+)( [A-Za-z]+=\d+)*$/);
     const text = lines.join("\n");
     for (const secret of ["SECRET-", "spoken question", "spoken reply", "fake-codex-answer"]) expect(text).not.toContain(secret);
   });

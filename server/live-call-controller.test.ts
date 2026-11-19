@@ -1791,7 +1791,7 @@ describe("a Codex Live call", () => {
 });
 
 describe("a Codex Live call through the real session wiring", () => {
-  function through(opts: { startError?: EngineLiveVoiceError; signedIn?: () => boolean } = {}) {
+  function through(opts: { startError?: EngineLiveVoiceError; signedIn?: () => boolean; hold?: Promise<void> } = {}) {
     const stop = vi.fn(async () => {});
     const posted: string[] = [];
     let onEvent!: (event: EngineLiveVoiceEvent) => void;
@@ -1800,6 +1800,7 @@ describe("a Codex Live call through the real session wiring", () => {
       codexLive: () => ({
         cwd: "/work", approvalMode: "ask" as never,
         startLiveVoice: async (input: EngineLiveVoiceStart) => {
+          await opts.hold;
           if (opts.startError) throw opts.startError;
           onEvent = input.onEvent;
           return { sdp: "codex-answer", appendText: vi.fn(), appendSpeech: vi.fn(), stop };
@@ -1854,6 +1855,46 @@ describe("a Codex Live call through the real session wiring", () => {
     await vi.advanceTimersByTimeAsync(5 * 60_000 + IDLE_CHECK_MS * 2);
     expect(c.t.frames.at(-1)).toMatchObject({ status: "ended", endReason: "idle" });
     expect(c.stop).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the call live while Codex works with no speech, and ends it as idle after the work stops", async () => {
+    const c = through();
+    await c.begin();
+    c.event({ type: "started" });
+    await vi.advanceTimersByTimeAsync(0);
+    for (let i = 0; i < 14; i++) {
+      await vi.advanceTimersByTimeAsync(60_000);
+      c.event({ type: "working" });
+    }
+    expect(c.t.controller.current()?.status).toBe("live");
+    expect(c.stop).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(5 * 60_000 + IDLE_CHECK_MS * 2);
+    expect(c.t.frames.at(-1)).toMatchObject({ status: "ended", endReason: "idle" });
+    expect(c.stop).toHaveBeenCalledOnce();
+  });
+
+  it("stops Codex once when the person hangs up before Codex has answered", async () => {
+    let release!: () => void;
+    const c = through({ hold: new Promise<void>((resolve) => { release = resolve; }) });
+    const starting = c.begin();
+    await c.t.controller.end(c.t.controller.current()!.callId);
+    release();
+    await expect(starting).rejects.toMatchObject({ status: 503 });
+    expect(c.stop).toHaveBeenCalledOnce();
+    expect(c.t.controller.current()).toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("leaves nothing to stop when Codex fails to start after the person hung up", async () => {
+    let release!: () => void;
+    const c = through({ startError: new EngineLiveVoiceError("no-answer"), hold: new Promise<void>((resolve) => { release = resolve; }) });
+    const starting = c.begin();
+    await c.t.controller.end(c.t.controller.current()!.callId);
+    release();
+    await expect(starting).rejects.toMatchObject({ status: 502 });
+    expect(c.stop).not.toHaveBeenCalled();
+    expect(c.t.controller.current()).toBeNull();
+    await expect(c.wiring.stopAll()).resolves.toBeUndefined();
   });
 
   it("stops Codex once when the person hangs up", async () => {

@@ -9,6 +9,7 @@ const UNEXPECTED_CLOSE = 1011;
 /** Transcript deltas of one utterance arrive closer together than this. */
 const UTTERANCE_GAP_MS = 1_500;
 const MAX_HELD_FRAMES = 200;
+const ACTIVITY_FRAME_GAP_MS = 1_000;
 const KNOWN_CLOSE_REASONS = new Set(["expired", "content", "remote_hangup", "connection_lost"]);
 
 type Voice = { endMs: number; at: number };
@@ -34,6 +35,7 @@ export class LiveCodexSocket implements LiveSocket {
   private stopRequested = false;
   private stopPromise: Promise<void> | null = null;
   private closeDelivered = false;
+  private lastActivityFrameAt = Number.NEGATIVE_INFINITY;
   private readonly now: () => number;
   private readonly onClosed: (() => void) | undefined;
   private readonly createdAt: number;
@@ -107,6 +109,13 @@ export class LiveCodexSocket implements LiveSocket {
         this.finishClose(UNEXPECTED_CLOSE);
         void this.stopSession();
         return;
+      case "working": {
+        const at = this.now();
+        if (at - this.lastActivityFrameAt < ACTIVITY_FRAME_GAP_MS) return;
+        this.lastActivityFrameAt = at;
+        this.frame({ type: "session.activity" });
+        return;
+      }
       case "answer":
       case "approval":
         return;

@@ -310,6 +310,63 @@ describe("a Codex call's session", () => {
     expect(w.stop).toHaveBeenCalledTimes(2);
   });
 
+  describe("a call that ends before Codex is live", () => {
+    function pending() {
+      const stop = vi.fn(async () => {});
+      let resolve!: (session: EngineLiveVoiceSession) => void;
+      let reject!: (error: Error) => void;
+      const start = () => new Promise<EngineLiveVoiceSession>((done, fail) => { resolve = done; reject = fail; });
+      const session: EngineLiveVoiceSession = { sdp: "late answer", appendText: vi.fn(), appendSpeech: vi.fn(), stop };
+      return { stop, start, session, resolve: () => resolve(session), reject: (error: Error) => reject(error) };
+    }
+
+    it("stops the session once when the start resolves after stopAll, and keeps no socket", async () => {
+      const p = pending();
+      const w = codexWiring({ start: p.start });
+      const creating = create(w);
+      await w.stopAll();
+      p.resolve();
+      await expect(creating).resolves.toMatchObject({ sdp: "late answer" });
+      await vi.waitFor(() => expect(p.stop).toHaveBeenCalledOnce());
+      await w.stopAll();
+      expect(p.stop).toHaveBeenCalledOnce();
+      expect(w.calls.openSocket("anything", "", codexLiveEndpoint()).readyState).toBe(3);
+    });
+
+    it("stops the session once when the caller closes the socket of a start that has just resolved", async () => {
+      const p = pending();
+      const w = codexWiring({ start: p.start });
+      const creating = create(w);
+      p.resolve();
+      const { sessionId } = await creating;
+      const socket = w.calls.openSocket(w.calls.attachUrl(sessionId, codexLiveEndpoint()), "", codexLiveEndpoint());
+      socket.close(1000);
+      socket.close(1000);
+      await w.stopAll();
+      expect(p.stop).toHaveBeenCalledOnce();
+      expect(w.calls.openSocket(sessionId, "", codexLiveEndpoint()).readyState).toBe(3);
+    });
+
+    it("rejects without an unhandled rejection when a start fails after the call ended", async () => {
+      const unhandled = vi.fn();
+      process.on("unhandledRejection", unhandled);
+      try {
+        const p = pending();
+        const w = codexWiring({ start: p.start });
+        const creating = create(w);
+        await w.stopAll();
+        p.reject(new EngineLiveVoiceError("no-answer"));
+        await expect(creating).rejects.toMatchObject({ status: 502, message: LIVE_CODEX_NO_ANSWER });
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        expect(unhandled).not.toHaveBeenCalled();
+        expect(p.stop).not.toHaveBeenCalled();
+        await expect(w.stopAll()).resolves.toBeUndefined();
+      } finally {
+        process.off("unhandledRejection", unhandled);
+      }
+    });
+  });
+
   it("forgets a session whose start failed, so stopAll has nothing to stop", async () => {
     const w = codexWiring({ start: async () => { throw new EngineLiveVoiceError("no-answer"); } });
     await expect(create(w)).rejects.toBeTruthy();

@@ -504,6 +504,9 @@ export class LiveCallController {
         call.transcript.addOutput(Number(event.start_ms), Number(event.end_ms));
         this.touch(call);
         return;
+      case "session.activity":
+        this.touch(call);
+        return;
       case "session.delegation.created": {
         const delegation = event.delegation as { id?: unknown; target?: unknown } | undefined;
         if (delegation?.target !== "client" || typeof delegation.id !== "string") return;

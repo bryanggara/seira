@@ -56,6 +56,29 @@ describe("LiveCodexSocket", () => {
     expect(c).toMatchObject({ type: "session.output_transcript.delta", delta: "ok", start_ms: 8_000, end_ms: 8_000 });
   });
 
+  it("sends at most one activity frame a second for Codex work", () => {
+    let now = 5_000;
+    const t = wired({ now: () => now });
+    t.socket.event({ type: "started" });
+    for (let step = 0; step < 5; step++) {
+      now += 200;
+      t.socket.event({ type: "working" });
+    }
+    expect(t.frames.filter((frame) => frame.type === "session.activity")).toHaveLength(1);
+    now += 1_000;
+    t.socket.event({ type: "working" });
+    expect(t.frames.filter((frame) => frame.type === "session.activity")).toHaveLength(2);
+    expect(t.frames.at(-1)).toEqual({ type: "session.activity" });
+  });
+
+  it("sends no activity frame after the socket closed", () => {
+    const t = wired();
+    t.socket.event({ type: "started" });
+    t.socket.close();
+    t.socket.event({ type: "working" });
+    expect(t.frames.some((frame) => frame.type === "session.activity")).toBe(false);
+  });
+
   it("starts a new utterance after a pause", () => {
     let now = 0;
     const t = wired({ now: () => now });

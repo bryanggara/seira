@@ -7893,16 +7893,14 @@ async function beginTurn(
         ensureWorkspace(bot.id, appLanguage());
         if (bot.memoryEnabled !== false) beginMemoryTurn(teamHost.layer(bot.id, threadId), threadId); botBox.lend(bot.id, threadId, teamHost.layerDirs(bot.id, threadId)); teamFilesHost.beginTurn(bot.id, threadId);
       }
-      const privateWorkspace = worksInWorkspace ? ensureTaskWorkspaceWithSkills(bot.id, threadId, skillsHost.turnImports(bot, threadId, instance)) : undefined;
+      const folders = worksInWorkspace ? taskFolders(bot, threadId, instance) : undefined;
+      const privateWorkspace = folders?.privateWorkspace;
       const skillInstructions = renderSkillInstructions(selectedSkills, {
         includeRoot: worksInWorkspace,
       });
       const packagePlaybooks = installedPlaybookInstructions(providerText, bot.playbooks);
       // A legacy task with a live provider session pins to null, since moving it breaks resume; a Cloud guest's conversation pins its own private folder.
-      const pinnedCwd =
-        privateWorkspace
-          ? store.pinTaskCwd(bot.id, threadId, privateWorkspace, { privateOnly: cloudGuestOpened(threadId) || botApiThread(threadId) })
-          : null;
+      const pinnedCwd = folders ? folders.pinnedCwd : null;
       const cwd = pinnedCwd ?? undefined;
       const checkpointCwd = cwd && cwd !== privateWorkspace ? cwd : undefined;
       const dwebUrl = process.env.DWEB_URL?.trim();
@@ -12408,13 +12406,19 @@ function liveCallTitle(botId: string, threadId: string, excerpt: string): Promis
   const gate = threadTitleGate(bot);
   return gate.ok ? generateThreadTitle(gate.instance, excerpt, "call") : null;
 }
+/** The conversation's private folder and the folder its work is pinned to, if any. A chat turn and a Live call both start here. */
+function taskFolders(bot: BotRecord, threadId: string, instance: { instanceId: string; driverKind: string }): { privateWorkspace: string; pinnedCwd: string | null } {
+  const privateWorkspace = ensureTaskWorkspaceWithSkills(bot.id, threadId, skillsHost.turnImports(bot, threadId, instance));
+  const pinnedCwd = store.pinTaskCwd(bot.id, threadId, privateWorkspace, { privateOnly: cloudGuestOpened(threadId) || botApiThread(threadId) });
+  return { privateWorkspace, pinnedCwd };
+}
 /** The folder and approval level are the ones a chat turn of this conversation gets (beginTurn). */
 function liveCodexFor(botId: string, threadId: string): ReturnType<NonNullable<Parameters<typeof liveSessionWiring>[0]["codexLive"]>> {
   const bot = store.projectBotForTask(botId, threadId);
   const instance = bot ? registry.get(bot.modelSelection.instanceId) : undefined;
   if (!bot || !instance || instance.driverKind !== "codex" || !instance.startLiveVoice) return null;
-  const workspace = ensureTaskWorkspaceWithSkills(bot.id, threadId, skillsHost.turnImports(bot, threadId, instance));
-  const cwd = store.pinTaskCwd(bot.id, threadId, workspace, { privateOnly: cloudGuestOpened(threadId) || botApiThread(threadId) }) ?? workspace;
+  const { privateWorkspace, pinnedCwd } = taskFolders(bot, threadId, instance);
+  const cwd = pinnedCwd ?? privateWorkspace;
   return { startLiveVoice: (input) => instance.startLiveVoice!(input), cwd, approvalMode: approvalModeForTurn(bot, false, threadId) };
 }
 function postLiveCallAnswer({ botId, threadId, text }: { botId: string; threadId: string; text: string }): void {
