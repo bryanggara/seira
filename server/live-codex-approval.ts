@@ -1,7 +1,16 @@
+import { isAbsolute, relative, resolve, sep } from "node:path";
+
 import { spokenConsent } from "../shared/call-consent.ts";
 import { CONSENT_SETTLE_MS } from "./live-call-controller.ts";
 
 export type LiveCodexApprovalOutcome = "accept" | "decline" | "timeout";
+
+/** One file that a change request touches. `kind` is null when Codex does not name it. */
+export interface LiveCodexFileChange {
+  path: string;
+  kind: "add" | "delete" | "update" | null;
+  movePath: string | null;
+}
 
 export interface LiveCodexApprovalOptions {
   speak(text: string): void;
@@ -9,8 +18,10 @@ export interface LiveCodexApprovalOptions {
   timeoutMs: number;
   /** Thread of the call. A request for another thread is declined. */
   threadId(): string | null;
-  /** File names a file change request touches, or null when unknown. */
-  files?(params: Record<string, unknown>): string[] | null;
+  /** Working folder of the call. File paths are spoken relative to it. Without it, each file change is declined. */
+  cwd?: string;
+  /** Changes that a file change request makes, or null when unknown. */
+  files?(params: Record<string, unknown>): LiveCodexFileChange[] | null;
   /** Quiet time after a final transcript before it is read as an answer. */
   settleMs?: number;
   /** Speaking rate that estimates when the voice's audio ends. */
@@ -36,15 +47,22 @@ export interface LiveCodexApproval {
 
 export const COMMAND_SPOKEN_LIMIT = 120;
 export const FILES_SPOKEN_LIMIT = 3;
+export const PATH_SPOKEN_LIMIT = 80;
 /** About 150 words a minute. Realtime voices speak a little faster, so the estimate errs long. */
 export const SPOKEN_CHARS_PER_SECOND = 14;
 /** Playback buffer and transcription delay of the voice's audio heard back through the microphone. */
 export const ECHO_TAIL_MS = 800;
+/** Share of a request's subject words that a voice output must say before it counts as the question. */
+export const SUBJECT_SHARE = 0.6;
 const ANSWER_HINT = "Should I go ahead? Say yes or no.";
 const NOTICE_COMMAND = "I need to run a command that I cannot read out in full, so I did not run it. Ask me in the chat to run it.";
 const NOTICE_PERMISSIONS = "I need more access than I have now, so I did not do it. Ask me in the chat to allow it.";
 const NOTICE_FILES = "I need to change files that I cannot read out in full, so I did not change them. Ask me in the chat to change them.";
-const SEPARATORS = /[;|&`\n\r]|\$\(/;
+const SEPARATORS = /[;|&`<>\n\r]|\$\(/;
+const SPOKEN_PATH = /^[A-Za-z0-9._ /-]+$/;
+/** Repository internals, credentials and agent settings: a change there is never approved by voice. */
+const PROTECTED_SEGMENT = /^\.(?:git|ssh|codex|env)/i;
+const VERBS = { add: "create", delete: "delete", update: "change" } as const;
 const MIN_ECHO_WORDS = 3;
 
 type Kind = "command" | "files" | "permissions";
@@ -57,16 +75,41 @@ const KINDS: Record<string, { kind: Kind; legacy: boolean }> = {
   applyPatchApproval: { kind: "files", legacy: true },
 };
 
+/** Words a voice output must say before it counts as the question. All `required` words must be among them. */
+interface Subject {
+  words: string[];
+  required: string[];
+}
+
 interface OpenRequest {
   question: string;
+  subject: Subject;
   spoken: boolean;
   settle(allow: boolean, outcome: LiveCodexApprovalOutcome | null): void;
 }
 
 interface VoiceOutput {
   startedAt: number;
-  /** The open request whose question this output is, when it is the first output after the request opened. */
+  /** The open request whose question this output can be, when the output started after the request opened. */
   asks: OpenRequest | null;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
+
+/** One change of a `fileChange` item (`path`, `kind`) or of a legacy `fileChanges` entry (key, value), or null when malformed. */
+export function fileChangeOf(path: unknown, kind: unknown): LiveCodexFileChange | null {
+  if (typeof path !== "string" || !path) return null;
+  const fields = isRecord(kind) ? kind : {};
+  const moved = fields.move_path;
+  const movePath = typeof moved === "string" && moved ? moved : null;
+  if (moved != null && movePath === null) return null;
+  const type = fields.type;
+  return { path, kind: type === "add" || type === "delete" || type === "update" ? type : null, movePath };
+}
+
+function legacyFileChanges(raw: Record<string, unknown>): LiveCodexFileChange[] | null {
+  const changes = Object.entries(raw).map(([path, change]) => fileChangeOf(path, change));
+  return changes.includes(null) ? null : changes as LiveCodexFileChange[];
 }
 
 function commandText(params: Record<string, unknown>): string {
@@ -75,8 +118,8 @@ function commandText(params: Record<string, unknown>): string {
 }
 
 function grantedPermissions(raw: unknown): Record<string, unknown> {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
-  return Object.fromEntries(Object.entries(raw as Record<string, unknown>).filter(([, value]) => value !== null && value !== undefined));
+  if (!isRecord(raw)) return {};
+  return Object.fromEntries(Object.entries(raw).filter(([, value]) => value !== null && value !== undefined));
 }
 
 function reply(method: string, params: Record<string, unknown>, allow: boolean): unknown {
@@ -86,6 +129,7 @@ function reply(method: string, params: Record<string, unknown>, allow: boolean):
 }
 
 const words = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter(Boolean);
+const unique = (list: string[]) => [...new Set(list)];
 
 /** The voice's own question, heard again through the microphone. */
 function isEcho(heard: string, question: string): boolean {
@@ -95,13 +139,58 @@ function isEcho(heard: string, question: string): boolean {
   return asked.includes(` ${said.join(" ")} `);
 }
 
-function fileNames(fields: Record<string, unknown>, lookup: LiveCodexApprovalOptions["files"]): string[] | null {
-  const legacy = fields.fileChanges;
-  const names = legacy && typeof legacy === "object" && !Array.isArray(legacy) ? Object.keys(legacy) : lookup?.(fields) ?? null;
-  return names?.map((name) => name.split(/[\\/]/).filter(Boolean).pop() ?? name) ?? null;
+function namesSubject(text: string, subject: Subject): boolean {
+  if (!subject.words.length) return false;
+  const said = new Set(words(text));
+  const found = subject.words.filter((word) => said.has(word)).length;
+  return subject.required.every((word) => said.has(word)) && found >= SUBJECT_SHARE * subject.words.length;
 }
 
-function questionFor(kind: Kind, fields: Record<string, unknown>, lookup: LiveCodexApprovalOptions["files"]): { question: string } | { notice: string } {
+function commandSubject(command: string): Subject {
+  const [program = "", ...rest] = command.trim().split(/\s+/);
+  const required = words(program);
+  return { words: unique([...required, ...words(rest.filter((part) => !part.startsWith("-")).join(" "))]), required };
+}
+
+/** The path relative to the call's folder, as the voice says it, or null when a voice must not approve it. */
+function spokenPath(raw: string, cwd: string): string | null {
+  if (raw.split(/[\\/]/).includes("..")) return null;
+  const inside = relative(cwd, resolve(cwd, raw));
+  if (!inside || inside.startsWith("..") || isAbsolute(inside)) return null;
+  const segments = inside.split(sep);
+  if (segments.some((segment) => PROTECTED_SEGMENT.test(segment))) return null;
+  const spoken = segments.join("/");
+  return spoken.length <= PATH_SPOKEN_LIMIT && SPOKEN_PATH.test(spoken) ? spoken : null;
+}
+
+function filesQuestion(changes: LiveCodexFileChange[] | null, cwd: string | undefined): { question: string; subject: Subject } | null {
+  if (!changes?.length || changes.length > FILES_SPOKEN_LIMIT || !cwd) return null;
+  const spoken: Array<{ verb: string; path: string; to: string | null }> = [];
+  for (const change of changes) {
+    const path = spokenPath(change.path, cwd);
+    const to = change.movePath === null ? null : spokenPath(change.movePath, cwd);
+    if (path === null || (change.movePath !== null && to === null)) return null;
+    spoken.push({ verb: to ? "move" : VERBS[change.kind ?? "update"], path, to });
+  }
+  const paths = spoken.flatMap(({ path, to }) => (to ? [path, to] : [path]));
+  const subject = {
+    words: unique(paths.flatMap(words)),
+    required: unique(paths.flatMap((path) => words(path.split("/").pop()!))),
+  };
+  const [only] = spoken;
+  if (spoken.length === 1 && only) {
+    const target = only.to ? `${only.path} to ${only.to}` : only.path;
+    return { question: `I need your OK to ${only.verb} this file: ${target}. ${ANSWER_HINT}`, subject };
+  }
+  const list = spoken.map(({ verb, path, to }) => (to ? `${verb} ${path} to ${to}` : `${verb} ${path}`)).join(", ");
+  return { question: `I need your OK for these file changes: ${list}. ${ANSWER_HINT}`, subject };
+}
+
+function questionFor(
+  kind: Kind,
+  fields: Record<string, unknown>,
+  options: LiveCodexApprovalOptions,
+): { question: string; subject: Subject } | { notice: string } {
   if (kind === "permissions" || fields.additionalPermissions != null || fields.networkApprovalContext != null || fields.grantRoot != null) {
     return { notice: NOTICE_PERMISSIONS };
   }
@@ -109,11 +198,10 @@ function questionFor(kind: Kind, fields: Record<string, unknown>, lookup: LiveCo
     const command = commandText(fields);
     const plain = fields.kind == null || fields.kind === "command";
     if (!plain || !command.trim() || command.length > COMMAND_SPOKEN_LIMIT || SEPARATORS.test(command)) return { notice: NOTICE_COMMAND };
-    return { question: `I need your OK to run this command: ${command}. ${ANSWER_HINT}` };
+    return { question: `I need your OK to run this command: ${command}. ${ANSWER_HINT}`, subject: commandSubject(command) };
   }
-  const names = fileNames(fields, lookup);
-  if (!names?.length || names.length > FILES_SPOKEN_LIMIT) return { notice: NOTICE_FILES };
-  return { question: `I need your OK to change ${names.length === 1 ? "this file" : "these files"}: ${names.join(", ")}. ${ANSWER_HINT}` };
+  const changes = isRecord(fields.fileChanges) ? legacyFileChanges(fields.fileChanges) : options.files?.(fields) ?? null;
+  return filesQuestion(changes, options.cwd) ?? { notice: NOTICE_FILES };
 }
 
 export function createLiveCodexApproval(options: LiveCodexApprovalOptions): LiveCodexApproval {
@@ -139,7 +227,7 @@ export function createLiveCodexApproval(options: LiveCodexApprovalOptions): Live
     request(method, params, respond) {
       const entry = KINDS[method];
       if (!entry) return false;
-      const fields = params && typeof params === "object" && !Array.isArray(params) ? params as Record<string, unknown> : {};
+      const fields = isRecord(params) ? params : {};
       const decline = (outcome: LiveCodexApprovalOutcome | null, notice?: string) => {
         respond(reply(method, fields, false));
         if (outcome) options.onOutcome(outcome);
@@ -154,7 +242,7 @@ export function createLiveCodexApproval(options: LiveCodexApprovalOptions): Live
         decline("decline");
         return true;
       }
-      const asked = questionFor(entry.kind, fields, options.files);
+      const asked = questionFor(entry.kind, fields, options);
       if ("notice" in asked) {
         decline("decline", asked.notice);
         return true;
@@ -165,6 +253,7 @@ export function createLiveCodexApproval(options: LiveCodexApprovalOptions): Live
       timer.unref?.();
       const current: OpenRequest = {
         question: asked.question,
+        subject: asked.subject,
         spoken: false,
         settle(allow, outcome) {
           if (done) return;
@@ -213,7 +302,7 @@ export function createLiveCodexApproval(options: LiveCodexApprovalOptions): Live
       const chars = Math.max(text.length, output.asks?.question.length ?? 0);
       const audioEnd = Math.max(Date.now(), output.startedAt + Math.ceil((chars * 1_000) / charsPerSecond));
       voiceQuietAt = Math.max(voiceQuietAt, audioEnd + echoTailMs);
-      if (output.asks) output.asks.spoken = true;
+      if (output.asks && namesSubject(text, output.asks.subject)) output.asks.spoken = true;
     },
     dispose() {
       clearSettle();

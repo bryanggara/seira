@@ -9,7 +9,7 @@ import {
   type EngineLiveVoiceSession,
   type EngineLiveVoiceStart,
 } from "../contracts.ts";
-import { createLiveCodexApproval } from "../live-codex-approval.ts";
+import { createLiveCodexApproval, fileChangeOf, type LiveCodexFileChange } from "../live-codex-approval.ts";
 
 /** `thread/realtime/start` with `version: "v3"` and WebRTC exists from Codex 0.170.0. */
 export const LIVE_VOICE_MIN_CODEX = [0, 170, 0] as const;
@@ -87,17 +87,11 @@ export function codexVersionTooOld(output: string | null): boolean {
 
 const wait = (ms: number) => new Promise<void>((resolve) => { setTimeout(resolve, ms).unref?.(); });
 
-/** Every path a `fileChange` item touches, or null when one is unknown. */
-function fileChangePaths(changes: unknown): string[] | null {
+/** Every change of a `fileChange` item, or null when one is malformed. */
+function fileChangesOf(changes: unknown): LiveCodexFileChange[] | null {
   if (!Array.isArray(changes) || changes.length === 0) return null;
-  const paths: string[] = [];
-  for (const change of changes) {
-    if (typeof change?.path !== "string" || !change.path) return null;
-    paths.push(change.path);
-    const moved = change.kind?.move_path;
-    if (typeof moved === "string" && moved) paths.push(moved);
-  }
-  return paths;
+  const parsed = changes.map((change) => fileChangeOf(change?.path, change?.kind));
+  return parsed.includes(null) ? null : parsed as LiveCodexFileChange[];
 }
 
 export function codexLiveVoice(deps: CodexLiveDeps): CodexLiveVoice {
@@ -167,12 +161,13 @@ export function codexLiveVoice(deps: CodexLiveDeps): CodexLiveVoice {
       counts.speeches++;
       request("thread/realtime/appendSpeech", { threadId, text }).catch(() => { counts.appendFailures++; });
     };
-    const changedFiles = new Map<string, string[]>();
+    const changedFiles = new Map<string, LiveCodexFileChange[]>();
     const approval = createLiveCodexApproval({
       speak: appendSpeech,
       onOutcome: (outcome) => { counts.approvals++; emit({ type: "approval", outcome }); },
       timeoutMs: timeouts.approvalMs,
       threadId: () => threadId,
+      cwd: input.cwd,
       files: (params) => (typeof params.itemId === "string" ? changedFiles.get(params.itemId) ?? null : null),
       settleMs: timeouts.settleMs,
       spokenCharsPerSecond: timeouts.spokenCharsPerSecond,
@@ -241,8 +236,8 @@ export function codexLiveVoice(deps: CodexLiveDeps): CodexLiveVoice {
           break;
         case "item/started":
           if (params.threadId === threadId && params.item?.type === "fileChange" && typeof params.item.id === "string") {
-            const names = fileChangePaths(params.item.changes);
-            if (names) changedFiles.set(params.item.id, names);
+            const changes = fileChangesOf(params.item.changes);
+            if (changes) changedFiles.set(params.item.id, changes);
           }
           emit({ type: "working" });
           break;

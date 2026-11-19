@@ -475,12 +475,12 @@ describe("codexLiveVoice approvals by voice", () => {
     expect(asked(h).text).toBe("I need more access than I have now, so I did not do it. Ask me in the chat to allow it.");
   });
 
-  const fileChange = (thread?: string) => ({
+  const fileChange = (thread?: string, change: unknown = { path: "src/app.ts", kind: { type: "update", move_path: null }, diff: "" }) => ({
     FAKE_CODEX_REALTIME_MODE: "approval",
     FAKE_CODEX_REALTIME_APPROVAL: JSON.stringify({ method: "item/fileChange/requestApproval" }),
     FAKE_CODEX_REALTIME_ITEM: JSON.stringify({
       ...(thread ? { threadId: thread } : {}),
-      item: { id: "realtime-item-1", type: "fileChange", status: "inProgress", changes: [{ path: "src/app.ts", kind: { type: "update", move_path: null }, diff: "" }] },
+      item: { id: "realtime-item-1", type: "fileChange", status: "inProgress", changes: [change] },
     }),
   });
 
@@ -488,8 +488,16 @@ describe("codexLiveVoice approvals by voice", () => {
     const h = harness({ fake: fileChange() });
     await h.start();
     await until(() => h.decision() !== null);
-    expect(asked(h).text).toBe("I need your OK to change this file: app.ts. Should I go ahead? Say yes or no.");
+    expect(asked(h).text).toBe("I need your OK to change this file: src/app.ts. Should I go ahead? Say yes or no.");
     expect(h.decision()).toEqual({ decision: "accept" });
+  });
+
+  it("declines at once a file change outside the working folder", async () => {
+    const h = harness({ fake: fileChange(undefined, { path: "/etc/hosts", kind: { type: "delete" }, diff: "" }) });
+    await h.start();
+    await until(() => h.decision() !== null);
+    expect(h.decision()).toEqual({ decision: "decline" });
+    expect(asked(h).text).toBe("I need to change files that I cannot read out in full, so I did not change them. Ask me in the chat to change them.");
   });
 
   it("declines a file change whose item started on another thread", async () => {
