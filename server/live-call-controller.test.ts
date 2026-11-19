@@ -5,7 +5,7 @@ import {
   LIVE_FISH_NEEDS_APP, LIVE_ELEVENLABS_NEEDS_APP, LIVE_GEMINI_NEEDS_APP, LiveCallBusyError, LiveCallController, LiveCallSignedOutError, type LiveActivity, type LiveCallDeps, type LiveSocket,
 } from "./live-call-controller.ts";
 import { LIVE_COPY } from "../shared/live-approval.ts";
-import { LIVE_CUSTOM_REFUSAL } from "./live-access.ts";
+import { LIVE_CODEX_REFUSAL, LIVE_CUSTOM_REFUSAL } from "./live-access.ts";
 import { codexLiveEndpoint, LIVE_CODEX_PHONE, LIVE_NEEDS_AZURE, LIVE_NEEDS_KEY, LiveSessionError, type LiveEndpoint } from "./live-call.ts";
 import { FishRelays, FISH_AGENT_VOICE } from "./live-fish.ts";
 import type { LiveElevenLabsSession, LiveFishSessionToken, LiveGeminiSession } from "../shared/wire.ts";
@@ -1739,6 +1739,22 @@ describe("a Codex Live call", () => {
     t.settings.provider = "codex";
     return t;
   };
+
+  it("refuses a person who is not an admin or the owner, before any session or socket", async () => {
+    const t = codex();
+    t.deps.azureRefusal = vi.fn(() => "not you");
+    await expect(t.controller.start({ auth: member, ...BOT, client: "web", sdp: "a" })).rejects.toMatchObject({ status: 403, message: LIVE_CODEX_REFUSAL });
+    expect(t.deps.createSession).not.toHaveBeenCalled();
+    expect(t.sockets).toHaveLength(0);
+    expect(t.logs.join("\n")).toContain("[live] call refused bot=bot1 client=web provider=codex");
+  });
+
+  it("lets an admin or the owner start a call", async () => {
+    const t = codex();
+    await t.controller.start({ auth: owner, ...BOT, client: "web", sdp: "a" });
+    expect(t.deps.azureRefusal).toHaveBeenCalledWith(owner);
+    expect(t.deps.createSession).toHaveBeenCalledOnce();
+  });
 
   it("sends a phone to the desktop app or a browser, before any session is created", async () => {
     for (const client of ["ios", "android"] as const) {

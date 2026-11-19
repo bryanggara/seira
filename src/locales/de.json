@@ -4034,5 +4034,6 @@
   "alwaysOn.add.title": "Einen Mac mini oder anderen immer eingeschalteten Computer hinzufügen",
   "call.live.provider.codex": "Codex",
   "call.live.codexHint": "Anrufe nutzen die ChatGPT-Anmeldung von Codex auf diesem Computer. Rufe einen Agenten an, der auf Codex läuft.",
-  "call.live.disclosureCodex": "Live-Anrufe über Codex senden deine Stimme über dein ChatGPT-Konto in Codex an OpenAI."
+  "call.live.disclosureCodex": "Live-Anrufe über Codex senden deine Stimme über dein ChatGPT-Konto in Codex an OpenAI.",
+  "call.live.codexCost": "Codex-Anrufe nutzen das Sprachkontingent deines ChatGPT-Tarifs."
 }

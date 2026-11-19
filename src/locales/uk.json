@@ -4089,5 +4089,6 @@
   "alwaysOn.add.title": "Додати Mac mini або інший завжди увімкнений комп’ютер",
   "call.live.provider.codex": "Codex",
   "call.live.codexHint": "Дзвінки використовують вхід у ChatGPT у Codex на цьому комп'ютері. Телефонуйте агенту, який працює на Codex.",
-  "call.live.disclosureCodex": "Живі дзвінки через Codex надсилають ваш голос до OpenAI через ваш обліковий запис ChatGPT у Codex."
+  "call.live.disclosureCodex": "Живі дзвінки через Codex надсилають ваш голос до OpenAI через ваш обліковий запис ChatGPT у Codex.",
+  "call.live.codexCost": "Дзвінки через Codex витрачають голосовий ліміт вашого тарифу ChatGPT."
 }

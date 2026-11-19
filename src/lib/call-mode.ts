@@ -39,6 +39,9 @@ export function liveKeyCopy(provider: LiveProvider | undefined) {
   if (provider === "elevenlabs") {
     return { title: "call.live.elevenLabsKeyTitle", explain: "call.live.elevenLabsKeyExplain", field: "call.live.elevenLabsKeyField", key: "call.live.elevenLabsKey", missing: "call.live.elevenLabsNeedsKey", needs: "call.live.needsElevenLabs", cost: "call.live.elevenLabsCost" } as const;
   }
+  if (provider === "codex") {
+    return { title: "call.live.keyTitle", explain: "call.live.keyExplain", field: "call.live.keyField", key: "call.live.key", missing: "call.live.needsKey", needs: "call.live.needsKey", cost: "call.live.codexCost" } as const;
+  }
   return { title: "call.live.keyTitle", explain: "call.live.keyExplain", field: "call.live.keyField", key: "call.live.key", missing: "call.live.needsKey", needs: "call.live.needsKey", cost: "call.live.cost" } as const;
 }
 

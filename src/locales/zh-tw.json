@@ -10185,5 +10185,6 @@
   "alwaysOn.add.title": "加入 Mac mini 或其他常開的電腦",
   "call.live.provider.codex": "Codex",
   "call.live.codexHint": "通話使用這台電腦上 Codex 的 ChatGPT 登入。請撥打在 Codex 上執行的代理。",
-  "call.live.disclosureCodex": "透過 Codex 的即時通話會經由你在 Codex 中的 ChatGPT 帳號，把你的聲音傳送給 OpenAI。"
+  "call.live.disclosureCodex": "透過 Codex 的即時通話會經由你在 Codex 中的 ChatGPT 帳號，把你的聲音傳送給 OpenAI。",
+  "call.live.codexCost": "Codex 通話會使用你的 ChatGPT 方案的語音額度。"
 }

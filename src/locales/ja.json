@@ -7944,5 +7944,6 @@
   "alwaysOn.add.title": "Mac mini などの常時オンのコンピュータを追加",
   "call.live.provider.codex": "Codex",
   "call.live.codexHint": "通話には、このコンピューターの Codex の ChatGPT サインインを使います。Codex で動くエージェントに電話してください。",
-  "call.live.disclosureCodex": "Codex を通じたライブ通話では、Codex 内の ChatGPT アカウント経由であなたの声が OpenAI に送られます。"
+  "call.live.disclosureCodex": "Codex を通じたライブ通話では、Codex 内の ChatGPT アカウント経由であなたの声が OpenAI に送られます。",
+  "call.live.codexCost": "Codex の通話では、ChatGPT プランの音声の利用枠を使います。"
 }

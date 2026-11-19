@@ -6660,6 +6660,7 @@
   "call.live.needsElevenLabs": "Chamadas ao vivo pelo ElevenLabs precisam da sua chave de API do ElevenLabs.",
   "call.live.disclosureElevenLabs": "Uma chamada ao vivo envia sua voz para o ElevenLabs, junto com as mensagens recentes da conversa, as respostas do bot e os detalhes de qualquer aprovação que ele pedir. Este app repassa ao bot o que o ElevenLabs ouve. A chave do ElevenLabs fica no seu computador; a chamada recebe apenas um link assinado de curta duração.",
   "call.live.disclosureCodex": "As chamadas ao vivo pelo Codex enviam sua voz para a OpenAI pela sua conta do ChatGPT no Codex.",
+  "call.live.codexCost": "As chamadas pelo Codex usam a cota de voz do seu plano do ChatGPT.",
   "call.live.disclosureElevenLabsCloud": "Uma chamada ao vivo envia sua voz para o ElevenLabs, junto com as mensagens recentes da conversa, as respostas do bot e os detalhes de qualquer aprovação que ele pedir. Este app repassa ao bot o que o ElevenLabs ouve. A chave do ElevenLabs fica no Cloud; a chamada recebe apenas um link assinado de curta duração.",
   "call.live.keyFromApiKeys": "Usa a chave de API da OpenAI salva em Configurações → IA → Outros serviços.",
   "settings.group.you": "Você",

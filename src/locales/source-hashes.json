@@ -4032,7 +4032,8 @@
       "imageGen.complexity.high": "c4ebc6d4a5832cd9415f906ad03661110c705a72381c8b8b145761d02e2dd23a",
       "call.live.provider.codex": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c",
       "call.live.codexHint": "3d8f5877560ed82c4a2248b8d1de7aa9ca2c5e977e5066958e7e498b0dd35984",
-      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0"
+      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0",
+      "call.live.codexCost": "9c93b8ed12f0570a59b39b0c1144274fcbba05f6adb4b2afd19d6c6febacb307"
     },
     "es": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -10441,7 +10442,8 @@
       "imageGen.complexity.high": "c4ebc6d4a5832cd9415f906ad03661110c705a72381c8b8b145761d02e2dd23a",
       "call.live.provider.codex": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c",
       "call.live.codexHint": "3d8f5877560ed82c4a2248b8d1de7aa9ca2c5e977e5066958e7e498b0dd35984",
-      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0"
+      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0",
+      "call.live.codexCost": "9c93b8ed12f0570a59b39b0c1144274fcbba05f6adb4b2afd19d6c6febacb307"
     },
     "fr": {
       "pro.fromPrice": "d8188d4e671cf89854e625efbc479c60eb5db3af842a34fea84bb9b67ea39bc5",
@@ -14257,7 +14259,8 @@
       "imageGen.complexity.high": "c4ebc6d4a5832cd9415f906ad03661110c705a72381c8b8b145761d02e2dd23a",
       "call.live.provider.codex": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c",
       "call.live.codexHint": "3d8f5877560ed82c4a2248b8d1de7aa9ca2c5e977e5066958e7e498b0dd35984",
-      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0"
+      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0",
+      "call.live.codexCost": "9c93b8ed12f0570a59b39b0c1144274fcbba05f6adb4b2afd19d6c6febacb307"
     },
     "hi": {
       "pro.fromPrice": "d8188d4e671cf89854e625efbc479c60eb5db3af842a34fea84bb9b67ea39bc5",
@@ -17927,7 +17930,8 @@
       "imageGen.complexity.high": "c4ebc6d4a5832cd9415f906ad03661110c705a72381c8b8b145761d02e2dd23a",
       "call.live.provider.codex": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c",
       "call.live.codexHint": "3d8f5877560ed82c4a2248b8d1de7aa9ca2c5e977e5066958e7e498b0dd35984",
-      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0"
+      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0",
+      "call.live.codexCost": "9c93b8ed12f0570a59b39b0c1144274fcbba05f6adb4b2afd19d6c6febacb307"
     },
     "ja": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -25872,7 +25876,8 @@
       "imageGen.complexity.high": "c4ebc6d4a5832cd9415f906ad03661110c705a72381c8b8b145761d02e2dd23a",
       "call.live.provider.codex": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c",
       "call.live.codexHint": "3d8f5877560ed82c4a2248b8d1de7aa9ca2c5e977e5066958e7e498b0dd35984",
-      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0"
+      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0",
+      "call.live.codexCost": "9c93b8ed12f0570a59b39b0c1144274fcbba05f6adb4b2afd19d6c6febacb307"
     },
     "pt-br": {
       "voice.gemini.keyPlaceholder": "8c87ba2043a4a89d63c90cae8a6dafd5cbd193652e923b97988e381a74773e10",
@@ -36997,7 +37002,8 @@
       "settings.sites.import.error": "a9e9804c1233bf2abad68fcd6fdc9af7b161c4ec0f65da225d8a19dd167d03e4",
       "call.live.provider.codex": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c",
       "call.live.codexHint": "3d8f5877560ed82c4a2248b8d1de7aa9ca2c5e977e5066958e7e498b0dd35984",
-      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0"
+      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0",
+      "call.live.codexCost": "9c93b8ed12f0570a59b39b0c1144274fcbba05f6adb4b2afd19d6c6febacb307"
     },
     "zh": {
       "pro.fromPrice": "d8188d4e671cf89854e625efbc479c60eb5db3af842a34fea84bb9b67ea39bc5",
@@ -47064,7 +47070,8 @@
       "imageGen.complexity.high": "c4ebc6d4a5832cd9415f906ad03661110c705a72381c8b8b145761d02e2dd23a",
       "call.live.provider.codex": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c",
       "call.live.codexHint": "3d8f5877560ed82c4a2248b8d1de7aa9ca2c5e977e5066958e7e498b0dd35984",
-      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0"
+      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0",
+      "call.live.codexCost": "9c93b8ed12f0570a59b39b0c1144274fcbba05f6adb4b2afd19d6c6febacb307"
     },
     "zh-tw": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -57233,7 +57240,8 @@
       "imageGen.complexity.high": "c4ebc6d4a5832cd9415f906ad03661110c705a72381c8b8b145761d02e2dd23a",
       "call.live.provider.codex": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c",
       "call.live.codexHint": "3d8f5877560ed82c4a2248b8d1de7aa9ca2c5e977e5066958e7e498b0dd35984",
-      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0"
+      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0",
+      "call.live.codexCost": "9c93b8ed12f0570a59b39b0c1144274fcbba05f6adb4b2afd19d6c6febacb307"
     },
     "uk": {
       "pro.fromPrice": "d8188d4e671cf89854e625efbc479c60eb5db3af842a34fea84bb9b67ea39bc5",
@@ -61323,7 +61331,8 @@
       "imageGen.complexity.high": "c4ebc6d4a5832cd9415f906ad03661110c705a72381c8b8b145761d02e2dd23a",
       "call.live.provider.codex": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c",
       "call.live.codexHint": "3d8f5877560ed82c4a2248b8d1de7aa9ca2c5e977e5066958e7e498b0dd35984",
-      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0"
+      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0",
+      "call.live.codexCost": "9c93b8ed12f0570a59b39b0c1144274fcbba05f6adb4b2afd19d6c6febacb307"
     },
     "vi": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -67232,7 +67241,8 @@
       "imageGen.complexity.high": "c4ebc6d4a5832cd9415f906ad03661110c705a72381c8b8b145761d02e2dd23a",
       "call.live.provider.codex": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c",
       "call.live.codexHint": "3d8f5877560ed82c4a2248b8d1de7aa9ca2c5e977e5066958e7e498b0dd35984",
-      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0"
+      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0",
+      "call.live.codexCost": "9c93b8ed12f0570a59b39b0c1144274fcbba05f6adb4b2afd19d6c6febacb307"
     },
     "tr": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -73141,7 +73151,8 @@
       "imageGen.complexity.high": "c4ebc6d4a5832cd9415f906ad03661110c705a72381c8b8b145761d02e2dd23a",
       "call.live.provider.codex": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c",
       "call.live.codexHint": "3d8f5877560ed82c4a2248b8d1de7aa9ca2c5e977e5066958e7e498b0dd35984",
-      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0"
+      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0",
+      "call.live.codexCost": "9c93b8ed12f0570a59b39b0c1144274fcbba05f6adb4b2afd19d6c6febacb307"
     },
     "pl": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -80253,7 +80264,8 @@
       "imageGen.complexity.high": "c4ebc6d4a5832cd9415f906ad03661110c705a72381c8b8b145761d02e2dd23a",
       "call.live.provider.codex": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c",
       "call.live.codexHint": "3d8f5877560ed82c4a2248b8d1de7aa9ca2c5e977e5066958e7e498b0dd35984",
-      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0"
+      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0",
+      "call.live.codexCost": "9c93b8ed12f0570a59b39b0c1144274fcbba05f6adb4b2afd19d6c6febacb307"
     },
     "ru": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -87419,7 +87431,8 @@
       "imageGen.complexity.high": "c4ebc6d4a5832cd9415f906ad03661110c705a72381c8b8b145761d02e2dd23a",
       "call.live.provider.codex": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c",
       "call.live.codexHint": "3d8f5877560ed82c4a2248b8d1de7aa9ca2c5e977e5066958e7e498b0dd35984",
-      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0"
+      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0",
+      "call.live.codexCost": "9c93b8ed12f0570a59b39b0c1144274fcbba05f6adb4b2afd19d6c6febacb307"
     },
     "it": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -94398,7 +94411,8 @@
       "imageGen.complexity.high": "c4ebc6d4a5832cd9415f906ad03661110c705a72381c8b8b145761d02e2dd23a",
       "call.live.provider.codex": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c",
       "call.live.codexHint": "3d8f5877560ed82c4a2248b8d1de7aa9ca2c5e977e5066958e7e498b0dd35984",
-      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0"
+      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0",
+      "call.live.codexCost": "9c93b8ed12f0570a59b39b0c1144274fcbba05f6adb4b2afd19d6c6febacb307"
     },
     "ko": {
       "connectedWorkspaces.localTitle": "7d6deafeab011d734c3fdd1bfd6f69544fbb746a004019269bdb48544b01164b",
@@ -102036,7 +102050,8 @@
       "imageGen.complexity.high": "c4ebc6d4a5832cd9415f906ad03661110c705a72381c8b8b145761d02e2dd23a",
       "call.live.provider.codex": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c",
       "call.live.codexHint": "3d8f5877560ed82c4a2248b8d1de7aa9ca2c5e977e5066958e7e498b0dd35984",
-      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0"
+      "call.live.disclosureCodex": "fbc415b7d93c8baae8b516b30b4fb9ddc585bbd4d3c1628336773be2d2400bd0",
+      "call.live.codexCost": "9c93b8ed12f0570a59b39b0c1144274fcbba05f6adb4b2afd19d6c6febacb307"
     }
   }
 }

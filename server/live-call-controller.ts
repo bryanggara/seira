@@ -9,7 +9,7 @@ import { signInWaits } from "../shared/sign-in-request.ts";
 import type { LiveCallRecord, LiveCallState, LiveClient, LiveElevenLabsTransport, LiveEndReason, LiveFishTransport, LiveGeminiTransport, LiveProvider } from "../shared/wire.ts";
 import { FISH_AGENT_VOICE } from "./live-fish.ts";
 import { LIVE_CODEX_PHONE, LIVE_NEEDS_KEY, liveAuthHeaders, liveCallSummaryLine, liveProviderName, LiveSessionError, liveVoice, spokenHangUp, type LiveEndpoint } from "./live-call.ts";
-import { LIVE_CUSTOM_REFUSAL } from "./live-access.ts";
+import { LIVE_CODEX_REFUSAL, LIVE_CUSTOM_REFUSAL } from "./live-access.ts";
 import type { RequestAuth } from "./request-auth.ts";
 import type { Message, StoreChange } from "./store.ts";
 
@@ -190,9 +190,11 @@ export class LiveCallController {
     // A custom endpoint is held to Azure's limit (LIVE_DATA_CHANNEL), with its own words.
     const limited = settings.provider === "azure" || settings.endpoint?.provider === "azure" ? "azure"
       : settings.provider === "custom" || settings.endpoint?.provider === "custom" ? "custom"
+      : settings.provider === "codex" || settings.endpoint?.provider === "codex" ? "codex"
       : relayedChoice ?? relayedProvider(settings.endpoint?.provider);
     if (limited) {
       const refusal = limited === "azure" ? this.deps.azureRefusal(input.auth) : limited === "custom" ? this.deps.azureRefusal(input.auth) && LIVE_CUSTOM_REFUSAL
+        : limited === "codex" ? this.deps.azureRefusal(input.auth) && LIVE_CODEX_REFUSAL
         : limited === "fish" ? this.deps.fishRefusal(input.auth)
         : limited === "gemini" ? this.deps.geminiRefusal(input.auth) : this.deps.elevenlabsRefusal(input.auth);
       if (refusal) {
@@ -200,7 +202,7 @@ export class LiveCallController {
         throw new LiveSessionError(refusal, 403);
       }
     }
-    const relayed = limited === "azure" || limited === "custom" ? null : limited;
+    const relayed = limited === "azure" || limited === "custom" || limited === "codex" ? null : limited;
     if (relayed && (input.client === "ios" || input.client === "android")) throw new LiveSessionError(relayed === "fish" ? LIVE_FISH_NEEDS_APP : relayed === "gemini" ? LIVE_GEMINI_NEEDS_APP : LIVE_ELEVENLABS_NEEDS_APP, 400);
     if (settings.provider === "codex" && (input.client === "ios" || input.client === "android")) throw new LiveSessionError(LIVE_CODEX_PHONE, 400);
     if (!relayed && !input.sdp) throw new LiveSessionError("The call request was not valid.", 400);

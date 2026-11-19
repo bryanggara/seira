@@ -6978,5 +6978,6 @@
   "alwaysOn.add.title": "Aggiungi un Mac mini o un altro computer sempre acceso",
   "call.live.provider.codex": "Codex",
   "call.live.codexHint": "Le chiamate usano l'accesso a ChatGPT di Codex su questo computer. Chiama un agente che funziona su Codex.",
-  "call.live.disclosureCodex": "Le chiamate live tramite Codex inviano la tua voce a OpenAI tramite il tuo account ChatGPT in Codex."
+  "call.live.disclosureCodex": "Le chiamate live tramite Codex inviano la tua voce a OpenAI tramite il tuo account ChatGPT in Codex.",
+  "call.live.codexCost": "Le chiamate Codex usano la quota vocale del tuo piano ChatGPT."
 }

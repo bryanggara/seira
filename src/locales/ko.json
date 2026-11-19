@@ -7637,5 +7637,6 @@
   "alwaysOn.add.title": "Mac mini 또는 다른 항상 켜진 컴퓨터 추가",
   "call.live.provider.codex": "Codex",
   "call.live.codexHint": "통화는 이 컴퓨터에 있는 Codex의 ChatGPT 로그인을 사용합니다. Codex에서 실행되는 에이전트에게 전화하세요.",
-  "call.live.disclosureCodex": "Codex를 통한 라이브 통화는 Codex의 ChatGPT 계정을 통해 내 목소리를 OpenAI로 보냅니다."
+  "call.live.disclosureCodex": "Codex를 통한 라이브 통화는 Codex의 ChatGPT 계정을 통해 내 목소리를 OpenAI로 보냅니다.",
+  "call.live.codexCost": "Codex 통화는 ChatGPT 요금제의 음성 사용량을 사용합니다."
 }

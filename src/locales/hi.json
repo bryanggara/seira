@@ -3669,5 +3669,6 @@
   "alwaysOn.add.title": "Mac mini या कोई और हमेशा चालू कंप्यूटर जोड़ें",
   "call.live.provider.codex": "Codex",
   "call.live.codexHint": "कॉल इस कंप्यूटर पर Codex के ChatGPT साइन-इन का उपयोग करती हैं। ऐसे एजेंट को कॉल करें जो Codex पर चलता है।",
-  "call.live.disclosureCodex": "Codex से लाइव कॉल आपकी आवाज़ को Codex में आपके ChatGPT खाते के ज़रिए OpenAI को भेजती हैं।"
+  "call.live.disclosureCodex": "Codex से लाइव कॉल आपकी आवाज़ को Codex में आपके ChatGPT खाते के ज़रिए OpenAI को भेजती हैं।",
+  "call.live.codexCost": "Codex कॉल आपके ChatGPT प्लान की वॉइस सीमा का उपयोग करती हैं।"
 }

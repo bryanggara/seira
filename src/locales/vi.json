@@ -5908,5 +5908,6 @@
   "alwaysOn.add.title": "Thêm Mac mini hoặc máy tính luôn bật khác",
   "call.live.provider.codex": "Codex",
   "call.live.codexHint": "Cuộc gọi dùng phiên đăng nhập ChatGPT của Codex trên máy tính này. Hãy gọi cho một tác nhân chạy trên Codex.",
-  "call.live.disclosureCodex": "Cuộc gọi trực tiếp qua Codex gửi giọng nói của bạn đến OpenAI qua tài khoản ChatGPT của bạn trong Codex."
+  "call.live.disclosureCodex": "Cuộc gọi trực tiếp qua Codex gửi giọng nói của bạn đến OpenAI qua tài khoản ChatGPT của bạn trong Codex.",
+  "call.live.codexCost": "Cuộc gọi Codex dùng hạn mức giọng nói của gói ChatGPT của bạn."
 }
