@@ -46,7 +46,7 @@ const relayBody = z.object({
 }).strict();
 // Strict, so `key` is refused rather than ignored: the key is saved only through the credential store or PUT /api/config.
 const settingsBody = z.object({
-  provider: z.enum(["openai", "azure", "fish", "gemini", "elevenlabs", "custom"]).optional(),
+  provider: z.enum(["openai", "azure", "fish", "gemini", "elevenlabs", "custom", "codex"]).optional(),
   // "" clears the field. Anything else must be an https Azure OpenAI host, since the key is sent there.
   azureEndpoint: z.string().trim().max(300).refine((url) => url === "" || azureOpenAiRoot(url) !== null).optional(),
   azureDeployment: z.string().trim().max(64).refine((name) => name === "" || azureLiveDeployment(name) === name).optional(),

@@ -1,6 +1,7 @@
 // Who may hold a Live call through Azure OpenAI, a custom endpoint, Fish Audio, Gemini or ElevenLabs. LIVE_DATA_CHANNEL in live-call.ts says why Azure is
 // limited; on the relayed providers the harness hears the call only through its client's own reports (FishRelay in live-fish.ts).
 import type { AppConfig } from "./config.ts";
+import { LIVE_CODEX_CLOUD } from "./live-call.ts";
 import type { RequestAuth } from "./request-auth.ts";
 
 export const LIVE_AZURE_REFUSAL = "Live calls here go through Azure OpenAI, so only an admin or the owner of this server can start one. Ask an admin if you need a call.";
@@ -41,5 +42,5 @@ export function liveScopeRefusal(cfg: Pick<AppConfig, "live">, method: string, p
   if (method.toUpperCase() !== "POST" || path !== "/api/live/session") return null;
   const provider = cfg.live?.provider;
   return provider === "azure" ? LIVE_AZURE_REFUSAL : provider === "fish" ? LIVE_FISH_REFUSAL : provider === "gemini" ? LIVE_GEMINI_REFUSAL
-    : provider === "elevenlabs" ? LIVE_ELEVENLABS_REFUSAL : provider === "custom" ? LIVE_CUSTOM_REFUSAL : null;
+    : provider === "elevenlabs" ? LIVE_ELEVENLABS_REFUSAL : provider === "codex" ? LIVE_CODEX_CLOUD : provider === "custom" ? LIVE_CUSTOM_REFUSAL : null;
 }

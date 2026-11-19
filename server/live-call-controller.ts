@@ -8,7 +8,7 @@ import { botCallVoice, clampAppend, commentaryChunks, geminiLiveVoice, LiveTrans
 import { signInWaits } from "../shared/sign-in-request.ts";
 import type { LiveCallRecord, LiveCallState, LiveClient, LiveElevenLabsTransport, LiveEndReason, LiveFishTransport, LiveGeminiTransport, LiveProvider } from "../shared/wire.ts";
 import { FISH_AGENT_VOICE } from "./live-fish.ts";
-import { LIVE_NEEDS_KEY, liveAuthHeaders, liveCallSummaryLine, liveProviderName, LiveSessionError, liveVoice, spokenHangUp, type LiveEndpoint } from "./live-call.ts";
+import { LIVE_CODEX_PHONE, LIVE_NEEDS_KEY, liveAuthHeaders, liveCallSummaryLine, liveProviderName, LiveSessionError, liveVoice, spokenHangUp, type LiveEndpoint } from "./live-call.ts";
 import { LIVE_CUSTOM_REFUSAL } from "./live-access.ts";
 import type { RequestAuth } from "./request-auth.ts";
 import type { Message, StoreChange } from "./store.ts";
@@ -202,12 +202,14 @@ export class LiveCallController {
     }
     const relayed = limited === "azure" || limited === "custom" ? null : limited;
     if (relayed && (input.client === "ios" || input.client === "android")) throw new LiveSessionError(relayed === "fish" ? LIVE_FISH_NEEDS_APP : relayed === "gemini" ? LIVE_GEMINI_NEEDS_APP : LIVE_ELEVENLABS_NEEDS_APP, 400);
+    if (settings.provider === "codex" && (input.client === "ios" || input.client === "android")) throw new LiveSessionError(LIVE_CODEX_PHONE, 400);
     if (!relayed && !input.sdp) throw new LiveSessionError("The call request was not valid.", 400);
     if (this.call && this.call.state.status !== "ended") throw new LiveCallBusyError({ ...this.call.state });
     if (input.device && this.revokedDevices.has(input.device)) throw new LiveCallSignedOutError();
     const key = settings.key.trim();
     const endpoint = settings.endpoint;
-    if (settings.setupProblem || !key || !endpoint) throw new LiveSessionError(settings.setupProblem || LIVE_NEEDS_KEY, 409);
+    const codex = settings.provider === "codex";
+    if (settings.setupProblem || (!key && !codex) || !endpoint) throw new LiveSessionError(settings.setupProblem || LIVE_NEEDS_KEY, 409);
     if (relayed !== relayedProvider(endpoint.provider)) throw new LiveSessionError(settings.setupProblem || LIVE_NEEDS_KEY, 409);
     const botVoice = this.deps.botVoice?.(input.botId);
     const voice = relayed === "gemini" ? geminiLiveVoice(botCallVoice(botVoice, settings.geminiVoice, true))

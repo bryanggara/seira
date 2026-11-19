@@ -806,6 +806,7 @@ function customDomainStatus() {
 }
 const registry = new ProviderRegistry(BUILT_IN_DRIVERS, { statusFile: join(DATA_DIR, "providers", "engine-status.json") });
 const supportsApprovalMode = createApprovalModeSupport(registry);
+const codexInstalled = () => registry.instances().some((instance) => instance.driverKind === "codex");
 registerEnginesBinDir(); const engineUpdates = engineUpdatesFor({ drivers: BUILT_IN_DRIVERS, turnRunning: () => store.bots.some((bot) => botHasActiveTurn(bot.id)) || store.groups.some(groupIsWorking) || Boolean(routines?.hasActiveRuns()), configuredClis: () => Object.values(providerConfigs()).flatMap((entry) => { const cli = (entry.config as { cli?: unknown } | undefined)?.cli; return typeof cli === "string" && cli ? [cli] : []; }), updated: () => { registry.forgetSnapshots(); broadcast({ kind: "config", ...configStatus() }); } });
 
 // Set only when a turn is admitted, never on queue or steer, so a second person's words cannot re-book the first person's turn.
@@ -11698,7 +11699,7 @@ function configStatus() {
     tts: tts.describeVoice(cfg),
     decider: describeDecider(cfg), helpers: describeHelpers(cfg),
     imageGen: avatarImageStatus(cfg), savedKeys: nestedKeyStatus(cfg),
-    live: liveSettingsFor(cfg),
+    live: liveSettingsFor(cfg, { codexAvailable: codexInstalled() }),
     profile: CLOUD_TEAM ? NOBODY_PROFILE : { name: cfg.profile?.name ?? "", email: cfg.profile?.email ?? "", aboutMe: cfg.profile?.aboutMe ?? "", ...(cfg.profile?.avatarUrl ? { avatarUrl: cfg.profile.avatarUrl } : {}) },
     managedPolicy: managedPolicy.summary(),
     ...(CLOUD_HOME ? { cloudHome: true } : {}), ...(CLOUD_TEAM ? { team: { id: CLOUD_TEAM.id, name: CLOUD_TEAM.name, ...(CLOUD_HOME ? { cloudPage: `${CLOUD_HOME.adminOrigin}/cloud` } : {}) } } : {}),
@@ -12478,14 +12479,14 @@ ROUTES.push(createLiveRoutes({
     if (store.botByThread(target)?.id !== bot.id) return null;
     return { botId: bot.id, botName: bot.name, threadId: target };
   },
-  settings: () => liveSettingsFor(cfg),
+  settings: () => liveSettingsFor(cfg, { codexAvailable: codexInstalled() }),
   fishRelay: liveWiring.fishRelay,
   saveSettings: async (patch) => {
     if (providerConfigBusy) throw Object.assign(new Error("Settings are already being updated. Try again in a moment."), { status: 409 });
     saveLiveSettings(cfg, patch);
     Object.assign(cfg, loadConfig());
     broadcast({ kind: "config", ...configStatus() });
-    return liveSettingsFor(cfg);
+    return liveSettingsFor(cfg, { codexAvailable: codexInstalled() });
   },
 }));
 

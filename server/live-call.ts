@@ -13,6 +13,12 @@ export const LIVE_NEEDS_FISH = "Live calls through Fish Audio use your Fish Audi
 export const LIVE_NEEDS_GEMINI = "Live calls through Gemini use your Gemini API key. Add it in Settings → AI → Other services.";
 export const LIVE_NEEDS_CUSTOM = "Live calls through a custom endpoint need its address and its own key. Add them in Call settings.";
 export const LIVE_NEEDS_ELEVENLABS = "Live calls through ElevenLabs use your ElevenLabs API key. Add it in Settings → AI → Other services.";
+export const LIVE_CODEX_SIGN_IN = "Live calls through Codex need Codex signed in with your ChatGPT account. Sign in to Codex, then call again.";
+export const LIVE_CODEX_UPDATE = "Live calls through Codex need a newer Codex. Update Codex, then call again.";
+export const LIVE_CODEX_ENGINE = "Live calls through Codex work with an agent that runs on Codex with its own ChatGPT sign-in. Change this agent's engine, or choose another call service in Call settings.";
+export const LIVE_CODEX_PHONE = "Live calls through Codex work in the desktop app or a web browser, not in the phone app.";
+export const LIVE_CODEX_NO_ANSWER = "Codex did not answer in time. Try the call again.";
+export const LIVE_CODEX_CLOUD = "Live calls through Codex work when Seira runs on your own computer. Choose another call service in Call settings.";
 
 /** The client's data channel is untrusted: it may only hang up; every append goes over the sideband.
  * Exception: Azure OpenAI refuses `session.client`, so an Azure call goes without this list and its caller's channel keeps
@@ -56,13 +62,18 @@ export interface LiveEndpoint {
 
 export function liveProviderName(provider: LiveProvider): string {
   return provider === "azure" ? "Azure OpenAI" : provider === "fish" ? "Fish Audio" : provider === "gemini" ? "Gemini" : provider === "elevenlabs" ? "ElevenLabs"
-    : provider === "custom" ? "The custom endpoint" : "OpenAI";
+    : provider === "codex" ? "Codex" : provider === "custom" ? "The custom endpoint" : "OpenAI";
 }
 
 /** Only a loopback http URL is accepted, read at call time. */
 export function liveBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
   const override = env.OMB_OPENAI_LIVE_URL?.trim() ?? "";
   return /^http:\/\/127\.0\.0\.1:\d{1,5}$/.test(override) ? override : OPENAI_BASE;
+}
+
+/** A marker, not an address: a Codex call never contacts `apiBase`; the Codex driver starts the voice session. */
+export function codexLiveEndpoint(): LiveEndpoint {
+  return { provider: "codex", apiBase: "codex:", model: "codex" };
 }
 
 export function openAiLiveEndpoint(env: NodeJS.ProcessEnv = process.env): LiveEndpoint {

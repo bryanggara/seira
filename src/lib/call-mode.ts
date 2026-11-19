@@ -12,7 +12,8 @@ export const CALL_MODES: ReadonlyArray<{ id: CallMode; label: LocaleKey }> = [
   { id: "live", label: "call.mode.live" },
 ];
 
-export function liveDisclosure({ cloudHome = false, azure = false, custom = false, fish = false, gemini = false, elevenlabs = false }: { cloudHome?: boolean; azure?: boolean; custom?: boolean; fish?: boolean; gemini?: boolean; elevenlabs?: boolean } = {}): string {
+export function liveDisclosure({ cloudHome = false, azure = false, custom = false, fish = false, gemini = false, elevenlabs = false, codex = false }: { cloudHome?: boolean; azure?: boolean; custom?: boolean; fish?: boolean; gemini?: boolean; elevenlabs?: boolean; codex?: boolean } = {}): string {
+  if (codex) return t("call.live.disclosureCodex");
   if (custom) return t(cloudHome ? "call.live.disclosureCustomCloud" : "call.live.disclosureCustom");
   if (azure) return t(cloudHome ? "call.live.disclosureAzureCloud" : "call.live.disclosureAzure");
   if (fish) return t(cloudHome ? "call.live.disclosureFishCloud" : "call.live.disclosureFish");

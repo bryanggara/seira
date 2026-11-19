@@ -3812,5 +3812,8 @@
   "call.capability.turnsNeedDeepSeekKey": "Ajoutez une clé DeepSeek pour parler à tour de rôle pendant les appels",
   "alwaysOn.section": "Maison toujours allumée",
   "alwaysOn.title": "Utiliser cet ordinateur comme maison toujours allumée",
-  "alwaysOn.add.title": "Ajouter un Mac mini ou un autre ordinateur toujours allumé"
+  "alwaysOn.add.title": "Ajouter un Mac mini ou un autre ordinateur toujours allumé",
+  "call.live.provider.codex": "Codex",
+  "call.live.codexHint": "Les appels utilisent la connexion ChatGPT de Codex sur cet ordinateur. Appelez un agent qui fonctionne sur Codex.",
+  "call.live.disclosureCodex": "Les appels en direct via Codex envoient votre voix à OpenAI par votre compte ChatGPT dans Codex."
 }

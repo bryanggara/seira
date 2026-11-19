@@ -6,7 +6,7 @@ import {
 } from "./live-call-controller.ts";
 import { LIVE_COPY } from "../shared/live-approval.ts";
 import { LIVE_CUSTOM_REFUSAL } from "./live-access.ts";
-import { LIVE_NEEDS_AZURE, LIVE_NEEDS_KEY, LiveSessionError, type LiveEndpoint } from "./live-call.ts";
+import { codexLiveEndpoint, LIVE_CODEX_PHONE, LIVE_NEEDS_AZURE, LIVE_NEEDS_KEY, LiveSessionError, type LiveEndpoint } from "./live-call.ts";
 import { FishRelays, FISH_AGENT_VOICE } from "./live-fish.ts";
 import type { LiveElevenLabsSession, LiveFishSessionToken, LiveGeminiSession } from "../shared/wire.ts";
 import type { RequestAuth } from "./request-auth.ts";
@@ -1728,5 +1728,45 @@ describe("LiveCallController record", () => {
     expect(t.controller.current()).toBeNull();
     expect(t.logs.at(-1)).toContain("errors=record");
     await expect(t.start()).resolves.toBeTruthy();
+  });
+});
+
+describe("a Codex Live call", () => {
+  const codex = () => {
+    const t = setup();
+    t.settings.key = "";
+    t.settings.endpoint = codexLiveEndpoint();
+    t.settings.provider = "codex";
+    return t;
+  };
+
+  it("sends a phone to the desktop app or a browser, before any session is created", async () => {
+    for (const client of ["ios", "android"] as const) {
+      const t = codex();
+      await expect(t.controller.start({ auth: owner, ...BOT, client, sdp: "offer-sdp" })).rejects.toMatchObject({ status: 400, message: LIVE_CODEX_PHONE });
+      expect(t.deps.createSession).not.toHaveBeenCalled();
+      expect(t.controller.current()).toBeNull();
+    }
+  });
+
+  it("starts without any key and goes live", async () => {
+    const t = codex();
+    const started = await t.controller.start({ auth: owner, ...BOT, client: "desktop", sdp: "offer-sdp" });
+    expect(t.deps.createSession).toHaveBeenCalledWith(expect.objectContaining({ key: "", endpoint: codexLiveEndpoint(), sdp: "offer-sdp" }));
+    expect(started.sdp).toBe("answer-sdp");
+    t.socket().open();
+    expect(t.controller.current()?.status).toBe("live");
+  });
+
+  it("still asks for the call request's offer", async () => {
+    const t = codex();
+    await expect(t.controller.start({ auth: owner, ...BOT, client: "web" })).rejects.toMatchObject({ status: 400 });
+    expect(t.deps.createSession).not.toHaveBeenCalled();
+  });
+
+  it("keeps asking for a key on every other provider", async () => {
+    const t = setup();
+    t.settings.key = "";
+    await expect(t.controller.start({ auth: owner, ...BOT, client: "web", sdp: "a" })).rejects.toMatchObject({ status: 409, message: LIVE_NEEDS_KEY });
   });
 });
