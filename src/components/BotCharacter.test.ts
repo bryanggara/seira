@@ -1,8 +1,17 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { BotCharacter, TurnFace } from "./BotCharacter";
+
+vi.mock("./seira-character", () => ({
+  SeiraCharacter: (props: { state: string; hairStyle?: string; accessories?: readonly string[] }) =>
+    createElement("canvas", {
+      "data-seira-state": props.state,
+      "data-hair-style": props.hairStyle,
+      "data-accessories": props.accessories?.join(","),
+    }),
+}));
 
 const fallback = createElement("i", { "data-fallback": "" });
 const render = (bot: Parameters<typeof BotCharacter>[0]["bot"], state: "idle" | "sleep" = "idle") =>
@@ -19,10 +28,25 @@ describe("BotCharacter", () => {
     expect(render({ color: "blue", avatarUrl: "/api/attachments/b.png", avatarCrop: "circle" })).toContain("data-fallback");
   });
 
-  it("draws Seira for a bot with an old body", () => {
-    const markup = render({ color: "blue", mascotBody: "cursor" });
-    expect(markup).toContain('data-seira-state="idle"');
+  it("draws every Seira hair style, and reads an unknown body as Seira", () => {
+    expect(render({ color: "blue", mascotBody: "bob" })).toContain('data-seira-state="idle"');
+    expect(render({ color: "blue", mascotBody: "none" })).toContain('data-seira-state="idle"');
+    const old = render({ color: "blue", mascotBody: "cursor" });
+    expect(old).toContain('data-hair-style="seira"');
+    expect(old).not.toContain("data-fallback");
+  });
+
+  it("passes the hair style and the accessories of the bot to the character", () => {
+    const markup = render({ color: "blue", mascotBody: "bob", mascotAccessories: ["glasses"] });
+    expect(markup).toContain('data-hair-style="bob"');
+    expect(markup).toContain('data-accessories="glasses"');
     expect(markup).not.toContain("data-fallback");
+  });
+
+  it("gives Seira's own style and no accessories to a bot without a look", () => {
+    const markup = render({ color: "blue" });
+    expect(markup).toContain('data-hair-style="seira"');
+    expect(markup).toContain('data-accessories=""');
   });
 
   it("treats a picture cropped as the mascot as no picture", () => {

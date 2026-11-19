@@ -15,6 +15,7 @@ The other 25 presets are original bots with their own names, colors, and tempers
 | `raw/` | Raw generator output. `concept/` holds the finished sheets. |
 | `tools/validate.py` | Checks every preset against the contract ids and the schema. |
 | `tools/place_seira.py` | Puts the real Seira art into cell 1 of the female lineup. |
+| `tools/avatars.py` | Makes Seira's hair style pictures and the accessory stickers for the desktop avatar. |
 
 ## Preset fields
 
@@ -53,6 +54,36 @@ The generator draws Seira again in each sheet, so cell 1 of the raw female lineu
 `tools/place_seira.py` removes that head and pastes the head of `../options/d-companion-bot.png` at the same place and height.
 The script uses the cell position that `CELL1` gives. If you make the female lineup again, measure `CELL1` again.
 Do not use a generated Seira as logo art. Use the files in `../options/` and `../../logo/`.
+
+## How to make the avatar pictures
+
+A bot wears Seira's head with one hair style of `../art/bases/`, and up to three accessory stickers.
+The desktop avatar picker shows the 17 hair styles, Seira first. The body id is the style id.
+Each style is a rendered head with an empty visor. The app draws the eyes, the mouth, and the accessories.
+Run the script after you change a base frame or an accessory sticker:
+
+```bash
+python3 brand/mascot/cast/tools/avatars.py
+pnpm gen:carved
+```
+
+Pass style ids to make only those styles. The script makes no new images.
+It uses the front base frame of each style and paints the hair in Seira's silver with the rules of `../runtime/recolor.js`.
+Seira keeps her own pictures in `src/assets/seira-body/`.
+
+The script writes these files:
+
+| File | Content |
+|------|---------|
+| `src/assets/seira-hair/<style>/front-<px>.webp` | The head, with the hair in Seira's silver. |
+| `src/assets/seira-hair/<style>/hair-<px>.webp` | The hair only, in neutral grey. The app tints it with the bot color. |
+| `scripts/mascot-bodies/hair-geometry.json` | The eyes, the mouth, and the outlines in the 240-unit avatar square. |
+| `src/assets/seira-accessory/<id>.webp` | The accessory stickers. |
+| `src/assets/seira-accessory/placement.json` | The head radius and the anchors of each style, and the size and pivot of each sticker. |
+
+`pnpm gen:carved` reads `hair-geometry.json` and writes the flat bodies.
+With the silver or chrome bot color, the hair stays silver. Other bot colors tint the hair.
+The app puts each accessory on its anchor, as `../runtime/bot.js` does. Glasses and sunglasses sit on the eyes.
 
 ## Design rules
 

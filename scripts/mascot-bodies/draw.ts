@@ -1,5 +1,5 @@
 /**
- * Drawing toolkit for the Halloween bodies: shapes are signed distance fields built from
+ * Drawing toolkit for the carved bodies: shapes are signed distance fields built from
  * primitives with soft unions, traced at their zero contour, and fitted with smooth
  * cubics. The output is absolute `M`/`C`/`Z` path data, the subset the phone path
  * parsers accept.
@@ -50,6 +50,51 @@ export const polygon = (pts: Point[]): Field => (x, y) => {
     if ((c1 && c2 && c3) || (!c1 && !c2 && !c3)) s = -s
   }
   return s * Math.sqrt(d)
+}
+
+/**
+ * Distance to a set of closed rings, inside by the even-odd rule, so a ring inside another one cuts a hole.
+ * The distance is exact up to `reach` and stops there: enough to trace the outline, not to grow or blend the shape.
+ * Edges sit in buckets, so each point reads only the few edges near it.
+ */
+export const rings = (loops: Point[][], reach = 4): Field => {
+  const edges: Array<[number, number, number, number]> = []
+  for (const loop of loops) for (let i = 0, j = loop.length - 1; i < loop.length; j = i, i++) edges.push([loop[j][0], loop[j][1], loop[i][0], loop[i][1]])
+  const CELL = 4
+  const key = (cx: number, cy: number) => (cx + 100) * 1000 + cy + 100
+  const near = new Map<number, number[]>()
+  const rows = new Map<number, number[]>()
+  const add = (map: Map<number, number[]>, k: number, e: number) => {
+    const list = map.get(k)
+    if (list) list.push(e)
+    else map.set(k, [e])
+  }
+  edges.forEach(([ax, ay, bx, by], e) => {
+    const x0 = Math.floor((Math.min(ax, bx) - reach) / CELL)
+    const x1 = Math.floor((Math.max(ax, bx) + reach) / CELL)
+    const y0 = Math.floor((Math.min(ay, by) - reach) / CELL)
+    const y1 = Math.floor((Math.max(ay, by) + reach) / CELL)
+    for (let cx = x0; cx <= x1; cx++) for (let cy = y0; cy <= y1; cy++) add(near, key(cx, cy), e)
+    for (let row = Math.floor(Math.min(ay, by)); row <= Math.floor(Math.max(ay, by)); row++) add(rows, row, e)
+  })
+  return (x, y) => {
+    let d = reach * reach
+    for (const e of near.get(key(Math.floor(x / CELL), Math.floor(y / CELL))) ?? []) {
+      const [ax, ay, bx, by] = edges[e]
+      const ex = bx - ax
+      const ey = by - ay
+      const wx = x - ax
+      const wy = y - ay
+      const t = clamp((wx * ex + wy * ey) / (ex * ex + ey * ey), 0, 1)
+      d = Math.min(d, (wx - ex * t) ** 2 + (wy - ey * t) ** 2)
+    }
+    let hit = false
+    for (const e of rows.get(Math.floor(y)) ?? []) {
+      const [ax, ay, bx, by] = edges[e]
+      if (ay > y !== by > y && x < ax + ((y - ay) * (bx - ax)) / (by - ay)) hit = !hit
+    }
+    return hit ? -Math.sqrt(d) : Math.sqrt(d)
+  }
 }
 
 /** A round-jointed stroke through `[x, y, radius]` points. */
@@ -188,6 +233,13 @@ const d1 = (q: Cubic, t: number): Point => {
   const u = 1 - t
   return add(add(mul(sub(q[1], q[0]), 3 * u * u), mul(sub(q[2], q[1]), 6 * u * t)), mul(sub(q[3], q[2]), 3 * t * t))
 }
+// The error is measured at the samples only. A near-singular fit can loop far out between two samples and still pass,
+// with handles much longer than the run. Such a cubic is not a fit.
+const MAX_HANDLE = 10
+const runaway = (q: Cubic): boolean => {
+  const chord = Math.hypot(...sub(q[3], q[0]))
+  return Math.hypot(...sub(q[1], q[0])) > MAX_HANDLE * chord || Math.hypot(...sub(q[2], q[3])) > MAX_HANDLE * chord
+}
 const d2 = (q: Cubic, t: number): Point =>
   add(mul(add(sub(q[2], mul(q[1], 2)), q[0]), 6 * (1 - t)), mul(add(sub(q[3], mul(q[2], 2)), q[1]), 6 * t))
 
@@ -237,6 +289,7 @@ function fitCubic(d: Point[], t1: Point, t2: Point, err: number, out: Cubic[]): 
         split = i
       }
     }
+    if (runaway(q)) worst = Infinity
   }
   measure()
   if (worst < err * err) {
