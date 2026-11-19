@@ -30,6 +30,7 @@ import { bootFailureMessage, listeningSignal, pollServerIdentity, SERVER_BOOT_TI
 import { startupTimeline } from "./startup-timeline.mjs";
 import { createServerSupervisor } from "./server-supervisor.mjs";
 import { serverChildLaunch } from "./server-child-launch.mjs";
+import { postToServer } from "./server-message.mjs";
 import { packageUrlFromCommandLine, packageUrlFromDeepLink } from "./package-link.mjs";
 import { chatLinkFrom, chatLinkFromCommandLine } from "./chat-link.mjs"; import { installDesktopNotifications } from "./desktop-notifications.mjs";
 import { createOrganizationEntry, isOrganizationDeepLink, takeOrganizationDeepLink, organizationRestartIntent, withOrganizationRestartIntent, withoutOrganizationRestartIntent } from "./organization-entry.mjs";
@@ -794,12 +795,7 @@ let serverStartConflictOnly = false;
 
 function syncPhoneSecretKey(proc) {
   const message = phoneSecretPrivateKeyMessage(phoneSecretIdentity);
-  if (!message) return;
-  try {
-    proc.postMessage(message);
-  } catch (error) {
-    slog(`phone credential key sync failed: ${error?.message ?? error}`);
-  }
+  if (message) postToServer(proc, message, "phone credential key sync", slog);
 }
 
 const cloudEncryption = { available: async () => (await safeStorage.isAsyncEncryptionAvailable()) && (process.platform !== "linux" || safeStorage.getSelectedStorageBackend() !== "basic_text"), encrypt: value => safeStorage.encryptStringAsync(value), decrypt: value => safeStorage.decryptStringAsync(value) }; let activeSignIn = null; const cloudAccountStore = () => (activeSignIn ??= createCloudAccountStore({ file: path.join(app.getPath("userData"), cloudTarget(process.env).file), encryption: cloudEncryption }));
@@ -1090,22 +1086,18 @@ async function runCompanyBackup(kind, input, scheduled = null) {
 }
 
 function syncDesktopMutationToken(proc) {
-  try {
-    proc.postMessage({
-      type: "openmausbot:desktop-mutation-token",
-      token: desktopMutationToken,
-      companionToken: companionMutationToken,
-    });
-  } catch (error) {
-    slog(`desktop mutation capability sync failed: ${error?.message ?? error}`);
-  }
+  postToServer(proc, {
+    type: "openmausbot:desktop-mutation-token",
+    token: desktopMutationToken,
+    companionToken: companionMutationToken,
+  }, "desktop mutation capability sync", slog);
 }
 
 const receivePhoneSecretSave = createPhoneSecretSaveReceiver(saveWorkspaceCredential, slog);
 
 async function startServerOn(port, dataDir = runningDataDir ?? startupEnvironmentDir(environmentsState, desktopDataDir())) {
   if (desktopShutdownStarted) return { proc: null, abort: true };
-  const { entry, compileCacheDir } = serverChildLaunch({
+  const { entry, compileCacheDir, symlinkEnv } = serverChildLaunch({
     resourcesPath: process.resourcesPath,
     userData: app.getPath("userData"),
   });
@@ -1131,6 +1123,7 @@ async function startServerOn(port, dataDir = runningDataDir ?? startupEnvironmen
   delete childEnv.OMB_BROWSER_CONNECTION;
   delete childEnv.OMB_SERVER_COMPILE_CACHE;
   if (compileCacheDir) childEnv.OMB_SERVER_COMPILE_CACHE = compileCacheDir;
+  if (symlinkEnv) Object.assign(childEnv, symlinkEnv);
   slog(`fork ${entry} port=${port}`);
   startupTimeline.mark("server-fork");
   const proc = utilityProcess.fork(entry, [], {
@@ -1220,14 +1213,10 @@ function checkInManagedComposio() {
 
 function syncManagedComposioCredentials() {
   if (!serverProc) return;
-  try {
-    serverProc.postMessage({
-      type: "openmausbot:managed-composio",
-      access: managedComposioAccess(composioBrokerUrl(), secureCredentials),
-    });
-  } catch (error) {
-    slog(`connected-apps credential sync failed: ${error?.message ?? error}`);
-  }
+  postToServer(serverProc, {
+    type: "openmausbot:managed-composio",
+    access: managedComposioAccess(composioBrokerUrl(), secureCredentials),
+  }, "connected-apps credential sync", slog);
 }
 
 let cuaReady = Promise.resolve({ mode: "unavailable", reason: "not-started" });
@@ -2817,8 +2806,7 @@ app.whenReady().then(async () => {
     onShow: (win) => desktopTray?.windowShown(win),
     onFinished: () => { startupScreen = null; },
   });
-  await startupScreen?.ready;
-  startupTimeline.mark("splash-shown");
+  const splashReady = startupScreen?.ready.then(() => startupTimeline.mark("splash-shown"));
   if (desktopShutdownStarted) return;
   session.defaultSession.on("will-download", (_event, item) => {
     if (mediaDownloads.claim(item)) return;
@@ -2995,6 +2983,8 @@ app.whenReady().then(async () => {
     }
     if (!serverReady && !desktopShutdownStarted) serverSupervisor.startLater(startServerPackaged); // an always-on home keeps trying
   }
+  if (desktopShutdownStarted) return;
+  await splashReady;
   if (desktopShutdownStarted) return;
   startupScreen?.progress("engine");
   if (app.isPackaged && !desktopRemoteAccess) { void ensureManagedDesktop().start().then(() => companyBackupSchedule.start()).catch(() => {}); void managedDesktop.whenRestored().then(() => tailnetShare.recheck()); }
