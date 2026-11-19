@@ -41,6 +41,20 @@ afterEach(async () => {
   await removeTempDir(scratch);
 });
 
+function workspaceParams(mode: string) {
+  const approvalsReviewer = mode === "auto" ? "auto_review" : "user";
+  return {
+    thread: { approvalPolicy: "on-request", sandbox: "workspace-write", approvalsReviewer },
+    turn: { approvalPolicy: "on-request", sandboxPolicy: { type: "workspaceWrite" }, approvalsReviewer },
+  };
+}
+
+function resolveLike(params: { thread: Record<string, unknown>; turn: Record<string, unknown> }, session: any) {
+  const type = (params.turn.sandboxPolicy as { type: string }).type;
+  if (typeof session?.sandbox?.type !== "string" || session.sandbox.type !== type) throw new Error("sandbox");
+  return params;
+}
+
 interface Harness {
   live: ReturnType<typeof codexLiveVoice>;
   logs: string[];
@@ -63,7 +77,9 @@ function harness(options: { fake?: Record<string, string>; timeouts?: Partial<Co
     unsupportedSignIn: false,
     env: () => fakeEnv,
     version: async () => options.version === undefined ? MODERN : options.version,
-    threadParams: (mode) => [{ approvalPolicy: "on-request", sandbox: "workspace-write", approvalsReviewer: mode === "auto" ? "auto_review" : "user" }],
+    approvalParams: (mode) => workspaceParams(mode),
+    permissionProfileUnsupported: (error) => /experimental api|unknown field/i.test(error instanceof Error ? error.message : String(error)),
+    withResolvedSandbox: resolveLike,
     spawn: (args, spawnOptions) => {
       const child = spawn(process.execPath, [FAKE, ...args], { cwd: spawnOptions.cwd, env: spawnOptions.env, stdio: ["pipe", "pipe", "pipe"] });
       spawned.push({ args, cwd: spawnOptions.cwd, env: spawnOptions.env, child });
@@ -71,7 +87,7 @@ function harness(options: { fake?: Record<string, string>; timeouts?: Partial<Co
     },
     clientVersion: "0.0.0-test",
     log: (line) => logs.push(line),
-    timeouts: { answerMs: 5_000, stopMs: 2_000, killMs: 2_000, approvalMs: 60_000, rpcMs: 5_000, ...options.timeouts },
+    timeouts: { answerMs: 5_000, stopMs: 2_000, killMs: 2_000, approvalMs: 60_000, rpcMs: 5_000, settleMs: 50, ...options.timeouts },
     ...options.deps,
   });
   const read = () => (existsSync(dump) ? JSON.parse(readFileSync(dump, "utf8")) : { calls: [], decision: null });
@@ -185,7 +201,7 @@ describe("codexLiveVoice start", () => {
 
   it("asks for the effective config only in the custom mode", async () => {
     const seen: unknown[] = [];
-    const h = harness({ deps: { threadParams: (mode, config) => { seen.push([mode, config]); return [{ approvalPolicy: "never" }]; } } });
+    const h = harness({ deps: { approvalParams: (mode, config) => { seen.push([mode, config]); return workspaceParams(mode); } } });
     await h.start({ approvalMode: "custom" });
     expect(h.calls().map((call) => call.method)).toContain("config/read");
     expect(seen).toHaveLength(1);
@@ -275,6 +291,44 @@ describe("codexLiveVoice events", () => {
   });
 });
 
+describe("codexLiveVoice thread start checks", () => {
+  const profile = {
+    thread: { permissions: "profile", approvalPolicy: "on-request" },
+    turn: { sandboxPolicy: { type: "workspaceWrite" } },
+    fallback: workspaceParams("ask"),
+  };
+
+  it("refuses with failed and ends the process when the sandbox differs", async () => {
+    const h = harness({ fake: { FAKE_CODEX_RESOLVED_SANDBOX: JSON.stringify({ type: "dangerFullAccess" }) } });
+    expect(await refusalOf(h.live.start(h.input()))).toBe("failed");
+    await until(() => h.spawned[0]!.child.exitCode !== null || h.spawned[0]!.child.signalCode !== null);
+    expect(h.calls().map((call) => call.method)).not.toContain("thread/realtime/start");
+  });
+
+  it("refuses with failed when the sandbox is missing", async () => {
+    const h = harness({ fake: { FAKE_CODEX_RESOLVED_SANDBOX: "{}" } });
+    expect(await refusalOf(h.live.start(h.input()))).toBe("failed");
+  });
+
+  it("falls back to the fallback settings when the profile is unsupported", async () => {
+    const h = harness({ fake: { FAKE_CODEX_MODE: "config-profile-unsupported" }, deps: { approvalParams: () => profile } });
+    await h.start();
+    const starts = h.calls().filter((call) => call.method === "thread/start");
+    expect(starts).toHaveLength(2);
+    expect(starts[0]!.params.permissions).toBe("profile");
+    expect(starts[1]!.params).toEqual({ cwd: scratch, ...profile.fallback.thread, ephemeral: false });
+  });
+
+  it("does not fall back on any other error", async () => {
+    const h = harness({
+      fake: { FAKE_CODEX_START_ERROR: JSON.stringify({ code: -32603, message: "disk full" }) },
+      deps: { approvalParams: () => profile },
+    });
+    expect(await refusalOf(h.live.start(h.input()))).toBe("failed");
+    expect(h.calls().filter((call) => call.method === "thread/start")).toHaveLength(1);
+  });
+});
+
 describe("codexLiveVoice approvals by voice", () => {
   const asked = (h: Harness) => h.calls().find((call) => call.method === "thread/realtime/appendSpeech")?.params;
 
@@ -295,6 +349,29 @@ describe("codexLiveVoice approvals by voice", () => {
     expect(h.events).toContainEqual({ type: "approval", outcome: "decline" });
     await until(() => h.decision() !== null);
     expect(h.decision()).toEqual({ decision: "decline" });
+  });
+
+  it("declines a request for another thread without asking", async () => {
+    const h = harness({ fake: { FAKE_CODEX_REALTIME_MODE: "approval", FAKE_CODEX_REALTIME_APPROVAL: JSON.stringify({ params: { threadId: "other-thread" } }) } });
+    await h.start();
+    await until(() => h.decision() !== null);
+    expect(h.decision()).toEqual({ decision: "decline" });
+    expect(asked(h)).toBeUndefined();
+  });
+
+  it("declines a long command at once and tells the user", async () => {
+    const h = harness({ fake: { FAKE_CODEX_REALTIME_MODE: "approval", FAKE_CODEX_REALTIME_COMMAND: "echo one; echo two" } });
+    await h.start();
+    await until(() => h.decision() !== null);
+    expect(h.decision()).toEqual({ decision: "decline" });
+    expect(asked(h).text).toBe("Codex asked to run a long command. I declined it. Ask in the chat to run it.");
+  });
+
+  it("does not take an answer that began before the question", async () => {
+    const h = harness({ fake: { FAKE_CODEX_REALTIME_MODE: "approval", FAKE_CODEX_REALTIME_STALE: "1" }, timeouts: { approvalMs: 600 } });
+    await h.start();
+    await until(() => h.events.some((event) => event.type === "approval"));
+    expect(h.events).toContainEqual({ type: "approval", outcome: "timeout" });
   });
 
   it("declines on timeout when nobody answers", async () => {

@@ -1543,10 +1543,9 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
       const probe = await readCliVersion(childEnv());
       return "version" in probe ? probe.version : null;
     },
-    threadParams: (mode, effectiveConfig) => {
-      const params = mode === "custom" ? customApprovalParams(effectiveConfig) : namedApprovalParams(mode);
-      return [params.thread, ...(params.fallback ? [params.fallback.thread] : [])];
-    },
+    approvalParams: (mode, effectiveConfig) => mode === "custom" ? customApprovalParams(effectiveConfig) : namedApprovalParams(mode),
+    permissionProfileUnsupported,
+    withResolvedSandbox,
     spawn: (args, options) => spawnCli(...codexLaunch(config.cli, args), { ...options, stdio: ["pipe", "pipe", "pipe"] }, "bot"),
     terminate: (child, signal) => { if (signal === "SIGTERM") void killCliTree(child, 2_000); else child.kill(signal); },
     clientVersion: serverVersion(),

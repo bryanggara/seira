@@ -36,6 +36,8 @@
 //     thread/realtime/error) | exit (sdp, started, then exit 1) | approval (sdp, started, then a command approval request; the
 //     next appendSpeech is followed by a user transcript/done) | turn-answer (sdp, started, then an agent message and turn/completed)
 //   FAKE_CODEX_REALTIME_REPLY  approval mode: the user's spoken answer (default "yes", empty: no answer); turn-answer mode: the agent message
+//   FAKE_CODEX_REALTIME_APPROVAL  approval mode: JSON {method, params} merged over the default command request
+//   FAKE_CODEX_REALTIME_STALE  approval mode: "1" sends the user's answer as an utterance that began before the question
 //   FAKE_CODEX_REALTIME_COMMAND  approval mode: the command Codex asks about (default "rm -rf scratch")
 //   FAKE_CODEX_RESUME_ERROR  JSON-RPC error rejecting thread/resume
 //   FAKE_CODEX_ARCHIVED  "1": thread/resume says the session is archived until thread/unarchive; "unarchive-fails": unarchive is refused too
@@ -1147,10 +1149,15 @@ process.stdin.on("data", (chunk) => {
         } else if (realtimeMode === "exit") {
           setTimeout(() => process.exit(1), 50);
         } else if (realtimeMode === "approval") {
+          const override = process.env.FAKE_CODEX_REALTIME_APPROVAL ? JSON.parse(process.env.FAKE_CODEX_REALTIME_APPROVAL) : {};
+          if (process.env.FAKE_CODEX_REALTIME_STALE === "1") notify("thread/realtime/transcript/delta", { threadId, role: "user", delta: "ye" });
           out({
-            jsonrpc: "2.0", id: REALTIME_APPROVAL_ID, method: "item/commandExecution/requestApproval",
-            params: { threadId, turnId: "realtime-turn-1", itemId: "realtime-item-1", command: process.env.FAKE_CODEX_REALTIME_COMMAND ?? "rm -rf scratch", cwd: process.cwd() },
+            jsonrpc: "2.0", id: REALTIME_APPROVAL_ID, method: override.method ?? "item/commandExecution/requestApproval",
+            params: { threadId, turnId: "realtime-turn-1", itemId: "realtime-item-1", command: process.env.FAKE_CODEX_REALTIME_COMMAND ?? "rm -rf scratch", cwd: process.cwd(), ...override.params },
           });
+          if (process.env.FAKE_CODEX_REALTIME_STALE === "1") {
+            setTimeout(() => notify("thread/realtime/transcript/done", { threadId, role: "user", text: "yes" }), 100);
+          }
         } else if (realtimeMode === "turn-answer") {
           notify("thread/realtime/transcript/delta", { threadId, role: "user", delta: "spoken question" });
           notify("thread/realtime/transcript/delta", { threadId, role: "assistant", delta: "spoken reply" });
@@ -1163,7 +1170,8 @@ process.stdin.on("data", (chunk) => {
         dump();
         out({ jsonrpc: "2.0", id: msg.id, result: {} });
         const spoken = process.env.FAKE_CODEX_REALTIME_REPLY ?? "yes";
-        if (realtimeMode === "approval" && spoken) {
+        if (realtimeMode === "approval" && spoken && process.env.FAKE_CODEX_REALTIME_STALE !== "1") {
+          notify("thread/realtime/transcript/delta", { threadId: msg.params?.threadId, role: "user", delta: spoken });
           notify("thread/realtime/transcript/done", { threadId: msg.params?.threadId, role: "user", text: spoken });
         }
         break;

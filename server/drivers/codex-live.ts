@@ -27,6 +27,14 @@ export interface CodexLiveTimeouts {
   approvalMs: number;
   /** Wait for each other request. */
   rpcMs: number;
+  /** Quiet time after a spoken answer before it counts. Defaults to the consent window of chat calls. */
+  settleMs?: number;
+}
+
+export interface LiveCodexApprovalParams {
+  thread: Record<string, unknown>;
+  turn: Record<string, unknown>;
+  fallback?: { thread: Record<string, unknown>; turn: Record<string, unknown> };
 }
 
 export interface CodexLiveDeps {
@@ -36,8 +44,12 @@ export interface CodexLiveDeps {
   env(): Record<string, string | undefined>;
   /** Output of `--version`, or null when unknown. */
   version(): Promise<string | null>;
-  /** Thread fields for an approval mode, preferred first. `effectiveConfig` is set for the custom mode. */
-  threadParams(mode: ApprovalMode, effectiveConfig: unknown): ReadonlyArray<Record<string, unknown>>;
+  /** Approval settings of the chat path for a mode. `effectiveConfig` is set for the custom mode. */
+  approvalParams(mode: ApprovalMode, effectiveConfig: unknown): LiveCodexApprovalParams;
+  /** True when an error means the app-server rejects the named permission profile. */
+  permissionProfileUnsupported(error: unknown): boolean;
+  /** Return the params with the sandbox the app-server resolved. Throw when it is missing or differs. */
+  withResolvedSandbox(params: LiveCodexApprovalParams, session: unknown): LiveCodexApprovalParams;
   /** Start `codex` with these arguments. */
   spawn(args: string[], options: { cwd: string; env: Record<string, string | undefined> }): LiveCodexChild;
   /** Send a signal to the process and its children. */
@@ -126,6 +138,8 @@ export function codexLiveVoice(deps: CodexLiveDeps): CodexLiveVoice {
       speak: appendSpeech,
       onOutcome: (outcome) => { counts.approvals++; emit({ type: "approval", outcome }); },
       timeoutMs: timeouts.approvalMs,
+      threadId: () => threadId,
+      settleMs: timeouts.settleMs,
     });
 
     const terminate = async () => {
@@ -174,6 +188,7 @@ export function codexLiveVoice(deps: CodexLiveDeps): CodexLiveVoice {
           emit({ type: "started" });
           break;
         case "thread/realtime/transcript/delta":
+          if (params.role === "user") approval.userSpeech();
           if ((params.role === "user" || params.role === "assistant") && typeof params.delta === "string") {
             counts.transcripts++;
             emit({ type: "transcript", role: params.role, delta: params.delta });
@@ -223,7 +238,7 @@ export function codexLiveVoice(deps: CodexLiveDeps): CodexLiveVoice {
       if (!entry) return;
       pending.delete(message.id);
       clearTimeout(entry.timer);
-      if (message.error !== undefined) entry.reject(new Error("rpc"));
+      if (message.error !== undefined) entry.reject(new Error(typeof message.error?.message === "string" ? message.error.message : "rpc"));
       else entry.resolve(message.result);
     });
 
@@ -258,15 +273,17 @@ export function codexLiveVoice(deps: CodexLiveDeps): CodexLiveVoice {
       const effectiveConfig = input.approvalMode === "custom"
         ? (await request("config/read", { cwd: input.cwd, includeLayers: false }))?.config
         : undefined;
+      let params = deps.approvalParams(input.approvalMode, effectiveConfig);
+      const startThread = () => request("thread/start", { cwd: input.cwd, ...params.thread, ephemeral: false });
       let started: any;
-      let startError: unknown;
-      for (const fields of deps.threadParams(input.approvalMode, effectiveConfig)) {
-        try {
-          started = await request("thread/start", { cwd: input.cwd, ...fields, ephemeral: false });
-          break;
-        } catch (error) { startError = error; }
+      try {
+        started = await startThread();
+      } catch (error) {
+        if (!params.fallback || !deps.permissionProfileUnsupported(error)) throw error;
+        params = params.fallback;
+        started = await startThread();
       }
-      if (!started) throw startError ?? new Error("thread");
+      params = deps.withResolvedSandbox(params, started);
       const id = started?.thread?.id;
       if (typeof id !== "string" || !id) throw new Error("thread");
       threadId = id;
