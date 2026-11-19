@@ -1732,6 +1732,7 @@ describe("LiveCallController record", () => {
 });
 
 describe("a Codex Live call", () => {
+  const member: RequestAuth = { kind: "loopback", scopes: ["client"], trust: "service" };
   const codex = () => {
     const t = setup();
     t.settings.key = "";
