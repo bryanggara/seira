@@ -372,6 +372,10 @@ export class LiveCallController {
     } catch {
       return;
     }
+    if (endpoint.provider === "codex") {
+      try { socket.close(1000, "call cancelled"); } catch {}
+      return;
+    }
     const done = () => {
       clearTimeout(timer);
       socket.onopen = socket.onmessage = socket.onerror = socket.onclose = null;

@@ -12408,7 +12408,19 @@ function liveCallTitle(botId: string, threadId: string, excerpt: string): Promis
   const gate = threadTitleGate(bot);
   return gate.ok ? generateThreadTitle(gate.instance, excerpt, "call") : null;
 }
-const liveWiring = liveSessionWiring({ bot: liveBotFor, history: liveHistoryFor, cloudHome: Boolean(CLOUD_HOME), othersOnLoopback: adminActivityRecording, saveAgent: (agent) => { saveConfig({ live: agent }); Object.assign(cfg, loadConfig()); }, language: appLanguage, fishAgentLanguage: () => cfg.live?.fishAgentLanguage });
+/** The folder and approval level are the ones a chat turn of this conversation gets (beginTurn). */
+function liveCodexFor(botId: string, threadId: string): ReturnType<NonNullable<Parameters<typeof liveSessionWiring>[0]["codexLive"]>> {
+  const bot = store.projectBotForTask(botId, threadId);
+  const instance = bot ? registry.get(bot.modelSelection.instanceId) : undefined;
+  if (!bot || !instance || instance.driverKind !== "codex" || !instance.startLiveVoice) return null;
+  const workspace = ensureTaskWorkspaceWithSkills(bot.id, threadId, skillsHost.turnImports(bot, threadId, instance));
+  const cwd = store.pinTaskCwd(bot.id, threadId, workspace, { privateOnly: cloudGuestOpened(threadId) || botApiThread(threadId) }) ?? workspace;
+  return { startLiveVoice: (input) => instance.startLiveVoice!(input), cwd, approvalMode: approvalModeForTurn(bot, false, threadId) };
+}
+function postLiveCallAnswer({ botId, threadId, text }: { botId: string; threadId: string; text: string }): void {
+  if (store.taskByThread(botId, threadId)) store.appendMessage(threadId, { role: "bot", kind: "text", text });
+}
+const liveWiring = liveSessionWiring({ codexLive: liveCodexFor, postCallAnswer: postLiveCallAnswer, bot: liveBotFor, history: liveHistoryFor, cloudHome: Boolean(CLOUD_HOME), othersOnLoopback: adminActivityRecording, saveAgent: (agent) => { saveConfig({ live: agent }); Object.assign(cfg, loadConfig()); }, language: appLanguage, fishAgentLanguage: () => cfg.live?.fishAgentLanguage });
 const liveCalls = new LiveCallController({
   store,
   send: async ({ auth, botId, threadId, text, callId }) => {
@@ -15354,7 +15366,7 @@ const gracefulShutdown = createGracefulShutdown({
       await Promise.all([...temporaries, browserSweep.closeAll()]);
       await browserRuntime.closeAll();
     },
-    () => liveCalls.shutdown(),
+    async () => { await liveCalls.shutdown(); await liveWiring.stopAll(); },
     () => flushAllProfileHistory(),
     () => flushAllMemoryJournals(),
     () => flushUsageLedger(DATA_DIR),
