@@ -1,4 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   createLiveCodexApproval,
@@ -19,6 +23,13 @@ const NOTICE_COMMAND = "I need to run a command that I cannot read out in full, 
 const NOTICE_FILES = "I need to change files that I cannot read out in full, so I did not change them. Ask me in the chat to change them.";
 const NOTICE_PERMISSIONS = "I need more access than I have now, so I did not do it. Ask me in the chat to allow it.";
 
+const ROOT = mkdtempSync(join(tmpdir(), "live-approval-"));
+const OUTSIDE = mkdtempSync(join(tmpdir(), "live-approval-outside-"));
+afterAll(() => {
+  rmSync(ROOT, { recursive: true, force: true });
+  rmSync(OUTSIDE, { recursive: true, force: true });
+});
+
 const audioMs = (text: string) => Math.ceil((text.length * 1_000) / SPOKEN_CHARS_PER_SECOND);
 const change = (path: string, kind: LiveCodexFileChange["kind"] = "update", movePath: string | null = null): LiveCodexFileChange => ({ path, kind, movePath });
 
@@ -30,7 +41,7 @@ function setup(extra: Partial<LiveCodexApprovalOptions> = {}) {
     onOutcome: (outcome) => outcomes.push(outcome),
     timeoutMs: 60_000,
     threadId: () => THREAD,
-    cwd: "/repo",
+    cwd: ROOT,
     ...extra,
   });
   const respond = vi.fn();
@@ -54,6 +65,13 @@ function setup(extra: Partial<LiveCodexApprovalOptions> = {}) {
     vi.advanceTimersByTime(settle);
   };
   return { approval, spoken, outcomes, respond, open, ask, say, voiceSays };
+}
+
+/** Open a file change request whose item makes these changes. */
+function askFiles(changes: LiveCodexFileChange[], extra: Partial<LiveCodexApprovalOptions> = {}) {
+  const harness = setup({ files: () => changes, ...extra });
+  harness.approval.request(FILES, { threadId: THREAD, itemId: "call-1" }, harness.respond);
+  return harness;
 }
 
 beforeEach(() => { vi.useFakeTimers(); });
@@ -401,8 +419,8 @@ describe("live Codex approval never grants wider access by voice", () => {
   });
 
   it("declines a file change that widens the writable root", () => {
-    const { approval, spoken, respond } = setup({ files: () => [change("/repo/x.ts")] });
-    approval.request(FILES, { threadId: THREAD, grantRoot: "/repo" }, respond);
+    const { approval, spoken, respond } = setup({ files: () => [change(`${ROOT}/x.ts`)] });
+    approval.request(FILES, { threadId: THREAD, grantRoot: ROOT }, respond);
     expect(respond).toHaveBeenCalledExactlyOnceWith({ decision: "decline" });
     expect(spoken).toEqual([NOTICE_PERMISSIONS]);
   });
@@ -465,7 +483,7 @@ describe("live Codex approval spoken question limits", () => {
 
   it("speaks up to three paths relative to the working folder and asks", () => {
     const { spoken, respond, approval, say, voiceSays } = setup();
-    approval.request("applyPatchApproval", { conversationId: THREAD, fileChanges: { "/repo/src/a.ts": {}, "/repo/b.ts": {}, "c.ts": {} } }, respond);
+    approval.request("applyPatchApproval", { conversationId: THREAD, fileChanges: { [`${ROOT}/src/a.ts`]: {}, [`${ROOT}/b.ts`]: {}, "c.ts": {} } }, respond);
     expect(spoken).toEqual(["I need your OK for these file changes: change src/a.ts, change b.ts, change c.ts. Should I go ahead? Say yes or no."]);
     voiceSays();
     say("yes");
@@ -473,7 +491,7 @@ describe("live Codex approval spoken question limits", () => {
   });
 
   it("asks about a file change with known names and accepts a yes", () => {
-    const files = vi.fn(() => [change("/repo/readme.md")]);
+    const files = vi.fn(() => [change(`${ROOT}/readme.md`)]);
     const { spoken, approval, respond, say, voiceSays } = setup({ files });
     approval.request(FILES, { threadId: THREAD, itemId: "call-1" }, respond);
     expect(files).toHaveBeenCalledWith({ threadId: THREAD, itemId: "call-1" });
@@ -570,18 +588,17 @@ describe("live Codex approval counts only a voice output that names the request"
 });
 
 describe("live Codex approval speaks only file paths inside the working folder", () => {
-  const askFiles = (changes: LiveCodexFileChange[], extra: Partial<LiveCodexApprovalOptions> = {}) => {
-    const harness = setup({ files: () => changes, ...extra });
-    harness.approval.request(FILES, { threadId: THREAD, itemId: "call-1" }, harness.respond);
-    return harness;
-  };
   const expectDeclined = ({ spoken, outcomes, respond }: ReturnType<typeof setup>) => {
     expect(respond).toHaveBeenCalledExactlyOnceWith({ decision: "decline" });
     expect(outcomes).toEqual(["decline"]);
     expect(spoken).toEqual([NOTICE_FILES]);
   };
 
-  it.each(["src/app.ts", "/repo/src/app.ts", "./src/app.ts"])("speaks %j relative to the working folder", (path) => {
+  it.each([
+    ["a relative path", "src/app.ts"],
+    ["an absolute path inside the folder", `${ROOT}/src/app.ts`],
+    ["a path with a dot step", "./src/app.ts"],
+  ])("speaks %s relative to the working folder", (_name, path) => {
     const { spoken, respond } = askFiles([change(path, "add")]);
     expect(respond).not.toHaveBeenCalled();
     expect(spoken).toEqual(["I need your OK to create this file: src/app.ts. Should I go ahead? Say yes or no."]);
@@ -589,8 +606,8 @@ describe("live Codex approval speaks only file paths inside the working folder",
 
   it.each([
     ["an absolute path outside the folder", "/etc/hosts"],
-    ["a sibling folder with the same prefix", "/repo-other/a.ts"],
-    ["the folder itself", "/repo"],
+    ["a sibling folder with the same prefix", `${ROOT}-other/a.ts`],
+    ["the folder itself", ROOT],
     ["a parent step out of the folder", "src/../../etc/hosts"],
     ["a parent step that stays inside", "src/../app.ts"],
     ["a backslash parent step", "src\\..\\..\\a.ts"],
@@ -626,7 +643,7 @@ describe("live Codex approval speaks only file paths inside the working folder",
   });
 
   it("speaks a move with its target and accepts a yes", () => {
-    const { spoken, respond, say, voiceSays } = askFiles([change("/repo/a.ts", "update", "/repo/lib/a.ts")]);
+    const { spoken, respond, say, voiceSays } = askFiles([change(`${ROOT}/a.ts`, "update", `${ROOT}/lib/a.ts`)]);
     expect(spoken).toEqual(["I need your OK to move this file: a.ts to lib/a.ts. Should I go ahead? Say yes or no."]);
     voiceSays();
     say("yes");
@@ -634,7 +651,7 @@ describe("live Codex approval speaks only file paths inside the working folder",
   });
 
   it.each([
-    ["a move out of the folder", change("a.ts", "update", "/tmp/a.ts")],
+    ["a move out of the folder", change("a.ts", "update", `${OUTSIDE}/a.ts`)],
     ["a move up a parent step", change("a.ts", "update", "../a.ts")],
     ["a move into the repository folder", change("hook.sh", "update", ".git/hooks/pre-commit")],
     ["a delete outside the folder", change("/etc/passwd", "delete")],
@@ -655,9 +672,9 @@ describe("live Codex approval speaks only file paths inside the working folder",
     approval.request("applyPatchApproval", {
       conversationId: THREAD,
       fileChanges: {
-        "/repo/new.ts": { type: "add", content: "" },
-        "/repo/old.ts": { type: "delete", content: "" },
-        "/repo/src/x.ts": { type: "update", unified_diff: "", move_path: "/repo/lib/x.ts" },
+        [`${ROOT}/new.ts`]: { type: "add", content: "" },
+        [`${ROOT}/old.ts`]: { type: "delete", content: "" },
+        [`${ROOT}/src/x.ts`]: { type: "update", unified_diff: "", move_path: `${ROOT}/lib/x.ts` },
       },
     }, respond);
     expect(respond).not.toHaveBeenCalled();
@@ -671,6 +688,65 @@ describe("live Codex approval speaks only file paths inside the working folder",
     const { approval, spoken, respond } = setup();
     approval.request("applyPatchApproval", { conversationId: THREAD, fileChanges }, respond);
     expect(respond).toHaveBeenCalledExactlyOnceWith({ decision: "denied" });
+    expect(spoken).toEqual([NOTICE_FILES]);
+  });
+});
+
+describe("live Codex approval follows symlinks to the real file", () => {
+  beforeAll(() => {
+    mkdirSync(join(ROOT, "lib"), { recursive: true });
+    writeFileSync(join(ROOT, "lib", "old.ts"), "");
+    mkdirSync(join(ROOT, ".git", "hooks"), { recursive: true });
+    writeFileSync(join(OUTSIDE, "authorized_keys"), "");
+    symlinkSync(OUTSIDE, join(ROOT, "link"));
+    symlinkSync(join(ROOT, ".git"), join(ROOT, "repo-data"));
+    symlinkSync(join(ROOT, "gone"), join(ROOT, "dangling"));
+    symlinkSync(join(OUTSIDE, "authorized_keys"), join(ROOT, "keys.txt"));
+    symlinkSync(join(ROOT, "lib", "old.ts"), join(ROOT, "alias.ts"));
+    symlinkSync(ROOT, join(OUTSIDE, "project"));
+  });
+
+
+  it.each([
+    ["an existing file under a folder symlink that points outside", change("link/authorized_keys")],
+    ["a new file under a folder symlink that points outside", change("link/new.ts", "add")],
+    ["a folder symlink to the repository folder", change("repo-data/hooks/pre-commit", "add")],
+    ["a folder symlink that points nowhere", change("dangling/a.ts", "add")],
+    ["a file symlink that points outside", change("keys.txt")],
+    ["a file symlink that points inside", change("alias.ts")],
+    ["a path under a file", change("lib/old.ts/a.ts", "add")],
+    ["a move through a folder symlink that points outside", change("lib/old.ts", "update", "link/old.ts")],
+  ])("declines at once %s", (_name, item) => {
+    const { spoken, outcomes, respond } = askFiles([item]);
+    expect(respond).toHaveBeenCalledExactlyOnceWith({ decision: "decline" });
+    expect(outcomes).toEqual(["decline"]);
+    expect(spoken).toEqual([NOTICE_FILES]);
+  });
+
+  it("asks about a new file in an existing subfolder", () => {
+    const { spoken, respond } = askFiles([change("lib/new.ts", "add")]);
+    expect(respond).not.toHaveBeenCalled();
+    expect(spoken).toEqual(["I need your OK to create this file: lib/new.ts. Should I go ahead? Say yes or no."]);
+  });
+
+  it("asks about an existing file", () => {
+    const { spoken, respond } = askFiles([change(join(ROOT, "lib", "old.ts"), "delete")]);
+    expect(respond).not.toHaveBeenCalled();
+    expect(spoken).toEqual(["I need your OK to delete this file: lib/old.ts. Should I go ahead? Say yes or no."]);
+  });
+
+  it.each([
+    ["the symlinked path", join(OUTSIDE, "project", "lib", "new.ts")],
+    ["the real path", join(ROOT, "lib", "new.ts")],
+  ])("speaks %s of a working folder reached through a symlink relative to it", (_name, path) => {
+    const { spoken, respond } = askFiles([change(path, "add")], { cwd: join(OUTSIDE, "project") });
+    expect(respond).not.toHaveBeenCalled();
+    expect(spoken).toEqual(["I need your OK to create this file: lib/new.ts. Should I go ahead? Say yes or no."]);
+  });
+
+  it("declines each file change when the working folder does not exist", () => {
+    const { spoken, respond } = askFiles([change("a.ts", "add")], { cwd: join(ROOT, "missing") });
+    expect(respond).toHaveBeenCalledExactlyOnceWith({ decision: "decline" });
     expect(spoken).toEqual([NOTICE_FILES]);
   });
 });

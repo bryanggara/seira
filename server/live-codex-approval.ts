@@ -1,4 +1,5 @@
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { lstatSync, realpathSync } from "node:fs";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import { spokenConsent } from "../shared/call-consent.ts";
 import { CONSENT_SETTLE_MS } from "./live-call-controller.ts";
@@ -18,7 +19,7 @@ export interface LiveCodexApprovalOptions {
   timeoutMs: number;
   /** Thread of the call. A request for another thread is declined. */
   threadId(): string | null;
-  /** Working folder of the call. File paths are spoken relative to it. Without it, each file change is declined. */
+  /** Working folder of the call. File paths are spoken relative to its real path. Without it, each file change is declined. */
   cwd?: string;
   /** Changes that a file change request makes, or null when unknown. */
   files?(params: Record<string, unknown>): LiveCodexFileChange[] | null;
@@ -152,23 +153,58 @@ function commandSubject(command: string): Subject {
   return { words: unique([...required, ...words(rest.filter((part) => !part.startsWith("-")).join(" "))]), required };
 }
 
-/** The path relative to the call's folder, as the voice says it, or null when a voice must not approve it. */
-function spokenPath(raw: string, cwd: string): string | null {
+const realFolder = (path: string): string | null => {
+  try {
+    return realpathSync(path);
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * The target with each existing folder on its way resolved through symlinks, or null when the target
+ * itself is a symlink or the file system cannot answer. Codex asks for approval when the real path
+ * leaves the writable roots, so a symlink inside the working folder must not hide where a write lands.
+ */
+function realTarget(target: string): string | null {
+  try {
+    if (lstatSync(target, { throwIfNoEntry: false })?.isSymbolicLink()) return null;
+    const missing: string[] = [];
+    let existing = target;
+    while (!lstatSync(existing, { throwIfNoEntry: false })) {
+      const parent = dirname(existing);
+      if (parent === existing) return null;
+      missing.unshift(basename(existing));
+      existing = parent;
+    }
+    return join(realpathSync(existing), ...missing);
+  } catch {
+    return null;
+  }
+}
+
+const isProtected = (path: string) => path.split(sep).some((segment) => PROTECTED_SEGMENT.test(segment));
+
+/** The real path relative to the real working folder, as the voice says it, or null when a voice must not approve it. */
+function spokenPath(raw: string, cwd: string, realCwd: string): string | null {
   if (raw.split(/[\\/]/).includes("..")) return null;
-  const inside = relative(cwd, resolve(cwd, raw));
-  if (!inside || inside.startsWith("..") || isAbsolute(inside)) return null;
-  const segments = inside.split(sep);
-  if (segments.some((segment) => PROTECTED_SEGMENT.test(segment))) return null;
-  const spoken = segments.join("/");
+  const target = resolve(cwd, raw);
+  const real = realTarget(target);
+  if (real === null || isProtected(relative(cwd, target))) return null;
+  const inside = relative(realCwd, real);
+  if (!inside || inside.startsWith("..") || isAbsolute(inside) || isProtected(inside)) return null;
+  const spoken = inside.split(sep).join("/");
   return spoken.length <= PATH_SPOKEN_LIMIT && SPOKEN_PATH.test(spoken) ? spoken : null;
 }
 
 function filesQuestion(changes: LiveCodexFileChange[] | null, cwd: string | undefined): { question: string; subject: Subject } | null {
   if (!changes?.length || changes.length > FILES_SPOKEN_LIMIT || !cwd) return null;
+  const realCwd = realFolder(cwd);
+  if (realCwd === null) return null;
   const spoken: Array<{ verb: string; path: string; to: string | null }> = [];
   for (const change of changes) {
-    const path = spokenPath(change.path, cwd);
-    const to = change.movePath === null ? null : spokenPath(change.movePath, cwd);
+    const path = spokenPath(change.path, cwd, realCwd);
+    const to = change.movePath === null ? null : spokenPath(change.movePath, cwd, realCwd);
     if (path === null || (change.movePath !== null && to === null)) return null;
     spoken.push({ verb: to ? "move" : VERBS[change.kind ?? "update"], path, to });
   }
