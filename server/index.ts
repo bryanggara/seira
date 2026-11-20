@@ -6739,7 +6739,7 @@ bus.subscribe((event: RuntimeEvent) => {
           costUsd: event.cost ?? null,
           context: { tokens: lastContext?.tokens, window: lastContext?.window ?? modelContextWindow(contextModel) },
         });
-        const settledTask = store.taskByThread(bot.id, event.threadId); const workflowStep = Boolean(settledTask?.routineRunId && routines?.listRuns().some((run) => run.id === settledTask.routineRunId && run.workflowId !== undefined && ["running", "waiting"].includes(run.status)));
+        const settledTask = store.taskByThread(bot.id, event.threadId); const workflowStep = Boolean(settledTask?.routineRunId && routines?.listRuns().some((run) => run.id === settledTask.routineRunId && run.workflowId !== undefined && (["running", "waiting"].includes(run.status) || Date.now() - (run.finishedAt ?? 0) < 10_000)));
         const selection = settledTask?.modelSelection ?? bot.modelSelection;
         // A provider that omitted a context measurement must not reuse a stale reading from another model or a pre-compaction session.
         const measuredSelection = directTurnBots.get(event.threadId)?.modelSelection ?? selection;
