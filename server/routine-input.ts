@@ -7,6 +7,7 @@ import { cleanSchedule } from "./routine-schedules.ts";
 import type { ModelSelection } from "../shared/wire.ts";
 import type { Routine, RoutineInput } from "./routines.ts";
 import { userErrorThrown } from "./user-errors.ts";
+import { linkWorkflow, type WorkflowCopyLookup } from "./workflows/routine-link.ts";
 
 type Refusal = { status: number; error: string };
 
@@ -47,10 +48,11 @@ export function routineThreadModel(routine: Pick<Routine, "botId" | "modelSelect
   return routine?.modelSelection && keepsPermissions(checks, routine.botId, routine.modelSelection) ? routine.modelSelection : undefined;
 }
 
-export function sanitizeInput(input: RoutineInput, after: number): Omit<Routine, "id" | "createdAt" | "updatedAt" | "nextRunAt"> {
+export function sanitizeInput(input: RoutineInput, after: number, lookup?: WorkflowCopyLookup): Omit<Routine, "id" | "createdAt" | "updatedAt" | "nextRunAt"> {
   const name = String(input.name ?? "").trim().slice(0, 80);
-  const prompt = String(input.prompt ?? "").trim().slice(0, 20_000);
-  const botId = String(input.botId ?? "").trim();
+  const link = linkWorkflow(input, lookup);
+  const prompt = (link?.prompt ?? String(input.prompt ?? "")).trim().slice(0, 20_000);
+  const botId = link?.botId ?? String(input.botId ?? "").trim();
   if (!name) throw new Error("Give the routine a name");
   if (!prompt) throw new Error("Tell the bot what to do");
   if (!botId) throw new Error("Choose a bot");
@@ -91,6 +93,14 @@ export function sanitizeInput(input: RoutineInput, after: number): Omit<Routine,
   if (checks && (target !== "bot" || runsOnce(schedule))) throw userErrorThrown("serverError.routine.checksRepeat");
   if (input.access != null && input.access !== "read-and-draft") throw userErrorThrown("serverError.routine.access");
   if (input.deliver != null && (input.deliver !== "brief" || target !== "bot")) throw userErrorThrown("serverError.routine.deliver");
+  if (link) {
+    if (target === "room-goal") throw new Error("A workflow runs its own bots, not a channel.");
+    if (runOn === "cloud") throw new Error("A workflow runs on this computer.");
+    if (input.deliver != null) throw new Error("A workflow posts its results with a Post results step.");
+    if (sameConversation) throw new Error("A workflow opens new chats for each run.");
+    if (modelSelection) throw new Error("Each bot in a workflow uses its own model.");
+    if (schedule.type === "limit_reset") throw new Error("A workflow can't continue a chat after a usage limit.");
+  }
   return {
     name,
     prompt,
@@ -111,5 +121,6 @@ export function sanitizeInput(input: RoutineInput, after: number): Omit<Routine,
     ...(checks ? { checks } : {}),
     ...(input.access === "read-and-draft" ? { access: "read-and-draft" as const } : {}),
     ...(input.deliver === "brief" ? { deliver: "brief" as const } : {}),
+    ...(link ? { workflowId: link.workflowId, workflowBotIds: link.botIds } : {}),
   };
 }

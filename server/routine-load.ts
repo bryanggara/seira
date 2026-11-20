@@ -88,6 +88,13 @@ export function loadModelSelection(value: unknown): ModelSelection | undefined {
   return { instanceId: instanceId.trim(), model: model.trim(), ...(effort === undefined ? {} : { effort }), ...(variant === undefined ? {} : { variant }) };
 }
 
+const WORKFLOW_REF = /^[\w-]{1,128}$/;
+function loadWorkflowLink(record: { workflowId?: unknown; workflowBotIds?: unknown }, target: RoutineTarget): Pick<Routine, "workflowId" | "workflowBotIds"> {
+  const bots = Array.isArray(record.workflowBotIds) ? record.workflowBotIds.filter((id): id is string => typeof id === "string" && WORKFLOW_REF.test(id)).slice(0, 50) : [];
+  return target === "bot" && typeof record.workflowId === "string" && WORKFLOW_REF.test(record.workflowId) && bots.length > 0
+    ? { workflowId: record.workflowId, workflowBotIds: bots } : { workflowId: undefined, workflowBotIds: undefined };
+}
+
 export function loadRoutine(routine: Routine, now: number): Routine | null {
   const schedule = loadSchedule(routine.schedule, now);
   if (!schedule) return null;
@@ -113,10 +120,11 @@ export function loadRoutine(routine: Routine, now: number): Routine | null {
     checkTroubleCode: typeof routine.checkTrouble === "string" && routine.checkTrouble && typeof routine.checkTroubleCode === "string" ? routine.checkTroubleCode.slice(0, 80) : undefined,
     wakeAt: instant(routine.wakeAt),
     heldFor: isRoutineHoldCause(routine.heldFor) ? routine.heldFor : undefined,
+    ...loadWorkflowLink(routine, target),
   };
   delete loaded.failureStreak;
   delete loaded.noStartStreak;
-  return withCheckFields(withoutUndefined(loaded, ["timeoutMinutes", "runOnStartup", "modelSelection", "installedPackage", "checkedAt", "checkTrouble", "checkTroubleCode", "wakeAt", "heldFor"]));
+  return withCheckFields(withoutUndefined(loaded, ["timeoutMinutes", "runOnStartup", "modelSelection", "installedPackage", "checkedAt", "checkTrouble", "checkTroubleCode", "wakeAt", "heldFor", "workflowId", "workflowBotIds"]));
 }
 
 export function loadRun(run: RoutineRun): RoutineRun {
@@ -137,8 +145,9 @@ export function loadRun(run: RoutineRun): RoutineRun {
     busyMs: instant(run.busyMs),
     workedMs: instant(run.workedMs),
     skipped: loadSkips(run.skipped),
+    ...loadWorkflowLink(run, target),
   };
-  return withoutUndefined(loaded, ["timeoutMinutes", "access", "deliver", "checkKey", "busyMs", "workedMs", "skipped"]);
+  return withoutUndefined(loaded, ["timeoutMinutes", "access", "deliver", "checkKey", "busyMs", "workedMs", "skipped", "workflowId", "workflowBotIds"]);
 }
 
 const REQUEST_ACTIONS = new Set<RoutineRequestOperation["action"]>(["create", "update", "pause", "resume", "run_now", "delete"]);
