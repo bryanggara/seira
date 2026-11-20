@@ -58,9 +58,16 @@ async function openApp(server: { url: string; port: number; dataDir: string; log
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
   };
+  /** From any screen: a person opens the bot list, leaving Automations first when it hides the list button. */
   const openChat = async (id: string) => {
-    await evaluate(`document.querySelector('button[aria-label="Open bot list"]')?.click(); true`);
-    await expect.poll(() => evaluate(`(() => { const row = document.querySelector('[data-sidebar-bot-row="${id}"]'); row?.click(); return Boolean(row); })()`), { timeout: 15_000 }).toBe(true);
+    await expect.poll(() => evaluate(`(() => {
+      const row = document.querySelector('[data-sidebar-bot-row="${id}"]');
+      if (row) { row.click(); return true; }
+      const list = document.querySelector('button[aria-label="Open bot list"]');
+      if (list) { list.click(); return false; }
+      document.querySelector('main header button[aria-label="Back"]')?.click();
+      return false;
+    })()`), { timeout: 30_000, interval: 500 }).toBe(true);
   };
   /** Opens the more menu of the reply that says `reply`. */
   const openReplyMenu = async (reply: string) => {
