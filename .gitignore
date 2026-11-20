@@ -47,6 +47,11 @@ deploy/podman/.env.*
 # Local working files: never public. See "Local details stay local" in AGENTS.md.
 # (*.local above already covers .env.local and brand/.env.local.)
 /internal/
+# Design notes and plans are not public either; scripts/check-local-leaks.mjs refuses them in a change.
+/docs/superpowers/
+/docs/specs/
+/docs/plans/
+/.tmpexp/
 /AGENTS.local.md
 /CLAUDE.local.md
 /.leakcheck.local

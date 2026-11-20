@@ -1,6 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { addedLines, exemptFromGeneric, fileLines, findLeaks, privatePatterns } from "./check-local-leaks.mjs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { addedLines, blockedFolder, exemptFromGeneric, fileLines, findLeaks, privatePatterns } from "./check-local-leaks.mjs";
+
+const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), "check-local-leaks.mjs");
 
 const labels = (lines, options) => findLeaks(lines, options).map((f) => `${f.path}:${f.line}: ${f.label}`);
 const one = (text, path = "docs/setup.md") => labels([{ path, line: 1, text }]);
@@ -110,5 +118,79 @@ describe("fileLines", () => {
   it("checks a binary file only for home paths and private patterns", () => {
     const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0]), Buffer.from("tEXt /home/alex/x/ -----BEGIN RSA PRIVATE KEY-----")]);
     expect(labels(fileLines("a.png", png))).toEqual(["a.png:0: home folder path (Linux)"]);
+  });
+});
+
+describe("folders for working documents", () => {
+  it("names the folders that the public repository does not take", () => {
+    for (const path of ["docs/superpowers/specs/a.md", "docs/specs/a.md", "docs/plans/a.md", ".tmpexp/run.sh"]) expect(blockedFolder(path)).toBeTruthy();
+    for (const path of ["docs/guide.md", "docs/plans-and-pricing.md", "internal/notes.md", "src/docs/plans/a.md", "docs/verification/plans.md"]) expect(blockedFolder(path)).toBeUndefined();
+  });
+
+  describe("in a repository", () => {
+    let repo;
+    const git = (...args) => execFileSync("git", args, { cwd: repo, encoding: "utf8" });
+    const write = (path, text = "note\n") => {
+      mkdirSync(join(repo, dirname(path)), { recursive: true });
+      writeFileSync(join(repo, path), text);
+    };
+    const check = (...args) => {
+      const run = spawnSync("node", [SCRIPT, ...args], { cwd: repo, encoding: "utf8" });
+      return { code: run.status, out: run.stdout + run.stderr };
+    };
+
+    beforeEach(() => {
+      repo = mkdtempSync(join(tmpdir(), "leakcheck-folders-"));
+      git("init", "-q", "-b", "main");
+      git("config", "user.email", "test@example.com");
+      git("config", "user.name", "Test");
+      git("config", "commit.gpgsign", "false");
+      write("README.md", "hello\n");
+      write("docs/plans/old.md", "an old plan\n");
+      git("add", "-A");
+      git("commit", "-q", "-m", "base");
+    });
+    afterEach(() => rmSync(repo, { recursive: true, force: true }));
+
+    it("refuses a staged new file in a blocked folder and says where it belongs", () => {
+      write("docs/superpowers/specs/new.md");
+      git("add", "-A");
+      const { code, out } = check("--staged");
+      expect(code).toBe(1);
+      expect(out).toContain("docs/superpowers/specs/new.md");
+      expect(out).toContain("internal/");
+    });
+
+    it("refuses a file that is renamed into a blocked folder", () => {
+      write("docs/guide.md", "a guide that is long enough to be a rename\n");
+      git("add", "-A");
+      git("commit", "-q", "-m", "guide");
+      mkdirSync(join(repo, "docs/specs"), { recursive: true });
+      git("mv", "docs/guide.md", "docs/specs/guide.md");
+      expect(check("--staged").code).toBe(1);
+    });
+
+    it("lets a change delete or edit a file there, and add one elsewhere", () => {
+      git("rm", "-q", "docs/plans/old.md");
+      write("docs/guide.md");
+      git("add", "-A");
+      expect(check("--staged")).toEqual({ code: 0, out: "" });
+    });
+
+    it("checks the range that a pull request holds, so skipping the hook does not help", () => {
+      const base = git("rev-parse", "HEAD").trim();
+      write(".tmpexp/run.mjs");
+      git("add", "-A");
+      git("commit", "-q", "--no-verify", "-m", "skip the hook");
+      const head = git("rev-parse", "HEAD").trim();
+      const { code, out } = check("--range", `${base}...${head}`);
+      expect(code).toBe(1);
+      expect(out).toContain(".tmpexp/run.mjs");
+      expect(check("--range", `${head}...${head}`).code).toBe(0);
+    });
+
+    it("asks for a range after --range", () => {
+      expect(check("--range").code).toBe(2);
+    });
   });
 });

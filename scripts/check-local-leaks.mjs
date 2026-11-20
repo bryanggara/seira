@@ -5,6 +5,10 @@
 //   node scripts/check-local-leaks.mjs            lines added since origin/main, plus untracked files
 //   node scripts/check-local-leaks.mjs --staged   lines added in the index (the pre-commit hook)
 //   node scripts/check-local-leaks.mjs --all      every line of every file (an audit of the whole tree)
+//   node scripts/check-local-leaks.mjs --range <a>...<b>   lines added by that range, as `git diff` reads it (CI uses the pull request's base...head)
+//
+// Every mode also refuses a new file in a folder for working documents (BLOCKED_FOLDERS). Design notes and plans
+// belong in internal/ (ignored by git) or in the team's own documents, not in the public repository.
 //
 // .leakcheck.local (gitignored) holds one regular expression per line, matched without case:
 // your user name, host aliases, LAN addresses, private repo names. They apply to every file.
@@ -36,6 +40,10 @@ const EXEMPT = [
   /(?:^|\/)pnpm-lock\.yaml$/,
   /(?:^|\/)source-hashes\.json$/,
 ];
+
+export const BLOCKED_FOLDERS = ["docs/superpowers/", "docs/specs/", "docs/plans/", ".tmpexp/"];
+
+export const blockedFolder = (path) => BLOCKED_FOLDERS.find((folder) => path.startsWith(folder));
 
 export const exemptFromGeneric = (path) => EXEMPT.some((re) => re.test(path));
 
@@ -94,37 +102,57 @@ const gitOk = (args, cwd) => {
   }
 };
 
-function linesToCheck(mode, root) {
+// Files that a change adds under a blocked folder. A file that moves there counts as added; deleting one is fine.
+function blockedAdditions(mode, rangeSpec, root) {
+  const list = (args) => git(args, root).split("\0").filter(Boolean);
+  if (mode === "--all") return list(["ls-files", "-z", "--cached"]).filter(blockedFolder);
+  const base = mode === "--range" ? [rangeSpec] : mode === "--staged" ? ["--cached"] : [mergeBase(root)];
+  const added = list(["diff", "--name-only", "-z", "--no-renames", "--diff-filter=A", ...base, "--"]);
+  const untracked = mode === "" ? list(["ls-files", "-z", "--others", "--exclude-standard"]) : [];
+  return [...added, ...untracked].filter(blockedFolder);
+}
+
+const mergeBase = (root) => (gitOk(["rev-parse", "-q", "--verify", "origin/main"], root) ? git(["merge-base", "HEAD", "origin/main"], root).trim() : "HEAD");
+
+function linesToCheck(mode, root, rangeSpec) {
   const readFile = (path) => (existsSync(join(root, path)) ? fileLines(path, readFileSync(join(root, path))) : []);
   const list = (args) => git(args, root).split("\0").filter(Boolean);
   if (mode === "--all") {
     return list(["ls-files", "-z", "--cached", "--others", "--exclude-standard"]).flatMap(readFile);
   }
-  const range = mode === "--staged" ? ["--cached"] : [gitOk(["rev-parse", "-q", "--verify", "origin/main"], root) ? git(["merge-base", "HEAD", "origin/main"], root).trim() : "HEAD"];
+  const range = mode === "--staged" ? ["--cached"] : mode === "--range" ? [rangeSpec] : [mergeBase(root)];
   const diffArgs = ["diff", "-U0", "--no-color", "--no-ext-diff", "--no-renames", "--src-prefix=a/", "--dst-prefix=b/", "--diff-filter=ACM", ...range];
   const binaries = git([...diffArgs, "--numstat", "-z"], root)
     .split("\0")
     .filter((entry) => entry.startsWith("-\t-\t"))
     .map((entry) => entry.slice(4));
-  const untracked = mode === "--staged" ? [] : list(["ls-files", "-z", "--others", "--exclude-standard"]);
+  const untracked = mode === "--staged" || mode === "--range" ? [] : list(["ls-files", "-z", "--others", "--exclude-standard"]);
   return [...addedLines(git(diffArgs, root)), ...binaries.flatMap(readFile), ...untracked.flatMap(readFile)];
 }
 
 function main(argv) {
   const mode = argv[0] ?? "";
-  if (!["", "--staged", "--all"].includes(mode)) {
-    console.error("usage: node scripts/check-local-leaks.mjs [--staged | --all]");
+  const rangeSpec = argv[1] ?? "";
+  if (!["", "--staged", "--all", "--range"].includes(mode) || (mode === "--range" ? !rangeSpec || argv.length > 2 : argv.length > 1)) {
+    console.error("usage: node scripts/check-local-leaks.mjs [--staged | --all | --range <a>...<b>]");
     return 2;
   }
   const root = git(["rev-parse", "--show-toplevel"], process.cwd()).trim();
   const localFile = join(root, ".leakcheck.local");
   const privateRules = existsSync(localFile) ? privatePatterns(readFileSync(localFile, "utf8")) : [];
   const merging = gitOk(["rev-parse", "-q", "--verify", "MERGE_HEAD"], root);
-  const found = findLeaks(linesToCheck(mode, root), { privateRules, generic: !merging });
+  const found = findLeaks(linesToCheck(mode, root, rangeSpec), { privateRules, generic: !merging });
+  const blocked = blockedAdditions(mode, rangeSpec, root);
   for (const { path, line, label } of found) console.log(`${path}:${line}: ${label}`);
-  if (found.length === 0) return 0;
-  console.log("\ncheck-local-leaks: remove these details, or move them to a *.local file or AGENTS.local.md.");
-  console.log('See "Local details stay local" in AGENTS.md.');
+  for (const path of blocked) console.log(`${path}: working document in a folder that the public repository does not take`);
+  if (found.length === 0 && blocked.length === 0) return 0;
+  if (found.length > 0) {
+    console.log("\ncheck-local-leaks: remove these details, or move them to a *.local file or AGENTS.local.md.");
+    console.log('See "Local details stay local" in AGENTS.md.');
+  }
+  if (blocked.length > 0) {
+    console.log(`\ncheck-local-leaks: ${BLOCKED_FOLDERS.join(", ")} are not for the public repository. Keep design notes and plans in internal/ (ignored by git) or in the team's own documents.`);
+  }
   return 1;
 }
 
