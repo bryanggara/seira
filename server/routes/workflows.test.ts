@@ -153,7 +153,7 @@ describe("workflow routes", () => {
     });
 
     it("a chat-level member cannot change a workflow they did not create, even when only their routine links it", async () => {
-      for (const creators of [{}, { open: "someone-else" }]) {
+      for (const creators of [{}, { open: "someone-else" }] as Array<Record<string, string>>) {
         const { call, calls } = fixture({ levels: { pub: "chat" }, own: ["r1"], creators });
         expect((await call("PATCH", "/api/workflows/open", input("pub"))).status).toBe(403);
         expect((await call("DELETE", "/api/workflows/open")).status).toBe(403);
