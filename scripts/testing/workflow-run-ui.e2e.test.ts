@@ -59,11 +59,19 @@ async function openApp(server: { url: string; port: number; dataDir: string; log
     await expect.poll(() => evaluate(`(() => { const entry = document.querySelector("[data-sidebar-automations]"); entry?.click(); return Boolean(entry); })()`)).toBe(true);
     await expect.poll(() => text("main h1"), { timeout: 15_000 }).toBe("Automations");
   };
+  /** The first-run offer to add Seira can open over any screen; a person turns it down. */
+  const declineIntro = async () => {
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const gone = await evaluate(`(() => { const button = [...document.querySelectorAll("[role=dialog] button")].find((candidate) => candidate.textContent.trim() === "Not now"); button?.click(); return Boolean(button); })()`);
+      if (gone) return;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  };
   const close = async () => {
     await browser("close").catch(() => {});
     await preview.close();
   };
-  return { ui, evaluate, screenshot, skinShots, text, exists, attribute, clickIn, openAutomations, close };
+  return { ui, evaluate, declineIntro, screenshot, skinShots, text, exists, attribute, clickIn, openAutomations, close };
 }
 
 (enabled ? it : it.skip)("a person reads a failed workflow run and runs it again from the failed step", async () => {
@@ -107,10 +115,11 @@ async function openApp(server: { url: string; port: number; dataDir: string; log
     expect(statuses(await runOf(first.id))).toMatchObject({ [scoutStep]: "done", [ledgerStep]: "failed" });
 
     app = await openApp(server, scout);
-    const { ui, evaluate, skinShots, text, exists, attribute, clickIn, openAutomations } = app;
+    const { ui, evaluate, declineIntro, skinShots, text, exists, attribute, clickIn, openAutomations } = app;
     const state = (id: string) => attribute(STEP(id), "data-step-status");
 
     // 1. The routine's panel shows the run; its Open button leads to the run view.
+    await declineIntro();
     await openAutomations();
     await expect.poll(() => evaluate(`(() => { const row = [...document.querySelectorAll("[data-automation]")].find((item) => item.innerText.includes("Lead round routine")); const button = row?.querySelector("button"); button?.click(); return Boolean(button); })()`)).toBe(true);
     await expect.poll(() => exists(`${PANEL} [data-workflow-run="${first.id}"]`), { timeout: 15_000 }).toBe(true);

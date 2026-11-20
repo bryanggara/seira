@@ -63,11 +63,19 @@ async function openApp(server: { url: string; port: number; dataDir: string; log
     await expect.poll(() => evaluate(`(() => { const entry = document.querySelector("[data-sidebar-automations]"); entry?.click(); return Boolean(entry); })()`)).toBe(true);
     await expect.poll(() => text("main h1"), { timeout: 15_000 }).toBe("Automations");
   };
+  /** The first-run offer to add Seira can open over any screen; a person turns it down. */
+  const declineIntro = async () => {
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const gone = await evaluate(`(() => { const button = [...document.querySelectorAll("[role=dialog] button")].find((candidate) => candidate.textContent.trim() === "Not now"); button?.click(); return Boolean(button); })()`);
+      if (gone) return;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  };
   const close = async () => {
     await browser("close").catch(() => {});
     await preview.close();
   };
-  return { ui, evaluate, screenshot, skinShots, text, exists, count, clickIn, fill, choose, reload, openAutomations, close };
+  return { ui, evaluate, declineIntro, screenshot, skinShots, text, exists, count, clickIn, fill, choose, reload, openAutomations, close };
 }
 
 (enabled ? it : it.skip)("a person draws a workflow, edits and undoes steps, and hands it to a routine", async () => {
@@ -89,7 +97,7 @@ async function openApp(server: { url: string; port: number; dataDir: string; log
     const saved = async () => ((await api("GET", "/api/workflows")).workflows as any[]).find((workflow) => workflow.name === "Morning round");
 
     app = await openApp(server, scout);
-    const { ui, evaluate, skinShots, text, exists, count, clickIn, fill, choose, reload, openAutomations } = app;
+    const { ui, evaluate, declineIntro, skinShots, text, exists, count, clickIn, fill, choose, reload, openAutomations } = app;
     const openWorkflows = async () => {
       await openAutomations();
       await ui("click", "--name", "Workflows");
@@ -107,6 +115,7 @@ async function openApp(server: { url: string; port: number; dataDir: string; log
     };
 
     // 1. The Workflows view starts empty.
+    await declineIntro();
     await openWorkflows();
     await expect.poll(() => text()).toContain("You have no workflows.");
     await skinShots("list-empty");
@@ -187,6 +196,7 @@ async function openApp(server: { url: string; port: number; dataDir: string; log
     await ui("click", "--name", "Use Morning round");
     await expect.poll(() => text("[data-workflow-slot]")).toContain("Morning round");
     await expect.poll(() => text("[role=dialog]")).toContain("In use");
+    await evaluate(`document.querySelector("[data-workflow-slot]").scrollIntoView({ block: "center" }); true`);
     await skinShots("routine-slot");
     await clickIn("[role=dialog]", "Save");
     await expect.poll(() => exists("[role=dialog]")).toBe(false);
