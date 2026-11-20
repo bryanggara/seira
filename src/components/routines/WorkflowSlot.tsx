@@ -29,6 +29,8 @@ function startBotOf(workflow: Workflow): string | undefined {
   return start?.kind === "bot" ? start.botId : undefined;
 }
 
+const reasonId = (workflow: Workflow) => `workflow-use-reason-${workflow.id}`;
+
 export function WorkflowSlot({ workflowId, onChange, block, lockedBotId, clears }: WhatItDoesWorkflow) {
   const { state } = useStore();
   const workflows = useWorkflows();
@@ -98,11 +100,11 @@ export function WorkflowSlot({ workflowId, onChange, block, lockedBotId, clears 
                       <p className="text-[12px] text-ink-secondary">{summary(workflow)}</p>
                     </div>
                     {inUse ? <span className="shrink-0 text-[12px] text-ink-secondary">{t("workflow.slot.inUse")}</span> : (
-                      <button type="button" disabled={Boolean(why)} aria-label={t("workflow.slot.useNamed", { name: workflow.name })} onClick={() => pick(workflow)}
+                      <button type="button" aria-disabled={Boolean(why) || undefined} aria-describedby={why ? reasonId(workflow) : undefined} aria-label={t("workflow.slot.useNamed", { name: workflow.name })} onClick={() => pick(workflow)}
                         className={cn("shrink-0 rounded-lg border border-hairline/50 px-2.5 py-1 text-[13px] text-ink hover:bg-raised", why && "cursor-not-allowed opacity-50")}>{t("workflow.slot.use")}</button>
                     )}
                   </div>
-                  {why && !inUse && <p className="mt-1 pl-6 text-[12px] leading-4 text-ink-secondary">{why}</p>}
+                  {why && !inUse && <p id={reasonId(workflow)} className="mt-1 pl-6 text-[12px] leading-4 text-ink-secondary">{why}</p>}
                 </li>
               );
             })}

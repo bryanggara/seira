@@ -110,6 +110,14 @@ export function stepOrder(graph: WorkflowGraph): WorkflowStep[] {
   return order;
 }
 
+/** The order a keyboard visits the steps: the flow first, then the rest from top to bottom and left to right. */
+export function readingOrder(graph: WorkflowGraph): WorkflowStep[] {
+  const flow = stepOrder(graph);
+  const inFlow = new Set(flow.map((step) => step.id));
+  const loose = graph.steps.filter((step) => !inFlow.has(step.id)).sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x);
+  return [...flow, ...loose];
+}
+
 export function botIdsOf(graph: WorkflowGraph): string[] {
   const ids: string[] = [];
   for (const step of stepOrder(graph)) if (step.kind === "bot" && !ids.includes(step.botId)) ids.push(step.botId);
@@ -259,10 +267,11 @@ export function stepTitle(step: WorkflowStep, botName: (botId: string) => string
   }
 }
 
-export function problemText(problem: ClientProblem, graph: WorkflowGraph, botName: (botId: string) => string | undefined): string {
+export function problemText(problem: ClientProblem, graph: WorkflowGraph & { name?: string }, botName: (botId: string) => string | undefined): string {
   const step = problem.stepId ? stepById(graph, problem.stepId) : undefined;
   const label = step ? (step.kind === "bot" ? stepTitle(step, botName) : t(KIND_LABEL[step.kind])) : t(KIND_LABEL.bot);
-  return t(PROBLEM_TEXT[problem.code], {
+  const key = problem.code === "workflow_name" && graph.name !== undefined && !graph.name.trim() ? "workflow.problem.nameEmpty" : PROBLEM_TEXT[problem.code];
+  return t(key, {
     step: label,
     max: WORKFLOW_LIMITS.name,
     steps: WORKFLOW_LIMITS.steps,

@@ -33,7 +33,8 @@ function Choosing({ workflow, ...instructions }: { value: string; onChange: (val
 function Gated(props: { value: string; onChange: (value: string) => void; placeholder: string; label: string; workflow: WhatItDoesWorkflow }) {
   const workflows = useWorkflows();
   const { workflow, ...instructions } = props;
-  if (workflows.unavailable) return <div className="flex items-start gap-4"><FileText size={18} className="mt-2.5 shrink-0 text-ink-secondary" /><Instructions {...instructions} /></div>;
+  const ready = workflows.loaded && !(workflows.failed && workflows.workflows.length === 0);
+  if (workflows.unavailable || (workflow.workflowId === null && !ready)) return <div className="flex items-start gap-4"><FileText size={18} className="mt-2.5 shrink-0 text-ink-secondary" /><Instructions {...instructions} /></div>;
   return <Choosing workflow={workflow} {...instructions} />;
 }
 

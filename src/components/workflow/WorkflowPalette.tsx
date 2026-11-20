@@ -15,7 +15,7 @@ const ITEMS: Array<{ kind: WorkflowStepKind; icon: LucideIcon }> = [
 
 export function WorkflowPalette({ onAdd, disabled }: { onAdd: (kind: WorkflowStepKind) => void; disabled?: boolean }) {
   return (
-    <div role="toolbar" aria-label={t("workflow.palette.label")} aria-orientation="vertical"
+    <div role="group" aria-label={t("workflow.palette.label")}
       className="flex flex-col gap-0.5 rounded-xl border border-hairline/60 bg-menu p-1 shadow-sm">
       {ITEMS.map(({ kind, icon: Icon }) => (
         <button key={kind} type="button" disabled={disabled} draggable={!disabled} data-workflow-palette={kind}

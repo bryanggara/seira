@@ -5,7 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Workflow, WorkflowGraph, WorkflowStep } from "../../../shared/workflows";
-import { draftReducer } from "@/lib/workflow-canvas";
+import { draftReducer, fitSteps } from "@/lib/workflow-canvas";
 import type { StepView } from "@/lib/workflow-run";
 import type { Bot } from "@/state/store";
 import { resetWorkflowsForTest } from "@/state/workflows";
@@ -23,6 +23,8 @@ vi.mock("@/state/store", async (importOriginal) => ({
 
 const { WorkflowCanvas } = await import("./WorkflowCanvas");
 const { WorkflowEditor } = await import("./WorkflowEditor");
+const { WorkflowPalette } = await import("./WorkflowPalette");
+const { WorkflowStepPanel } = await import("./WorkflowStepPanel");
 
 const scout = { id: "bot-a", name: "Scout", threadId: "t-a", hidden: false, messages: [] } as unknown as Bot;
 const ledger = { id: "bot-b", name: "Ledger", threadId: "t-b", hidden: false, messages: [] } as unknown as Bot;
@@ -188,6 +190,35 @@ describe("the workflow canvas", () => {
     expect(world(container).style.transform).toBe("translate(40px, 40px) scale(1)");
   });
 
+  it("fits all steps into the size of the canvas with 0 and with the fit button", () => {
+    const original = HTMLElement.prototype.getBoundingClientRect;
+    HTMLElement.prototype.getBoundingClientRect = function () { return { x: 0, y: 0, left: 0, top: 0, right: 400, bottom: 300, width: 400, height: 300, toJSON: () => ({}) } as DOMRect; };
+    try {
+      const { props } = canvasProps();
+      const container = mount(createElement(WorkflowCanvas, props as never));
+      const expected = fitSteps(graph.steps, 400, 300);
+      expect(expected.scale).toBeLessThan(1);
+      const asText = (view: { x: number; y: number; scale: number }) => `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
+      expect(world(container).style.transform).toBe(asText(expected));
+      key(region(container), "+");
+      expect(world(container).style.transform).not.toBe(asText(expected));
+      key(region(container), "0");
+      expect(world(container).style.transform).toBe(asText(expected));
+      key(region(container), "-");
+      fire(container.querySelector("[aria-label='Show all steps']") ?? container.querySelector("button[title]")!, new MouseEvent("click", { bubbles: true }));
+      expect(world(container).style.transform).toBe(asText(expected));
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = original;
+    }
+  });
+
+  it("visits steps outside the flow from top to bottom, then left to right", () => {
+    const note = (id: string, x: number, y: number): WorkflowStep => ({ id, kind: "note", text: id, position: { x, y } });
+    const { props } = canvasProps({ graph: { steps: [note("late", 200, 100), note("left", 0, 100), note("top", 100, 0), botStep("a", "bot-a", 0, 300)], connections: [] } });
+    const container = mount(createElement(WorkflowCanvas, props as never));
+    expect([...container.querySelectorAll("[data-workflow-step]")].map((node) => node.getAttribute("data-workflow-step"))).toEqual(["a", "top", "left", "late"]);
+  });
+
   it("removes a selected connection with its remove button", () => {
     const { props, edit } = canvasProps();
     const container = mount(createElement(WorkflowCanvas, props as never));
@@ -216,6 +247,18 @@ describe("the workflow canvas", () => {
     expect(region(moving).getAttribute("data-reduced-motion")).toBe("false");
     expect(moving.innerHTML).toContain("animate-spin");
     expect(moving.innerHTML).toContain("motion-reduce:animate-none");
+  });
+
+  it("renders no transition or animation class in the step panel and the palette while reduced motion is on", () => {
+    document.documentElement.dataset.reducedMotion = "true";
+    const wait: WorkflowStep = { id: "w", kind: "wait", minutes: 5, position: { x: 0, y: 0 } };
+    const panel = mount(createElement("div", null,
+      createElement(WorkflowPalette, { onAdd: vi.fn() }),
+      createElement(WorkflowStepPanel, { draft: { name: "Flow", steps: [wait, botStep("a", "bot-a", 0, 200)], connections: [] }, step: wait, bots: [scout, ledger], botName, dispatch: vi.fn(), onRemove: vi.fn(), onAnnounce: vi.fn() })));
+    expect(panel.querySelector("[data-workflow-palette]")).not.toBeNull();
+    expect(panel.querySelector("aside")).not.toBeNull();
+    const offenders = [...panel.querySelectorAll("*")].flatMap((node) => (node.getAttribute("class") ?? "").split(/\s+/)).filter((name) => /^(transition|animate)-?/.test(name) || /:(transition|animate)-/.test(name));
+    expect(offenders).toEqual([]);
   });
 
   it("shows each step's status and moves nothing in read-only mode", () => {

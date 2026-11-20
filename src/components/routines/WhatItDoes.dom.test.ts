@@ -74,6 +74,34 @@ describe("What it does", () => {
     expect(fixture.api).not.toHaveBeenCalled();
   });
 
+  it("offers the choice only after the list has loaded, or when the routine already has a workflow", async () => {
+    let release: (value: unknown) => void = () => {};
+    fixture.api.mockImplementation(() => new Promise((resolve) => { release = resolve; }));
+    const waiting = mount(slot({ workflowId: null }));
+    await settle();
+    expect(waiting.querySelector("[data-what-it-does]")).toBeNull();
+    expect(waiting.querySelector("textarea")).not.toBeNull();
+    await act(async () => { release({ workflows }); });
+    await settle();
+    expect(waiting.querySelector("[data-what-it-does]")).not.toBeNull();
+    act(() => root!.unmount());
+    root = null;
+    document.body.innerHTML = "";
+    resetWorkflowsForTest();
+    fixture.api.mockImplementation(() => new Promise(() => {}));
+    const chosen = mount(slot({ workflowId: "wf1" }));
+    await settle();
+    expect(chosen.querySelector("[data-what-it-does]")).not.toBeNull();
+  });
+
+  it("hides the choice when the list can't be loaded", async () => {
+    fixture.api.mockImplementation(async () => { throw new TypeError("offline"); });
+    const container = mount(slot({ workflowId: null }));
+    await settle();
+    expect(container.querySelector("[data-what-it-does]")).toBeNull();
+    expect(container.querySelector("textarea")).not.toBeNull();
+  });
+
   it("switches between Instructions and Workflow, and keeps the typed instructions", async () => {
     const onChange = vi.fn();
     const container = mount(slot({ workflowId: null, onChange }));
@@ -135,13 +163,14 @@ describe("What it does", () => {
     const container = mount(slot({ onChange, lockedBotId: "bot-a" }));
     await settle();
     const evening = byLabel(container, "Use Evening round");
-    expect(evening.disabled).toBe(true);
+    expect(evening.getAttribute("aria-disabled")).toBe("true");
+    expect(container.querySelector(`#${CSS.escape(evening.getAttribute("aria-describedby")!)}`)?.textContent).toContain("It starts with Ledger.");
     expect(container.querySelector('[data-workflow-card="wf2"]')?.textContent).toContain("It starts with Ledger. This routine belongs to another bot.");
-    expect(byLabel(container, "Use Blank").disabled).toBe(true);
+    expect(byLabel(container, "Use Blank").getAttribute("aria-disabled")).toBe("true");
     expect(container.querySelector('[data-workflow-card="wf3"]')?.textContent).toContain("Add a bot step to start this workflow.");
     click(evening);
     expect(onChange).not.toHaveBeenCalled();
-    expect(byLabel(container, "Use Morning round").disabled).toBe(false);
+    expect(byLabel(container, "Use Morning round").hasAttribute("aria-disabled")).toBe(false);
   });
 
   it("says why a team goal, a cloud desktop or a limit reset can't run a workflow", async () => {

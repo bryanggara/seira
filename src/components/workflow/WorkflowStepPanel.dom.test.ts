@@ -95,6 +95,24 @@ describe("the step panel", () => {
     expect(dispatch).toHaveBeenLastCalledWith({ type: "connect", connection: expect.objectContaining({ from: "k", to: "c", branch: "no" }) });
   });
 
+  it("shows a change to the wait from outside, keeps the field when typing, and flags an empty amount", () => {
+    const wait: WorkflowStep = { id: "w", kind: "wait", minutes: 30, position: { x: 0, y: 0 } };
+    const props = (minutes: number) => {
+      const step = { ...wait, minutes };
+      return { draft: { name: "Flow", steps: [step], connections: [] }, step, bots, botName, dispatch: vi.fn(), onRemove: vi.fn(), onAnnounce: vi.fn() };
+    };
+    const { container } = mount({ name: "Flow", steps: [wait], connections: [] }, "w");
+    const amount = byLabel<HTMLInputElement>(container, "Wait for");
+    type(amount, "");
+    expect(byLabel(container, "Wait for")).toBe(amount);
+    expect(container.querySelector("[data-step-problem]")!.textContent).toBe("Wait: choose 1 minute to 30 days.");
+    expect(amount.value).toBe("");
+    flushSync(() => root!.render(createElement(WorkflowStepPanel, props(120))));
+    expect(byLabel<HTMLInputElement>(container, "Wait for").value).toBe("2");
+    expect(byLabel<HTMLSelectElement>(container, "Unit").value).toBe("hours");
+    expect(container.querySelector("[data-step-problem]")).toBeNull();
+  });
+
   it("turns a wait of 2 Hours into 120 minutes, and shows the range problem outside 1 minute to 30 days", () => {
     const wait: WorkflowStep = { id: "w", kind: "wait", minutes: 30, position: { x: 0, y: 0 } };
     const { container, dispatch } = mount({ name: "Flow", steps: [wait], connections: [] }, "w");

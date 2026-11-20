@@ -1,37 +1,21 @@
-import { Check, Hourglass, Loader2, Minus, X } from "lucide-react";
-
 import type { WorkflowRun } from "../../../shared/workflows";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { reducedMotion } from "@/lib/onboarding";
 import { stepOrder, stepsText, stepTitle } from "@/lib/workflow-graph";
 import { stepStatusText, stepViews, type StepState } from "@/lib/workflow-run";
+import { StatusMark } from "./WorkflowStepCard";
 
 const FOLD_FROM = 7;
 const ALWAYS_SHOWN = 3;
 const IN_VIEW: readonly StepState[] = ["failed", "running", "waiting"];
-
-function Mark({ state }: { state: StepState }) {
-  const reduced = reducedMotion();
-  switch (state) {
-    case "done": return <Check size={14} aria-hidden className="shrink-0 text-success" />;
-    case "failed": return <X size={14} aria-hidden className="shrink-0 text-danger" />;
-    case "running": return reduced
-      ? <span aria-hidden className="mx-1 size-2 shrink-0 rounded-full bg-accent" />
-      : <Loader2 size={14} aria-hidden className="shrink-0 animate-spin text-accent motion-reduce:animate-none" />;
-    case "waiting": return <Hourglass size={14} aria-hidden className="shrink-0 text-warning" />;
-    case "skipped":
-    case "not_run": return <Minus size={14} aria-hidden className="shrink-0 text-ink-tertiary" />;
-    case "carried": return <Check size={14} aria-hidden className="shrink-0 text-ink-secondary" />;
-    case "not_started": return <span aria-hidden className="size-3.5 shrink-0" />;
-  }
-}
 
 export function WorkflowRunSteps({ run, botName, onOpen }: {
   run: WorkflowRun;
   botName: (botId: string) => string | undefined;
   onOpen: () => void;
 }) {
+  const reduced = reducedMotion();
   const views = stepViews(run);
   const steps = stepOrder(run.graph);
   const rows = steps.map((step, index) => ({ step, view: views[step.id], index }));
@@ -43,7 +27,7 @@ export function WorkflowRunSteps({ run, botName, onOpen }: {
     <ol className="space-y-1">
       {items.map(({ step, view }) => view && (
         <li key={step.id} data-step-status={view.state} className="flex items-start gap-2 text-[13px] leading-[18px]">
-          <span className="mt-0.5"><Mark state={view.state} /></span>
+          <span className="mt-px flex">{view.state === "not_started" ? <span aria-hidden className="size-3.5 shrink-0" /> : <StatusMark state={view.state} reduced={reduced} />}</span>
           <span className="min-w-0 flex-1 truncate text-ink" dir="auto">{stepTitle(step, botName)}</span>
           <span className={cn("shrink-0", view.state === "failed" ? "text-danger" : "text-ink-secondary")}>{stepStatusText(view, step, botName)}</span>
         </li>

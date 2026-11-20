@@ -12,7 +12,7 @@ const KIND_ICON: Record<WorkflowStepKind, LucideIcon> = { bot: Bot, check: Split
 
 const PORT_LEFT: Record<PortSide, string> = { out: "50%", yes: "33.333%", no: "66.667%" };
 
-function StatusMark({ state, reduced }: { state: StepView["state"]; reduced: boolean }) {
+export function StatusMark({ state, reduced }: { state: StepView["state"]; reduced: boolean }) {
   switch (state) {
     case "done": return <Check size={14} aria-hidden className="mt-px shrink-0 text-success" />;
     case "failed": return <X size={14} aria-hidden className="mt-px shrink-0 text-danger" />;

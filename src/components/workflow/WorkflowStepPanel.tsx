@@ -95,26 +95,34 @@ function Field({ label, id, hint, children }: { label: string; id: string; hint?
 }
 
 function WaitFields({ step, onChange }: { step: Extract<WorkflowStep, { kind: "wait" }>; onChange: (minutes: number) => void }) {
-  const initial = waitParts(step.minutes);
-  const [amount, setAmount] = useState(String(initial.amount));
-  const [unit, setUnit] = useState<WaitUnit>(initial.unit);
-  const apply = (nextAmount: string, nextUnit: WaitUnit) => {
-    setAmount(nextAmount);
-    setUnit(nextUnit);
-    const value = Number(nextAmount);
-    if (nextAmount.trim() !== "" && Number.isFinite(value)) onChange(waitMinutes(value, nextUnit));
+  const fromMinutes = (minutes: number) => ({ ...waitParts(minutes), amount: String(waitParts(minutes).amount), minutes });
+  const [shown, setShown] = useState(() => fromMinutes(step.minutes));
+  if (step.minutes !== shown.minutes) setShown(fromMinutes(step.minutes));
+  const emptyId = `${step.id}-amount-problem`;
+  const empty = shown.amount.trim() === "";
+  const apply = (amount: string, unit: WaitUnit) => {
+    const value = Number(amount);
+    if (amount.trim() !== "" && Number.isFinite(value)) {
+      const minutes = waitMinutes(value, unit);
+      setShown({ amount, unit, minutes });
+      onChange(minutes);
+    } else setShown({ ...shown, amount, unit });
   };
   return (
-    <div className="flex items-end gap-2">
-      <Field label={t("workflow.panel.waitFor")} id={`${step.id}-amount`}>
-        <input id={`${step.id}-amount`} type="number" min={1} inputMode="numeric" value={amount} onChange={(event) => apply(event.target.value, unit)} className={FIELD} />
-      </Field>
-      <Field label={t("workflow.panel.unit")} id={`${step.id}-unit`}>
-        <Select id={`${step.id}-unit`} value={unit} onChange={(event) => apply(amount, event.target.value as WaitUnit)}>
-          {UNITS.map((option) => <option key={option} value={option}>{t(`workflow.unit.${option}` as const)}</option>)}
-        </Select>
-      </Field>
-    </div>
+    <>
+      <div className="flex items-end gap-2">
+        <Field label={t("workflow.panel.waitFor")} id={`${step.id}-amount`}>
+          <input id={`${step.id}-amount`} type="number" min={1} inputMode="numeric" value={shown.amount} aria-invalid={empty || undefined} aria-describedby={empty ? emptyId : undefined}
+            onChange={(event) => apply(event.target.value, shown.unit)} className={FIELD} />
+        </Field>
+        <Field label={t("workflow.panel.unit")} id={`${step.id}-unit`}>
+          <Select id={`${step.id}-unit`} value={shown.unit} onChange={(event) => apply(shown.amount, event.target.value as WaitUnit)}>
+            {UNITS.map((option) => <option key={option} value={option}>{t(`workflow.unit.${option}` as const)}</option>)}
+          </Select>
+        </Field>
+      </div>
+      {empty && <p id={emptyId} data-step-problem className="text-[13px] leading-[18px] text-warning">{t("workflow.problem.waitRange")}</p>}
+    </>
   );
 }
 

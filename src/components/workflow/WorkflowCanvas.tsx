@@ -6,7 +6,7 @@ import { t } from "@/lib/i18n";
 import { reducedMotion } from "@/lib/onboarding";
 import { zoomAt, type Point, type View } from "@/lib/team-canvas";
 import { fitSteps, MAX_SCALE, MIN_SCALE, newId, portPoint, refusalKey, START_VIEW, STEP_DRAG_TYPE, type DraftAction, type PortSide } from "@/lib/workflow-canvas";
-import { connectRefusal, KIND_LABEL, stepOrder, stepTitle } from "@/lib/workflow-graph";
+import { connectRefusal, KIND_LABEL, readingOrder, stepTitle } from "@/lib/workflow-graph";
 import { stepStatusText, type StepView } from "@/lib/workflow-run";
 import { WorkflowEdges, type PendingConnection } from "./WorkflowEdges";
 import { WorkflowStepCard } from "./WorkflowStepCard";
@@ -62,8 +62,8 @@ export function WorkflowCanvas({ graph, botName, selectedId, onSelect, label, ed
   const shown: WorkflowGraph = drag
     ? { ...graph, steps: graph.steps.map((step) => step.id === drag.id ? { ...step, position: drag.position } : step) }
     : graph;
-  const flow = stepOrder(graph).map((step) => step.id);
-  const order = [...flow.flatMap((id) => shown.steps.filter((step) => step.id === id)), ...shown.steps.filter((step) => !flow.includes(step.id))];
+  const shownById = new Map(shown.steps.map((step) => [step.id, step]));
+  const order = readingOrder(graph).flatMap((step) => shownById.get(step.id) ?? []);
 
   const toWorld = (clientX: number, clientY: number): Point => {
     const bounds = viewport.current?.getBoundingClientRect();
