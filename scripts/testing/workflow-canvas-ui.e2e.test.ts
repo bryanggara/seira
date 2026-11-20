@@ -176,7 +176,7 @@ async function openApp(server: { url: string; port: number; dataDir: string; log
 
     // 7. A routine takes the workflow: What it does, Workflow, Use, Save.
     await ui("click", "--name", "List");
-    await ui("click", "--name", "New");
+    await clickIn("main", "New");
     await expect.poll(() => text("[role=dialog]")).toContain("What should happen?");
     await ui("click", "--name", "Set it up yourself");
     await ui("click", "--name", "Continue");
