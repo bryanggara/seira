@@ -42,7 +42,7 @@ async function runWorkflow(reply: string) {
   return { fixture, api, first, second, routine, run, workflowRun };
 }
 
-it("a routine that runs a workflow runs its steps on Run now", async () => {
+it("a routine that runs a workflow runs its steps on Run now, with no finished notice per step", async () => {
   const { fixture, api, first, workflowRun, run } = await runWorkflow("Beta write-up");
   try {
     expect(workflowRun.status).toBe("completed");
@@ -55,7 +55,7 @@ it("a routine that runs a workflow runs its steps on Run now", async () => {
     expect(lines).toHaveLength(1);
     const notices = (await api("GET", "/api/notifications")).notifications as Array<{ kind: string; threadId?: string }>;
     const stepThreads = new Set(Object.values(workflowRun.threads) as string[]);
-    console.info("R9 notifications for step chats:", JSON.stringify(notices.filter((notice) => notice.threadId && stepThreads.has(notice.threadId)).map((notice) => notice.kind)));
+    expect(notices.filter((notice) => notice.threadId && stepThreads.has(notice.threadId) && notice.kind === "done")).toEqual([]);
   } finally { await fixture.close(); }
 }, 120_000);
 
