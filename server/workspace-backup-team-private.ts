@@ -162,7 +162,7 @@ export function teamPrivateAttachments(root: string, messages: string, privacy: 
 }
 
 /** The snapshot copies of the message and runtime databases, without the private conversations. */
-export function stripTeamPrivate(snapshot: { messages: string; runtime: string }, privacy: TeamPrivacy): void {
+export function stripTeamPrivate(snapshot: { messages: string; runtime: string; workflows?: string }, privacy: TeamPrivacy): void {
   const threads = [...privacy.threads];
   strip(snapshot.messages, (db) => {
     for (const table of ["messages", "thread_state", "chat_followups", "notification_log"]) deleteWhereIn(db, table, "thread_id", threads);
@@ -182,6 +182,30 @@ export function stripTeamPrivate(snapshot: { messages: string; runtime: string }
     deleteWhereIn(db, "inbox", "owner_thread_id", threads);
     deleteWhereIn(db, "assignments", "id", assignments);
   });
+  if (snapshot.workflows) strip(snapshot.workflows, (db) => stripWorkflows(db, privacy));
+}
+
+const mentions = (ids: unknown, privateIds: ReadonlySet<string>): boolean => Array.isArray(ids) && ids.some((id) => typeof id === "string" && privateIds.has(id));
+
+/** A workflow of a member's own bot, and every run that used a member's own bot or private conversation: a run holds each bot's step outputs. */
+function stripWorkflows(db: DatabaseSync, privacy: TeamPrivacy): void {
+  const parse = (json: unknown): Row => {
+    try { const value: unknown = JSON.parse(String(json)); return record(value) ? value : {}; } catch { return {}; }
+  };
+  const ownBotStep = (graph: unknown) => record(graph) && rows(graph.steps).some((step) => typeof step.botId === "string" && privacy.bots.has(step.botId));
+  const privateWorkflows = hasTable(db, "workflows") ? db.prepare("SELECT id, json FROM workflows").all().filter((row) => ownBotStep(parse(row.json))).map((row) => String(row.id)) : [];
+  if (hasTable(db, "workflow_runs")) {
+    const privateRuns = db.prepare("SELECT run_id, workflow_id, json FROM workflow_runs").all().filter((row) => {
+      const run = parse(row.json);
+      const threads = record(run.threads) ? run.threads : {};
+      return privateWorkflows.includes(String(row.workflow_id)) || ownBotStep(run.graph) || mentions(run.botIds, privacy.bots)
+        || Object.keys(threads).some((botId) => privacy.bots.has(botId))
+        || Object.values(threads).some((threadId) => typeof threadId === "string" && privacy.threads.has(threadId));
+    }).map((row) => String(row.run_id));
+    deleteWhereIn(db, "workflow_step_runs", "run_id", privateRuns);
+    deleteWhereIn(db, "workflow_runs", "run_id", privateRuns);
+  }
+  deleteWhereIn(db, "workflows", "id", privateWorkflows);
 }
 
 export const TEAM_PRIVATE_NOTE = "Members' private chats are theirs alone and are not in this export: their conversations, what bots remember from them, their own Seira and their About you stay out.";
