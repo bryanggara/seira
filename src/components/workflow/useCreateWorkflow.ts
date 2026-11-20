@@ -7,11 +7,11 @@ import { workflowApi } from "@/state/workflows";
 let running = false;
 
 /** One new workflow at a time, however many buttons or chats ask. A second ask while one runs gives `null`. */
-export async function createWorkflowOnce(input: () => Promise<WorkflowInput>): Promise<Workflow | null> {
+export async function createWorkflowOnce(input: WorkflowInput | (() => Promise<WorkflowInput>)): Promise<Workflow | null> {
   if (running) return null;
   running = true;
   try {
-    return await workflowApi.create(await input());
+    return await workflowApi.create(typeof input === "function" ? await input() : input);
   } finally {
     running = false;
   }
@@ -22,7 +22,7 @@ export function useCreateWorkflow(onCreated: (workflow: Workflow) => void): { cr
   const create = useCallback(async () => {
     setFailed(false);
     try {
-      const workflow = await createWorkflowOnce(async () => ({ name: t("workflow.untitled"), steps: [], connections: [] }));
+      const workflow = await createWorkflowOnce({ name: t("workflow.untitled"), steps: [], connections: [] });
       if (workflow) onCreated(workflow);
     } catch {
       setFailed(true);
