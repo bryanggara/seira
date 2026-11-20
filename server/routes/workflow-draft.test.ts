@@ -83,7 +83,8 @@ describe("workflow draft route", () => {
     expect((await fixture()("GET", draftPath("t-hal", "b1"))).status).toBe(404);
     expect((await fixture()("GET", draftPath("t-nowhere", "b1"))).body).toEqual({ error: "no such conversation" });
     expect((await fixture()("GET", draftPath("t-lumi", "zzz"))).body).toEqual({ error: "no such message" });
-    const hidden = await fixture({ rows: [root("hal", "t-lumi", "Secret", 1100)] })("GET", draftPath("t-lumi", "b1"));
+    const roomMessages = { "t-room": [msg({ id: "u1", at: 1000, role: "user", text: "Go" }), msg({ id: "b1", at: 3000, turnTerminal: true, from: { botId: "scout", name: "Scout", color: "" } })] };
+    const hidden = await fixture({ messages: roomMessages, rows: [root("hal", "t-room", "Secret", 1100)] })("GET", draftPath("t-room", "b1"));
     expect([hidden.status, hidden.body]).toEqual([404, { error: "no such bot" }]);
     expect((await fixture({ gone: ["lumi"] })("GET", draftPath("t-lumi", "b1"))).status).toBe(404);
   });
