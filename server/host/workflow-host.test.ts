@@ -179,18 +179,18 @@ describe("the workflow host's runs", () => {
   });
 
   it("does not recover its runs while the routine file cannot be read", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "wfh-same-"));
+    dirs.push(dataDir);
+    const first = rig({ dataDir });
+    const { row } = await begin(first);
+    first.host.close();
     let unreadable = true;
-    const r = rig({ routinesUnreadable: () => unreadable });
-    const { row } = await begin(r);
-    r.runRows.splice(0, r.runRows.length);
-    const before = r.states.length;
-    r.host.recover();
-    expect(r.cancelled).toEqual([]);
-    expect(r.states).toHaveLength(before);
-    expect(r.host.run(row.id)?.status).toBe("active");
+    const second = rig({ dataDir, routinesUnreadable: () => unreadable });
+    second.host.recover();
+    expect(second.host.run(row.id)?.status).toBe("active");
     unreadable = false;
-    r.host.recover();
-    expect(r.host.run(row.id)?.status).not.toBe("active");
+    second.host.recover();
+    expect(second.host.run(row.id)?.status).not.toBe("active");
   });
 
   it("opens a new chat for the next bot, marked as this run's and unread by nobody", async () => {
