@@ -1742,16 +1742,19 @@ describe("harness HTTP API", () => {
     contender.stderr!.on("data", (chunk) => (contenderStderr += chunk));
 
     try {
-      const result = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve, reject) => {
-        // On Windows without wmic the lease reads the other server's start time through Windows PowerShell, whose first
-        // start on a CI runner takes several seconds.
-        const timer = setTimeout(() => reject(new Error("competing server did not exit")), process.platform === "win32" ? 30_000 : 5_000);
-        timer.unref?.();
-        contender.once("close", (code, signal) => {
-          clearTimeout(timer);
-          resolve({ code, signal });
-        });
+      const closed = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
+        contender.once("close", (code, signal) => resolve({ code, signal }));
       });
+      // On Windows without wmic the lease reads the other server's start time through Windows PowerShell, whose first
+      // start on a CI runner takes several seconds.
+      const deadline = Date.now() + 30_000;
+      let result: { code: number | null; signal: NodeJS.Signals | null } | undefined;
+      while (!result) {
+        if (Date.now() > deadline) throw new Error(`competing server did not exit:\n${contenderStderr}`);
+        const serving = await fetch(`http://127.0.0.1:${contenderPort}/api/health`).then((res) => res.ok, () => false);
+        if (serving) throw new Error(`competing server started serving the shared data directory:\n${contenderStderr}`);
+        result = await Promise.race([closed, new Promise<undefined>((resolve) => setTimeout(resolve, 200))]);
+      }
       expect(result.code).not.toBe(0);
       expect(result.signal).toBeNull();
       expect(contenderStderr).toMatch(/already using this data directory.*close the other instance first/i);
