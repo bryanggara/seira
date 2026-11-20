@@ -485,6 +485,20 @@ describe("sending a draft", () => {
     fx.stop();
   });
 
+  it("shows only the public issue number when the earlier report is another person's, and the title when it is the same person's", async () => {
+    const fx = fixture({ outcomes: [{ ok: true, id: "report-7", issue: 123 }] });
+    const error = "TypeError: x is not a function";
+    const ada = fx.reports.fromError("scout-main", error, "key-ada")!;
+    expect(await fx.reports.sendDraft(ada.id, "key-ada")).toMatchObject({ state: "sent", issue: 123 });
+    const bo = fx.reports.fromError("scout-main", error, "key-bo")!;
+    expect(bo.same).toEqual({ issue: 123 });
+    expect(bo.same).not.toHaveProperty("title");
+    expect(bo.same).not.toHaveProperty("at");
+    fx.advance(NO_ANSWER_MS);
+    expect(fx.reports.fromError("scout-main", error, "key-ada")!.same).toMatchObject({ issue: 123, title: ada.title });
+    fx.stop();
+  });
+
   it("is only for the person it is for: another reader cannot see it, send it or put it away", async () => {
     const fx = fixture({ reactorOf: (sender) => (sender === "p-ada" ? "key-ada" : "user") });
     const message = fx.person("scout-main", "@devs it broke", { sender: { name: "Ada", id: "p-ada" } });
