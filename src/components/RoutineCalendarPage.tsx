@@ -45,7 +45,6 @@ import { intlLocale, t } from "@/lib/i18n";
 import { intakeFilesWithNotice } from "@/lib/attach-notice";
 import { useModalDialog } from "@/hooks/use-modal-dialog";
 import type { CalendarCall, CalendarCallAttachment, CalendarCallInput } from "@/lib/calendar-calls";
-import { isDone } from "@/lib/automations";
 import { cn } from "@/lib/cn";
 import {
   imageAttachmentFromFile,
