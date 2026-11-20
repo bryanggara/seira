@@ -1,4 +1,4 @@
-import { Plus, Workflow as WorkflowIcon } from "lucide-react";
+import { Plus } from "lucide-react";
 
 import type { Workflow } from "../../../shared/workflows";
 import { listOf } from "@/lib/cloud-send";
@@ -6,6 +6,7 @@ import { t } from "@/lib/i18n";
 import type { Routine } from "@/lib/routines";
 import { botIdsOf, stepsText } from "@/lib/workflow-graph";
 import { SeiraCharacter } from "../seira-character";
+import { WorkflowThumb } from "./WorkflowThumb";
 
 export const routineLabel = (routine: Pick<Routine, "name" | "prompt">): string => routine.name.trim() || routine.prompt.trim().slice(0, 40);
 
@@ -38,7 +39,7 @@ export function WorkflowList({ workflows, routines, botName, gone, onOpen, onNew
               return (
                 <li key={workflow.id} data-workflow={workflow.id}>
                   <button type="button" onClick={() => onOpen(workflow.id)} className="flex w-full items-start gap-3 px-4 py-3.5 text-left outline-none hover:bg-raised/60 focus-visible:bg-raised/60 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus">
-                    <WorkflowIcon size={16} aria-hidden className="mt-0.5 shrink-0 text-ink-tertiary" />
+                    <WorkflowThumb graph={workflow} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[15px] font-medium leading-snug text-ink" dir="auto">{workflow.name}</span>
                       <span className="mt-0.5 block text-[13px] text-ink-secondary">{[stepsText(count), bots.length ? listOf(bots) : ""].filter(Boolean).join(" · ")}</span>

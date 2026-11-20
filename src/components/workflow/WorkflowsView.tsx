@@ -8,6 +8,7 @@ import { loadWorkflows, useWorkflows, workflowApi } from "@/state/workflows";
 import { UndoToast } from "../bot-access/ShareBotButton";
 import { WorkflowEditor } from "./WorkflowEditor";
 import { WorkflowList } from "./WorkflowList";
+import { WorkflowRunView } from "./WorkflowRunView";
 
 const SPINNER_DELAY_MS = 300;
 
@@ -21,7 +22,7 @@ function useDelayed(active: boolean): boolean {
   return active && late;
 }
 
-export function WorkflowsView({ workflowId, onUseInRoutine }: { workflowId?: string; workflowRunId?: string; onUseInRoutine?: (workflow: Workflow) => void }) {
+export function WorkflowsView({ workflowId, workflowRunId, onUseInRoutine }: { workflowId?: string; workflowRunId?: string; onUseInRoutine?: (workflow: Workflow) => void }) {
   const { state, dispatch } = useStore();
   const workflows = useWorkflows();
   const [creating, setCreating] = useState(false);
@@ -73,7 +74,9 @@ export function WorkflowsView({ workflowId, onUseInRoutine }: { workflowId?: str
   }, [deleted]);
 
   let body;
-  if (workflow) {
+  if (workflowId && workflowRunId) {
+    body = <WorkflowRunView key={workflowRunId} workflowId={workflowId} runId={workflowRunId} />;
+  } else if (workflow) {
     body = (
       <WorkflowEditor key={workflow.id} workflow={workflow} usedBy={state.routines.filter((routine) => routine.workflowId === workflow.id)}
         onBack={() => { setVanished(false); open(); }} onGone={onGone} onDelete={onDelete} onUseInRoutine={onUseInRoutine} />
