@@ -234,19 +234,19 @@ describe("ACP threads sharing one agent process", () => {
 
   it("retires a process whose session stalled: later threads start a new one", async () => {
     const f = await fixture({}, { FAKE_ACP_HANG_ON: "HANG" });
+    expect((await f.run("thread-b")).done).toMatchObject({ ok: true });
     const previous = process.env.OPENMAUS_ACP_PROMPT_IDLE_TIMEOUT_MS;
     process.env.OPENMAUS_ACP_PROMPT_IDLE_TIMEOUT_MS = "300";
     try {
-      expect((await f.run("thread-b")).done).toMatchObject({ ok: true });
       expect((await f.run("thread-a", { text: "HANG" })).done).toMatchObject({ ok: false, stopReason: "rpc_error" });
-      expect(f.spawned).toHaveLength(1);
-      expect((await f.run("thread-c")).done).toMatchObject({ ok: true });
-      expect(f.spawned).toHaveLength(2);
-      expect((await f.run("thread-b")).done).toMatchObject({ ok: true });
     } finally {
       if (previous === undefined) delete process.env.OPENMAUS_ACP_PROMPT_IDLE_TIMEOUT_MS;
       else process.env.OPENMAUS_ACP_PROMPT_IDLE_TIMEOUT_MS = previous;
     }
+    expect(f.spawned).toHaveLength(1);
+    expect((await f.run("thread-c")).done).toMatchObject({ ok: true });
+    expect(f.spawned).toHaveLength(2);
+    expect((await f.run("thread-b")).done).toMatchObject({ ok: true });
   });
 
   it("fails every running turn when the shared process dies", async () => {
