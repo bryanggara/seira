@@ -231,11 +231,11 @@ describe("the Workflows view", () => {
     const container = mount({ workflowId: "wf1" });
     show("run-1");
     await settle();
-    const region = container.querySelector(".sr-only")!;
+    const region = container.querySelector("p.sr-only[role=\"status\"]")!;
     expect(document.activeElement).not.toBe(container.querySelector("h2"));
     await act(async () => { button(container, "Run again from here").dispatchEvent(new MouseEvent("click", { bubbles: true })); });
     await settle();
-    expect(container.querySelector(".sr-only")).toBe(region);
+    expect(container.querySelector("p.sr-only[role=\"status\"]")).toBe(region);
     expect(region.textContent).toBe("Started a new run from Ledger");
     expect(document.activeElement).toBe(container.querySelector("h2"));
   });
