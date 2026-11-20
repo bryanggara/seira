@@ -9,6 +9,7 @@ import { saveWebhookCredential, webhookCredentialStore } from "@/lib/webhook-cre
 import { botInDepartment, filterableDepartments, GENERAL_DEPARTMENT } from "@/lib/department-filter";
 import { useStore } from "@/state/store";
 import { useAppTriggers } from "@/lib/app-triggers";
+import { botIdsOf, startSteps } from "@/lib/workflow-graph";
 import { useWorkflows, workflowApi } from "@/state/workflows";
 import { AppEventEditor } from "./automations/AppEventEditor";
 import { useAllAutomationActions } from "./automations/app-actions";
@@ -43,7 +44,7 @@ export function TriggersPage({ onBack, onOpenRoom }: { onBack: () => void; onOpe
   const [department, setDepartment] = useState("all");
   const [newText, setNewText] = useState<string | null>(null);
   const [workflowFailed, setWorkflowFailed] = useState(false);
-  const [editing, setEditing] = useState<{ kind: SetUpKind; id?: string; botId?: string } | null>(null);
+  const [editing, setEditing] = useState<{ kind: SetUpKind; id?: string; botId?: string; workflowId?: string } | null>(null);
   const routinesOnly = window.ogb?.remoteClient?.active === true;
   const visibleBots = state.bots.filter((bot) => !bot.hidden);
   const team = useTeamPeople();
@@ -71,7 +72,10 @@ export function TriggersPage({ onBack, onOpenRoom }: { onBack: () => void; onOpe
   const showFilter = all.length >= FILTER_FROM && new Set(all.map((automation) => automation.botId)).size > 1;
   const listed = orderAutomations(all.filter((automation) => inDepartment(automation.botId) && (!showFilter || botFilter === "all" || automation.botId === botFilter)));
   const open = all.find((automation) => automation.id === openId) ?? null;
-  const sentenceOf = (automation: Automation) => automationSentence(automation, botName(automation.botId));
+  const sentenceOf = (automation: Automation) => {
+    const workflow = automation.workflowId ? workflows.workflows.find((candidate) => candidate.id === automation.workflowId) : undefined;
+    return automationSentence(automation, botName(automation.botId), workflow && { name: workflow.name, bots: botIdsOf(workflow).flatMap((id) => state.bots.find((bot) => bot.id === id)?.name ?? []) });
+  };
 
   const editRoutine = editing?.kind === "schedule" ? state.routines.find((routine) => routine.id === editing.id) : undefined;
   const editWebhook = editing?.kind === "webhook" ? state.webhooks.find((webhook) => webhook.id === editing.id) : undefined;
@@ -114,7 +118,8 @@ export function TriggersPage({ onBack, onOpenRoom }: { onBack: () => void; onOpe
 
       {workflowFailed && view === "workflows" && <p role="alert" className="shrink-0 px-4 pt-3 text-[13px] text-danger">{t("workflow.save.failed")}</p>}
       <div className="relative flex min-h-0 flex-1">
-        {view === "calendar" ? <AutomationsCalendar botFilter={botFilter} department={activeDepartment} selectedAutomationId={openId} onOpenAutomation={setOpenId} onOpenRoom={onOpenRoom} /> : view === "workflows" ? <WorkflowsView workflowId={focus?.workflowId} workflowRunId={focus?.workflowRunId} /> : (
+        {view === "calendar" ? <AutomationsCalendar botFilter={botFilter} department={activeDepartment} selectedAutomationId={openId} onOpenAutomation={setOpenId} onOpenRoom={onOpenRoom} /> : view === "workflows" ? <WorkflowsView workflowId={focus?.workflowId} workflowRunId={focus?.workflowRunId}
+          onUseInRoutine={(workflow) => { const start = startSteps(workflow)[0]; setEditing({ kind: "schedule", botId: start?.kind === "bot" ? start.botId : undefined, workflowId: workflow.id }); }} /> : (
           <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="mx-auto w-full max-w-3xl p-4 sm:p-6">
               <LimitWarnings botFilter={showFilter ? botFilter : "all"} />
@@ -170,7 +175,7 @@ export function TriggersPage({ onBack, onOpenRoom }: { onBack: () => void; onOpe
       {newText !== null && (
         <NewAutomation initialText={newText} onClose={() => setNewText(null)} onSetUpYourself={(kind, botId) => { setNewText(null); setEditing({ kind, botId }); }} />
       )}
-      {editing?.kind === "schedule" && (editRoutine || !editing.id) && <RoutineEditor routine={editRoutine} bots={schedulableBots(visibleBots, team, editRoutine?.botId)} initialBotId={editing.botId} plain onClose={() => setEditing(null)} />}
+      {editing?.kind === "schedule" && (editRoutine || !editing.id) && <RoutineEditor routine={editRoutine} bots={schedulableBots(visibleBots, team, editRoutine?.botId)} initialBotId={editing.botId} initialWorkflowId={editing.workflowId} plain onClose={() => setEditing(null)} />}
       {editing?.kind === "webhook" && (editWebhook || !editing.id) && (
         <WebhookEditor webhook={editWebhook} bots={visibleBots} initialBotId={editing.botId} onClose={() => setEditing(null)} onCredential={(credential, id) => { saveWebhookCredential(webhookCredentialStore(), id, credential); setOpenId(id); }} />
       )}

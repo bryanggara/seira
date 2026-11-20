@@ -159,6 +159,59 @@ describe("a routine's panel", () => {
     expect(container.querySelector("[data-automation-status]")!.textContent).toBe("On");
   });
 
+  describe("that runs a workflow", () => {
+    const flow = {
+      id: "wf1", name: "Morning round", createdAt: 1, updatedAt: 10,
+      steps: [
+        { id: "a", kind: "bot", botId: "bot-a", instruction: "Do it", position: { x: 0, y: 0 } },
+        { id: "b", kind: "bot", botId: "bot-b", instruction: "Then this", position: { x: 0, y: 200 } },
+      ],
+      connections: [{ id: "c1", from: "a", to: "b" }],
+    };
+    const detail = {
+      runId: "run-1", workflowId: "wf1", routineId: "routine-1", workflowName: "Morning round", status: "failed", graph: { steps: flow.steps, connections: flow.connections },
+      botIds: ["bot-a", "bot-b"], startStepId: "a", threads: {}, createdAt: now, updatedAt: now,
+      stepRuns: [{ stepId: "a", status: "done" }, { stepId: "b", status: "failed", errorCode: "turn_failed", botId: "bot-b" }],
+    };
+    const { graph: _graph, ...update } = detail;
+    const routine = { id: "routine-1", name: "Round", prompt: "1. Scout does it\n2. Ledger finishes", botId: "bot-a", runOn: "seira", enabled: true, createdAt: now, updatedAt: now,
+      schedule: { type: "daily", time: "09:00" }, nextRunAt: now + 86_400_000, durationMinutes: 30, workflowId: "wf1" };
+    const routineRun = { id: "run-1", routineId: "routine-1", routineName: "Round", target: "bot", botId: "bot-a", runOn: "seira", scheduledFor: now, startedAt: now, createdAt: now, status: "failed", manual: false, workflowId: "wf1" };
+    beforeEach(() => {
+      fixture.api.mockImplementation(async (path: unknown) => {
+        if (path === "/api/workflows") return { workflows: [flow] };
+        if (String(path).startsWith("/api/workflows/wf1/runs")) return { runs: [update] };
+        if (path === "/api/workflow-runs/run-1") return { run: detail };
+        return {};
+      });
+      fixture.state.routineRuns = [routineRun];
+    });
+    const panel = () => {
+      const [automation] = automationsFrom({ routines: [routine] as never, webhooks: [], runs: [routineRun] as never });
+      return mount(createElement(AutomationPanel, { automation: automation!, sentence: "s", onClose: vi.fn(), onEdit: vi.fn(), onDeleted: vi.fn() }));
+    };
+
+    it("shows the workflow a routine runs instead of its numbered instructions, with the last run's steps", async () => {
+      const container = panel();
+      expect(container.querySelector("[data-testid=automation-instructions]")).toBeNull();
+      expect(container.textContent).not.toContain("1. Scout does it");
+      await vi.waitFor(() => expect(container.querySelector("[data-workflow-run=run-1]")).not.toBeNull());
+      expect(container.textContent).toContain("Runs the workflow Morning round");
+      const rows = [...container.querySelectorAll("[data-workflow-run=run-1] li")];
+      expect(rows.map((row) => row.getAttribute("data-step-status"))).toEqual(["done", "failed"]);
+      expect(rows[0]!.textContent).toContain("Scout");
+      expect(rows[1]!.textContent).toContain("Ledger");
+    });
+
+    it("opens the run view from a run line of a workflow routine", () => {
+      const container = panel();
+      const line = [...container.querySelectorAll("section ul button")].find((candidate) => candidate.closest("section")?.querySelector("h3")?.textContent === "Recent runs")!;
+      expect(line.hasAttribute("disabled")).toBe(false);
+      flushSync(() => (line as HTMLButtonElement).click());
+      expect(fixture.dispatch).toHaveBeenCalledWith({ type: "showRoutines", view: "workflows", workflowId: "wf1", workflowRunId: "run-1" });
+    });
+  });
+
   it("falls back to its sentence when it has no name", () => {
     const [automation] = automationsFrom({ routines: [], webhooks: [{ ...webhook, name: " " }] as never, runs: [] });
     const container = mount(createElement(AutomationPanel, { automation: automation!, sentence: "When another app sends something, Scout drafts a follow-up", onClose: vi.fn(), onEdit: vi.fn(), onDeleted: vi.fn() }));
