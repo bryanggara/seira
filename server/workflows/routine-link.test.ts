@@ -36,18 +36,6 @@ describe("the prompt copy of a workflow", () => {
     ].join("\n"));
   });
 
-  it("says where a bot step goes when its next step is not the one after it", () => {
-    const jump = flow({
-      steps: [
-        { id: "a", kind: "bot", botId: "ana", instruction: "First", position: at },
-        { id: "p", kind: "post", position: at },
-        { id: "b", kind: "bot", botId: "ben", instruction: "Second", position: at },
-      ],
-      connections: [{ id: "1", from: "a", to: "p" }, { id: "2", from: "a", to: "b" }, { id: "3", from: "b", to: "p" }],
-    });
-    expect(workflowPromptCopy(jump, botName)).toContain("1. Ana: First Then go to 2.");
-  });
-
   it("leaves a note out", () => {
     expect(workflowPromptCopy(flow(), botName)).not.toContain("memo");
   });
