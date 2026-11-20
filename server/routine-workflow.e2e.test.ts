@@ -49,9 +49,9 @@ it("a routine that runs a workflow runs its steps on Run now", async () => {
     expect(workflowRun.stepRuns.map((step: any) => [step.stepId, step.status])).toEqual([["a", "done"], ["b", "done"], ["p", "done"]]);
     expect(workflowRun.stepRuns[0].output).toContain("Alpha findings");
     expect(workflowRun.stepRuns[1].output).toContain("Beta write-up");
-    const results = (await api("GET", `/api/bots/${first.id}/tasks`)).tasks ?? [];
-    const lines = (await Promise.all(results.map(async (task: any) => (await api("GET", `/api/threads/${task.threadId}/messages`)).messages ?? [])))
-      .flat().filter((message: any) => message.automation?.runId === run.id && message.automation?.workflowStepId === "p");
+    const threads = [...new Set([first.activeTaskId, ...Object.values(workflowRun.threads)])] as string[];
+    const lines = (await Promise.all(threads.map(async (threadId) => (await api("GET", `/api/threads/${threadId}/messages?limit=100`)).messages as any[])))
+      .flat().filter((message) => message.automation?.runId === run.id && message.automation?.workflowStepId === "p");
     expect(lines).toHaveLength(1);
     const notices = (await api("GET", "/api/notifications")).notifications as Array<{ kind: string; threadId?: string }>;
     const stepThreads = new Set(Object.values(workflowRun.threads) as string[]);
