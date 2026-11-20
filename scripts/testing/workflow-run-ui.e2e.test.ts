@@ -56,7 +56,7 @@ async function openApp(server: { url: string; port: number; dataDir: string; log
   };
   const openAutomations = async () => {
     await evaluate(`document.querySelector('button[aria-label="Open bot list"]')?.click(); true`);
-    await expect.poll(() => evaluate(`(() => { const entry = [...document.querySelectorAll("nav button")].find((button) => button.textContent.trim() === "Automations"); entry?.click(); return Boolean(entry); })()`)).toBe(true);
+    await expect.poll(() => evaluate(`(() => { const entry = document.querySelector("[data-sidebar-automations]"); entry?.click(); return Boolean(entry); })()`)).toBe(true);
     await expect.poll(() => text("main h1"), { timeout: 15_000 }).toBe("Automations");
   };
   const close = async () => {

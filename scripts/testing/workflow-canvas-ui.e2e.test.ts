@@ -57,10 +57,10 @@ async function openApp(server: { url: string; port: number; dataDir: string; log
   };
   const fill = (selector: string, value: string) => evaluate(`(() => { const field = document.querySelector(${JSON.stringify(selector)}); const prototype = field instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype; Object.getOwnPropertyDescriptor(prototype, "value").set.call(field, ${JSON.stringify(value)}); field.dispatchEvent(new Event("input", { bubbles: true })); return field.value; })()`);
   const choose = (selector: string, option: string) => evaluate(`(() => { const field = document.querySelector(${JSON.stringify(selector)}); const entry = [...field.options].find((candidate) => candidate.textContent === ${JSON.stringify(option)}); if (!entry) return null; field.value = entry.value; field.dispatchEvent(new Event("change", { bubbles: true })); return entry.value; })()`);
-  const reload = async () => { await evaluate("location.reload(); true"); await expect.poll(() => exists("nav"), { timeout: 30_000 }).toBe(true); };
+  const reload = async () => { await evaluate("location.reload(); true"); await expect.poll(() => exists("[data-sidebar-automations]"), { timeout: 30_000 }).toBe(true); };
   const openAutomations = async () => {
     await evaluate(`document.querySelector('button[aria-label="Open bot list"]')?.click(); true`);
-    await expect.poll(() => evaluate(`(() => { const entry = [...document.querySelectorAll("nav button")].find((button) => button.textContent.trim() === "Automations"); entry?.click(); return Boolean(entry); })()`)).toBe(true);
+    await expect.poll(() => evaluate(`(() => { const entry = document.querySelector("[data-sidebar-automations]"); entry?.click(); return Boolean(entry); })()`)).toBe(true);
     await expect.poll(() => text("main h1"), { timeout: 15_000 }).toBe("Automations");
   };
   const close = async () => {
