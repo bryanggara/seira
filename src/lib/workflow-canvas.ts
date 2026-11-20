@@ -1,6 +1,7 @@
 import type { WorkflowConnection, WorkflowStep, WorkflowStepKind } from "../../shared/workflows";
 import { connectRefusal, findLoop, stepById, type ConnectRefusal } from "@/lib/workflow-graph";
 import { fitTeams, type Point, type Tile, type View } from "@/lib/team-canvas";
+import { randomUuid } from "@/lib/random-uuid";
 import type { WorkflowDraft } from "@/state/workflows";
 
 export const STEP_WIDTH = 248;
@@ -74,7 +75,7 @@ export function edgeMid(from: Point, to: Point): Point {
 }
 
 export function newId(prefix: "s" | "c"): string {
-  return `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
+  return `${prefix}-${randomUuid().slice(0, 8)}`;
 }
 
 export function newStep(kind: WorkflowStepKind, position: Point, botId = ""): WorkflowStep {
