@@ -1,8 +1,9 @@
 import type { Workflow, WorkflowInput, WorkflowRun, WorkflowRunUpdate } from "../../shared/workflows.ts";
 import { routineVisible, workflowRunVisible, workflowVisible, type VisibleSet } from "../bot-visibility.ts";
 import type { WorkflowHost } from "../host/workflow-host.ts";
+import { WORKFLOW_ROUTINE_REFUSAL, type WorkflowRoutineEdits } from "../host/workflow-routine-edits.ts";
 import type { RequestAuth } from "../request-auth.ts";
-import type { RoutineManager } from "../routines.ts";
+import type { Routine, RoutineManager } from "../routines.ts";
 import { problemBody, validateWorkflowInput } from "../workflows/validate.ts";
 import { PASS, type RouteHandler } from "./table.ts";
 
@@ -11,6 +12,7 @@ export interface WorkflowRoutesDeps {
   botName(botId: string): string | undefined;
   workflows(): WorkflowHost | null;
   routines(): Pick<RoutineManager, "listRoutines"> | null;
+  routineEdits: WorkflowRoutineEdits;
 }
 
 const RUNS_DEFAULT = 20;
@@ -49,6 +51,8 @@ export function createWorkflowRoutes(deps: WorkflowRoutesDeps): RouteHandler {
       return workflow && workflowVisible(workflow, visible) ? workflow : null;
     };
 
+    const linkedTo = (workflowId: string) => deps.routines()?.listRoutines().filter((routine) => routine.workflowId === workflowId) ?? [];
+    const refused = (linked: readonly Routine[]) => linked.some((routine) => deps.routineEdits.refusal(auth, routine) !== null);
     const save = (body: unknown, current: Workflow | null, write: (input: WorkflowInput) => Workflow | null, status: number) => {
       const checked = validateWorkflowInput(body, { botName: deps.botName });
       if (!checked.ok) return json(res, 400, problemBody(checked.problems));
@@ -70,9 +74,11 @@ export function createWorkflowRoutes(deps: WorkflowRoutesDeps): RouteHandler {
       const workflow = shown(oneMatch[1]!);
       if (!workflow) return json(res, 404, { error: "no such workflow" });
       if (method === "GET") return json(res, 200, { workflow });
-      if (method === "DELETE") return host.remove(workflow.id) ? json(res, 200, { ok: true }) : json(res, 404, { error: "no such workflow" });
-      if (method !== "PATCH") return json(res, 405, { error: "method not allowed" });
-      return save(await readBody(req), workflow, (input) => host.update(workflow.id, input), 200);
+      if (method !== "DELETE" && method !== "PATCH") return json(res, 405, { error: "method not allowed" });
+      const linked = linkedTo(workflow.id);
+      if (refused(linked)) return json(res, 403, { error: WORKFLOW_ROUTINE_REFUSAL });
+      if (method === "DELETE") return deps.routineEdits.edit(auth, linked, () => host.remove(workflow.id)) ? json(res, 200, { ok: true }) : json(res, 404, { error: "no such workflow" });
+      return save(await readBody(req), workflow, (input) => deps.routineEdits.edit(auth, linked, () => host.update(workflow.id, input)), 200);
     }
 
     if (runsMatch) {

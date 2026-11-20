@@ -11,6 +11,8 @@ import type { RequestAuth } from "../request-auth.ts";
 import { RoutineRequestService, type RoutineRequestMessage, type RoutineRequestOptionCard, type RoutineRequestStore } from "../routine-requests.ts";
 import { RoutineManager, type Routine, type RoutineRun } from "../routines.ts";
 import { PASS, type RouteContext } from "./table.ts";
+import { createCloudRoutineAuthors, routineFingerprint } from "../cloud-lending.ts";
+import { createWorkflowRoutineEdits, type WorkflowRoutineEdits } from "../host/workflow-routine-edits.ts";
 import { createWorkflowRoutes, workflowTargetHidden } from "./workflows.ts";
 
 const BOB: Viewer = { kind: "member", email: "bob@example.test" };
@@ -40,23 +42,24 @@ function run(runId: string, workflowId: string, over: Partial<WorkflowRun> = {})
   };
 }
 
-function fixture(over: { workflows?: Workflow[]; runs?: WorkflowRun[]; routines?: Array<Partial<Routine>>; viewer?: Viewer; again?: WorkflowHost["runAgain"] } = {}) {
+function fixture(over: { workflows?: Workflow[]; runs?: WorkflowRun[]; routines?: Array<Partial<Routine>>; viewer?: Viewer; again?: WorkflowHost["runAgain"]; edits?: WorkflowRoutineEdits; rewrite?: (routine: Routine) => void } = {}) {
   const flows = new Map((over.workflows ?? [workflow("open", "pub", "pub"), workflow("secret", "pub", "hr")]).map((flow) => [flow.id, flow]));
   const runs = over.runs ?? [run("run-open", "open"), run("run-secret", "secret", { botIds: ["pub", "hr"] })];
   const calls: string[] = [];
+  const routines = (over.routines ?? [{ id: "r1", botId: "pub", workflowId: "open" }]) as Routine[];
   const host = {
     list: () => [...flows.values()],
     get: (id: string) => flows.get(id) ?? null,
     create: (input: WorkflowInput) => { const made = { ...input, id: "new", createdAt: 9, updatedAt: 9 } as Workflow; flows.set("new", made); return made; },
-    update: (id: string, input: WorkflowInput) => { const next = { ...flows.get(id)!, ...input, updatedAt: 10 } as Workflow; flows.set(id, next); return next; },
-    remove: (id: string) => { calls.push(`remove ${id}`); return flows.delete(id); },
+    update: (id: string, input: WorkflowInput) => { for (const linked of routines) if (linked.workflowId === id) over.rewrite?.(linked); const next = { ...flows.get(id)!, ...input, updatedAt: 10 } as Workflow; flows.set(id, next); return next; },
+    remove: (id: string) => { for (const linked of routines) if (linked.workflowId === id) over.rewrite?.(linked); calls.push(`remove ${id}`); return flows.delete(id); },
     runs: (id: string, limit: number) => { calls.push(`runs ${id} ${limit}`); return runs.filter((candidate) => candidate.workflowId === id); },
     run: (id: string) => runs.find((candidate) => candidate.runId === id) ?? null,
     runAgain: over.again ?? ((runId: string, stepId: string) => { calls.push(`again ${runId} ${stepId}`); return { id: "run-new" } as RoutineRun; }),
   } as unknown as WorkflowHost;
-  const routines = (over.routines ?? [{ id: "r1", botId: "pub", workflowId: "open" }]) as Routine[];
   const visible = new VisibleSet(bots, [], over.viewer ?? BOB);
-  const routes = createWorkflowRoutes({ visible: () => visible, botName: (id) => names[id], workflows: () => host, routines: () => ({ listRoutines: () => routines }) });
+  const routes = createWorkflowRoutes({ visible: () => visible, botName: (id) => names[id], workflows: () => host, routines: () => ({ listRoutines: () => routines }),
+    routineEdits: over.edits ?? { refusal: () => null, edit: (_auth, _routines, change) => change() } });
   async function call(method: string, path: string, body?: unknown) {
     const sent: { status?: number; body?: any } = {};
     const context = {
@@ -74,6 +77,9 @@ const input = (...botIds: string[]) => {
   const { id: _id, createdAt: _c, updatedAt: _u, ...rest } = workflow("x", ...botIds);
   return rest;
 };
+
+const dirs: string[] = [];
+afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
 
 describe("workflow routes", () => {
   it("passes paths that are not workflows", async () => {
@@ -181,6 +187,57 @@ describe("workflow routes", () => {
       .toMatchObject({ status: 500, body: { error: "could not prepare" } });
   });
 
+  it("refuses to change a workflow that runs a routine the person can't change", async () => {
+    const asked: string[] = [];
+    const edits: WorkflowRoutineEdits = {
+      refusal: (_auth, routine) => { asked.push(routine.id); return routine.id === "mine-not" ? "This workflow runs a routine you can't change." : null; },
+      edit: (_auth, _routines, change) => change(),
+    };
+    const routines = [{ id: "r1", botId: "pub", workflowId: "open" }, { id: "mine-not", botId: "pub", workflowId: "open" }];
+    const { call, calls } = fixture({ routines, edits });
+    const patched = await call("PATCH", "/api/workflows/open", input("pub"));
+    expect(patched).toMatchObject({ status: 403, body: { error: "This workflow runs a routine you can't change." } });
+    const deleted = await call("DELETE", "/api/workflows/open");
+    expect(deleted).toMatchObject({ status: 403, body: { error: "This workflow runs a routine you can't change." } });
+    expect(asked).toContain("mine-not");
+    expect(calls).toEqual([]);
+    const free = fixture({ routines: [{ id: "r1", botId: "pub", workflowId: "open" }], edits });
+    expect((await free.call("PATCH", "/api/workflows/open", input("pub"))).status).toBe(200);
+  });
+
+  it("an allowed workflow change keeps the routine's owner check valid", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "wf-authors-"));
+    dirs.push(dir);
+    const authors = createCloudRoutineAuthors(join(dir, "authors.json"));
+    const routine = { id: "r1", botId: "pub", workflowId: "open", prompt: "1. Old copy.", schedule: { type: "daily", time: "09:00" } } as unknown as Routine;
+    authors.record("r1", routine);
+    expect(authors.authored("r1", routine)).toBe(true);
+    let owner = true;
+    const edits = createWorkflowRoutineEdits({
+      refusal: () => null, writer: () => "p_aaaaaaaaaaaaaaaaaaaaaa", withWriter: (_writer, work) => work(), current: () => routine,
+      edited: (_auth, edited, writer) => { if (owner) authors.record(edited.id, edited); else authors.forget(edited.id); authors.wrote(edited.id, writer); },
+    });
+    const rewrite = (linked: Routine) => { linked.prompt = "1. New copy."; };
+    const { call } = fixture({ routines: [routine], edits, rewrite });
+    expect(authors.authored("r1", routine)).toBe(true);
+    expect((await call("PATCH", "/api/workflows/open", input("pub"))).status).toBe(200);
+    expect(routine.prompt).toBe("1. New copy.");
+    expect(authors.authored("r1", routine)).toBe(true);
+    owner = false;
+    rewrite(routine);
+    routine.prompt = "1. Newer copy.";
+    expect((await call("PATCH", "/api/workflows/open", input("pub"))).status).toBe(200);
+    expect(authors.recorded("r1")).toBe(false);
+    expect(authors.writer("r1")).toBe("p_aaaaaaaaaaaaaaaaaaaaaa");
+  });
+
+  it("changes the owner fingerprint when a workflow link changes, and keeps old fingerprints", () => {
+    const plain = { prompt: "Do it.", botId: "pub" };
+    expect(routineFingerprint({ ...plain, workflowId: "w" })).not.toBe(routineFingerprint(plain));
+    expect(routineFingerprint({ ...plain, workflowId: "w" })).not.toBe(routineFingerprint({ ...plain, workflowId: "v" }));
+    expect(routineFingerprint({ ...plain, workflowId: undefined })).toBe(routineFingerprint(plain));
+  });
+
   it("refuses a routine save that links a workflow with a hidden bot", () => {
     const { host, visible } = fixture();
     expect(workflowTargetHidden({ workflowId: "secret" }, visible, host)).toBe("no such workflow");
@@ -211,9 +268,6 @@ describe("workflow routes", () => {
 });
 
 describe("a bot's routine request", () => {
-  const dirs: string[] = [];
-  afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
-
   it("a bot routine request cannot link a workflow", async () => {
     const dir = mkdtempSync(join(tmpdir(), "wf-request-"));
     dirs.push(dir);
