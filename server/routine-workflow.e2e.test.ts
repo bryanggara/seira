@@ -33,7 +33,7 @@ async function runWorkflow(reply: string) {
   });
   const { routine } = await api("POST", "/api/routines", {
     name: "Findings run", botId: first.id, workflowId: workflow.id, prompt: "unused",
-    schedule: { type: "interval", everyMinutes: 1440 }, enabled: false,
+    schedule: { type: "daily", time: "09:00" }, enabled: false,
   });
   const { run } = await api("POST", `/api/routines/${routine.id}/run`);
   await expect.poll(async () => (await api("GET", "/api/routines")).runs.find((item: any) => item.id === run.id)?.status,

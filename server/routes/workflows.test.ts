@@ -41,7 +41,7 @@ function run(runId: string, workflowId: string, over: Partial<WorkflowRun> = {})
 }
 
 function fixture(over: { workflows?: Workflow[]; runs?: WorkflowRun[]; routines?: Array<Partial<Routine>>; viewer?: Viewer; again?: WorkflowHost["runAgain"] } = {}) {
-  const flows = new Map((over.workflows ?? [workflow("open", "pub"), workflow("secret", "pub", "hr")]).map((flow) => [flow.id, flow]));
+  const flows = new Map((over.workflows ?? [workflow("open", "pub", "pub"), workflow("secret", "pub", "hr")]).map((flow) => [flow.id, flow]));
   const runs = over.runs ?? [run("run-open", "open"), run("run-secret", "secret", { botIds: ["pub", "hr"] })];
   const calls: string[] = [];
   const host = {
