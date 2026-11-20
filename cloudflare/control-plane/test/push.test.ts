@@ -181,7 +181,7 @@ describe("phone push relay", () => {
         alert: { title: "Scout in Launch needs approval" },
         sound: "default",
         "thread-id": "th_1",
-        category: "SEIRA_APPROVAL",
+        category: "OPENMAUS_APPROVAL",
         "interruption-level": "time-sensitive",
       },
       seira: { v: 1, kind: "approval", botId: "bot_1", botName: "Scout", threadId: "th_1", roomId: "grp_1", roomName: "Launch", pairing: "pair-tag-1" },

@@ -178,7 +178,7 @@ describe("phone push relay, FCM", () => {
           title: "Scout needs approval",
           tag: "seira.th_1.42",
           channelId: "approval_question",
-          categoryId: "SEIRA_APPROVAL",
+          categoryId: "OPENMAUS_APPROVAL",
           threadIdentifier: "th_1",
           body: JSON.stringify({ v: 1, kind: "approval", botId: "bot_1", botName: "Scout", threadId: "th_1", roomId: "grp_1", roomName: "Launch", pairing: "pair-tag-1" }),
         },
@@ -200,7 +200,7 @@ describe("phone push relay, FCM", () => {
     expect((await send(worker, environment, credential, { collapseId: undefined, notification: { ...notification, kind: "done", title: "Scout finished" } })).status).toBe(202);
     expect(providers.oauth()).toHaveLength(1);
     const second = JSON.parse(providers.fcm()[1]!.text) as { message: { data: Record<string, string> } };
-    expect(second.message.data).toMatchObject({ channelId: "bot_messages", categoryId: "SEIRA_UPDATE" });
+    expect(second.message.data).toMatchObject({ channelId: "bot_messages", categoryId: "OPENMAUS_UPDATE" });
     expect(second.message.data.tag).toMatch(/^[0-9a-f]{32}$/);
   });
 
@@ -314,7 +314,7 @@ describe("phone push relay, FCM", () => {
     expect((await send(worker, environment, credential, { token: APNS_TOKEN, notification: { ...notification, kind: "sign-in", title: "Scout needs you to sign in to a website" } })).status).toBe(202);
     const [apns] = providers.apns();
     expect(apns!.headers["apns-collapse-id"]).toBe("seira.th_1.42");
-    expect(JSON.parse(apns!.text).aps).toMatchObject({ category: "SEIRA_UPDATE", "interruption-level": "time-sensitive" });
+    expect(JSON.parse(apns!.text).aps).toMatchObject({ category: "OPENMAUS_UPDATE", "interruption-level": "time-sensitive" });
     const row = await env.DB.prepare("SELECT platform FROM installation_push_devices").first<{ platform: string }>();
     expect(row?.platform).toBe("apns");
   });

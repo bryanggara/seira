@@ -259,8 +259,8 @@ the bundle id, and `apns-collapse-id`. The payload is
 `{ "aps": { "alert": { "title" }, "sound": "default", "thread-id", "category",
 "interruption-level" }, "seira": { "v": 1, "kind", "botId", "botName",
 "threadId", "roomId"?, "roomName"?, "pairing"? }, "body": <the same as seira> }`.
-`category` is the app's `SEIRA_APPROVAL`, `SEIRA_QUESTION` or
-`SEIRA_UPDATE`, so the notification carries the app's buttons.
+`category` is the app's `OPENMAUS_APPROVAL`, `OPENMAUS_QUESTION` or
+`OPENMAUS_UPDATE`, so the notification carries the app's buttons.
 `interruption-level` is `time-sensitive` for `approval`, `question`,
 `sign-in` and `mention`, else `active`. `body` repeats `seira` because the
 phone's notification library hands the app only `body` as a remote
