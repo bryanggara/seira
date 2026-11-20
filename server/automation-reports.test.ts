@@ -725,3 +725,49 @@ describe("automation reports", () => {
     expect(f.lines().map((line: Message) => line.text)).toEqual(["Acme replied."]);
   });
 });
+
+describe("a workflow's Post results step", () => {
+  beforeEach(() => {
+    rmSync(DATA_DIR, { recursive: true, force: true });
+  });
+
+  it("writes one line per post step, and a failure line still follows", () => {
+    const f = fixture();
+    const run = f.finished("", "Weekly report", { status: "failed", error: "Writer failed" });
+    const written: string[] = [];
+    f.reports.postStep(run, "post-1", "Sales are up 4%.", (id) => written.push(id));
+    f.reports.postStep(run, "post-1", "Sales are up 4%.", (id) => written.push(id));
+    const posted = f.lines();
+    expect(posted).toHaveLength(1);
+    expect(posted[0]).toMatchObject({ text: "Sales are up 4%.", automation: { runId: run.id, workflowStepId: "post-1" } });
+    expect(written).toEqual([posted[0]!.id, posted[0]!.id]);
+    expect(f.runs.get(run.id)!.report).toBeUndefined();
+    f.reports.runFailed(run, "Writer failed");
+    expect(f.lines().map((line) => line.automation?.failed === true)).toEqual([false, true]);
+  });
+
+  it("writes into the run's own chat when no results chat is set, and nothing for an empty text", () => {
+    const f = fixture();
+    const run = f.finished("", "Weekly report", { resultsThreadId: undefined });
+    const written: string[] = [];
+    f.reports.postStep(run, "post-1", "  ", (id) => written.push(id));
+    expect(written).toEqual([""]);
+    f.reports.postStep(run, "post-2", "Done.", (id) => written.push(id));
+    const own = f.store.messagesFor(run.threadId!).filter((message) => message.automation?.workflowStepId === "post-2");
+    expect(own).toHaveLength(1);
+    expect(written[1]).toBe(own[0]!.id);
+  });
+
+  it("waits while the chat is busy and writes after it", () => {
+    const f = fixture();
+    const run = f.finished("", "Weekly report");
+    f.busy.add(f.main);
+    const written: string[] = [];
+    f.reports.postStep(run, "post-1", "Hello.", (id) => written.push(id));
+    expect(written).toEqual([]);
+    f.busy.delete(f.main);
+    f.reports.flush();
+    expect(written).toHaveLength(1);
+    expect(f.lines()).toHaveLength(1);
+  });
+});
