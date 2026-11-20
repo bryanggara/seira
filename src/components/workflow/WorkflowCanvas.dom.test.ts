@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { createElement, useState } from "react";
+import { act, createElement, useState } from "react";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -44,7 +44,8 @@ function mount(element: ReturnType<typeof createElement>) {
   return container;
 }
 const step = (container: ParentNode, id: string) => container.querySelector<HTMLButtonElement>(`[data-workflow-step="${id}"]`)!;
-const fire = (target: Element | Document, event: Event) => { flushSync(() => { target.dispatchEvent(event); }); };
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+const fire = (target: Element | Document, event: Event) => { act(() => { target.dispatchEvent(event); }); };
 const pointer = (target: Element, type: string, x = 0, y = 0) =>
   fire(target, new PointerEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 1, button: 0, buttons: type === "pointerup" ? 0 : 1 }));
 const key = (target: Element | Document, name: string, init: KeyboardEventInit = {}) =>

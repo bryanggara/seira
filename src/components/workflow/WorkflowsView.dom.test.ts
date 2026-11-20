@@ -132,7 +132,7 @@ describe("the Workflows view", () => {
   });
 
   it("warns when the workflow can't run, and names the routines that use it", async () => {
-    workflows = [{ ...morning, steps: [botStep("a", "bot-a", 0), { ...botStep("b", "bot-b", 200), instruction: "" }] }];
+    workflows = [{ ...morning, steps: [botStep("a", "bot-a", 0), botStep("b", "bot-gone", 200)] }];
     const plain = mount({ workflowId: "wf1" });
     await settle();
     expect(plain.querySelector("[data-workflow-warning]")!.textContent).toContain("It can't run yet.");

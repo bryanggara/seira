@@ -42,7 +42,6 @@ const byLabel = <T extends HTMLElement>(container: ParentNode, label: string) =>
   const found = [...container.querySelectorAll("label")].find((candidate) => candidate.textContent === label);
   return container.querySelector<T>(`#${CSS.escape(found!.htmlFor)}`)!;
 };
-const optionLabels = (select: HTMLSelectElement) => [...select.options].map((option) => option.textContent);
 
 afterEach(() => {
   flushSync(() => root?.unmount());
@@ -88,7 +87,7 @@ describe("the step panel", () => {
     };
     const { container, dispatch } = mount(flow, "k");
     const yes = byLabel<HTMLSelectElement>(container, "If yes");
-    expect(optionLabels(yes)).not.toContain("Scout");
+    expect([...yes.options].map((option) => option.value)).not.toContain("a");
     expect(yes.options.length).toBeGreaterThan(1);
     choose(yes, "b");
     expect(dispatch).toHaveBeenLastCalledWith({ type: "connect", connection: expect.objectContaining({ from: "k", to: "b", branch: "yes" }) });
