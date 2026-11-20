@@ -37,10 +37,10 @@ Without `SEIRA_UI_E2E=1` both files are skipped. Set `SEIRA_WORKFLOW_SHOTS` to a
 folder to keep the screenshots there. Each screen is captured in Midnight and in
 Daylight. The files end by checking that the browser console has no errors.
 
-- `workflow-canvas-ui.e2e.test.ts` covers the empty list, drawing, autosave,
+- `scripts/testing/workflow-canvas-ui.e2e.test.ts` covers the empty list, drawing, autosave,
   reload, delete and Undo, and giving the workflow to a routine. It reads the
   saved workflow and routine from the API.
-- `workflow-run-ui.e2e.test.ts` seeds a two-step workflow and a routine, makes
+- `scripts/testing/workflow-run-ui.e2e.test.ts` seeds a two-step workflow and a routine, makes
   the second step fail, opens the run from the routine panel, then runs it again
   from the failed step once the script lets it finish.
 
