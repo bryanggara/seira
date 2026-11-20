@@ -6,7 +6,7 @@ import { ApiError } from "./api";
 
 const fixture = vi.hoisted(() => ({
   api: vi.fn(),
-  listener: null as null | { onFrame: (frame: unknown) => void; onMissedFrames?: () => void },
+  listener: null as null | LiveFrameListener,
   effects: [] as Array<() => void>,
 }));
 vi.mock("@/state/store", async () => ({ api: fixture.api, ApiError: (await import("./api")).ApiError }));
