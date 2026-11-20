@@ -38,7 +38,7 @@ describe("startRoutineWork", () => {
   });
 
   it("sends a workflow run to startWorkflow, not to a bot turn", async () => {
-    const startWorkflow = vi.fn(async () => {});
+    const startWorkflow = vi.fn(async (_run: RoutineRun, _threadId: string, _fail: (message: string) => void) => {});
     const d = deps({ startWorkflow });
     await startRoutineWork(d, run({ prompt: "1. Ana: Do it", workflowId: "wf-1" }), "thread-1");
     expect(startWorkflow).toHaveBeenCalledWith(expect.objectContaining({ id: "run-1", workflowId: "wf-1" }), "thread-1", expect.any(Function));

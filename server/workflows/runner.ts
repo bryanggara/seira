@@ -351,8 +351,8 @@ export function createWorkflowRunner(deps: WorkflowRunnerDeps): WorkflowRunner {
           patch(currentStep, { attempts: Math.max(0, (currentStep.attempts ?? 1) - 1) });
           return waitBusy(current, currentStep, step, botId);
         }
-        return fail(current, currentStep, step, result.needsPerson ? "needs_person" : "turn_failed",
-          result.needsPerson ? `${name} asked you a question. Answer it in the chat, then run again from here.` : result.error);
+        if (result.needsPerson) return fail(current, currentStep, step, "needs_person", `${name} asked you a question. Answer it in the chat, then run again from here.`);
+        return fail(current, currentStep, step, "turn_failed", result.error);
       }
       const answer = parseCheckAnswer(result.text);
       if (!answer) return fail(current, currentStep, step, "check_unclear", `The answer was not a clear yes or no: “${result.text.trim().slice(0, 40)}”`);

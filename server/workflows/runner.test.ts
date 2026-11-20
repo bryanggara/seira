@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { Workflow, WorkflowFrame, WorkflowRun, WorkflowStep } from "../../shared/workflows.ts";
+import type { Workflow, WorkflowFrame, WorkflowStep } from "../../shared/workflows.ts";
 import { RoutineManager, type RoutineRun } from "../routines.ts";
 import { BUSY_MAX_MS, BUSY_POLL_MS, STEP_ATTEMPTS, createWorkflowRunner, workflowRunFrame, type StepTurn, type WorkflowRunState, type WorkflowRunner } from "./runner.ts";
 import { workflowCopy } from "./routine-link.ts";
