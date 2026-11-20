@@ -1581,17 +1581,15 @@ describe("harness HTTP API", () => {
       const afterAnsweredTurn = (await isolatedApi("GET", `/api/threads/${bot.threadId}/messages`)).body.messages
         .find((message: { id: string }) => message.id === cardId)?.card;
       expect(afterAnsweredTurn).toMatchObject({ answered: "answer", answeredText: "README", dismissed: false });
+
+      await waitForExit(server.child, { signal: "SIGTERM" });
+      expectStoppedTestServerCleanly(server.child, server.stderr());
+      activeServer = undefined;
     } finally {
       writeFileSync(isolatedFinishGate, "finish");
       questionSocket?.destroy();
-      try {
-        if (activeServer) {
-          await waitForExit(activeServer.child, { signal: "SIGTERM" });
-          expectStoppedTestServerCleanly(activeServer.child, activeServer.stderr());
-        }
-      } finally {
-        await removeTempDir(isolatedHome);
-      }
+      await waitForExit(activeServer?.child, { signal: "SIGTERM" });
+      await removeTempDir(isolatedHome);
     }
   }, 30_000);
 
