@@ -38,7 +38,6 @@ export interface Automation {
   readsAndDrafts?: boolean;
   /** Its newest runs in a row whose cloud desktop did not start, while its scheduled runs are spaced out for it. */
   noStartStreak?: number;
-  /** The workflow this routine runs. */
   workflowId?: string;
 }
 
@@ -227,7 +226,7 @@ export function automationSentence(automation: Pick<Automation, "kind" | "name" 
   if (automation.kind === "app" && automation.appTrigger) return t("automations.sentence.appEvent", { when: appWhen(automation.appTrigger), bot: botName, does });
   if (automation.kind === "schedule" && automation.schedule && automation.workflowId) {
     const when = plainWhen(automation.schedule);
-    return workflow ? t("workflow.sentence.named", { when, name: workflow.name, bots: listOf(workflow.bots) }) : t("workflow.sentence.unknown", { when, bot: botName });
+    return workflow?.bots.length ? t("workflow.sentence.named", { when, name: workflow.name, bots: listOf(workflow.bots) }) : t("workflow.sentence.unknown", { when, bot: botName });
   }
   if (automation.kind === "schedule" && automation.schedule) {
     return t("automations.sentence.schedule", { when: plainWhen(automation.schedule), bot: botName, does });

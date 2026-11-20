@@ -17,6 +17,8 @@ export type SaveStatus =
   | { state: "changed" }
   | { state: "failed" };
 
+const pendingSaves = new Map<string, Promise<Workflow | null>>();
+
 export const fromWorkflow = (workflow: Workflow): WorkflowDraft => ({ name: workflow.name, steps: workflow.steps, connections: workflow.connections });
 
 interface Deps {
@@ -108,11 +110,17 @@ export function useWorkflowDraft(workflow: Workflow, deps: Deps): {
       setStatus({ state: "unsaved", problem: problems[0]! });
       return;
     }
-    const sent = draftRef.current;
     saving.current = true;
     setStatus({ state: "saving" });
     try {
-      const saved = await workflowApi.save(workflow.id, { ...sent, ifUpdatedAt: baseRef.current });
+      const earlier = await pendingSaves.get(workflow.id);
+      if (earlier && earlier.updatedAt > baseRef.current) baseRef.current = earlier.updatedAt;
+      const sent = draftRef.current;
+      const request = workflowApi.save(workflow.id, { ...sent, ifUpdatedAt: baseRef.current });
+      const settled = request.then((done) => done, () => null);
+      pendingSaves.set(workflow.id, settled);
+      void settled.then(() => { if (pendingSaves.get(workflow.id) === settled) pendingSaves.delete(workflow.id); });
+      const saved = await request;
       baseRef.current = saved.updatedAt;
       if (draftRef.current === sent) {
         dirty.current = false;

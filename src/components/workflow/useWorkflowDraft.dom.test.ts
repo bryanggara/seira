@@ -205,6 +205,33 @@ describe("useWorkflowDraft", () => {
     expect(takeDraft("wf1")).toBeUndefined();
   });
 
+  it("waits for the save that was running at close before it saves again after a quick reopen", async () => {
+    mount();
+    await advance(0);
+    let release: (value: unknown) => void = () => {};
+    fixture.api.mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
+    rename("Closing");
+    await advance(SAVE_DELAY_MS);
+    expect(patches()).toHaveLength(1);
+    unmount();
+    let stored = 10;
+    fixture.api.mockImplementation(async (_path: unknown, init: unknown) => {
+      const body = JSON.parse((init as { body: string }).body) as { ifUpdatedAt: number };
+      if (body.ifUpdatedAt !== stored) throw new ApiError("conflict", 409, { code: "workflow_changed" });
+      stored += 10;
+      return { workflow: { ...flow, name: "Closing", updatedAt: stored } };
+    });
+    mount();
+    await advance(SAVE_DELAY_MS * 2);
+    expect(patches()).toHaveLength(1);
+    stored = 20;
+    await act(async () => { release({ workflow: { ...flow, name: "Closing", updatedAt: 20 } }); });
+    await advance(SAVE_DELAY_MS);
+    expect(patches().length).toBeGreaterThan(1);
+    expect(sentBody(1)).toMatchObject({ ifUpdatedAt: 20 });
+    expect(hook.current.status).toEqual({ state: "saved" });
+  });
+
   it("does not report a false conflict after StrictMode runs the close step on a restored draft", async () => {
     mount();
     await advance(0);

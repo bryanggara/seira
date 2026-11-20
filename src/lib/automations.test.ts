@@ -36,6 +36,10 @@ describe("the plain sentence", () => {
     expect(automationSentence(flowing, "Scout", { name: "Morning round", bots: ["Scout", "Ledger"] })).toBe("Every weekday at 9 AM, Morning round runs with Scout and Ledger");
   });
 
+  it("falls back to the bot starting a workflow when none of the workflow's bots is known", () => {
+    expect(automationSentence(automation([], { workflowId: "wf1" }), "Scout", { name: "Morning round", bots: [] })).toBe("Every weekday at 9 AM, Scout starts a workflow");
+  });
+
   it("says the bot starts a workflow when the workflow is not known", () => {
     expect(automationSentence(automation([], { workflowId: "wf1" }), "Scout")).toBe("Every weekday at 9 AM, Scout starts a workflow");
     expect(automation([], { workflowId: "wf1" }).workflowId).toBe("wf1");
