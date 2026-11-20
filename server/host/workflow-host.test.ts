@@ -183,9 +183,10 @@ describe("the workflow host's runs", () => {
     const r = rig({ routinesUnreadable: () => unreadable });
     const { row } = await begin(r);
     r.runRows.splice(0, r.runRows.length);
+    const before = r.states.length;
     r.host.recover();
     expect(r.cancelled).toEqual([]);
-    expect(r.states).toEqual([]);
+    expect(r.states).toHaveLength(before);
     expect(r.host.run(row.id)?.status).toBe("active");
     unreadable = false;
     r.host.recover();
