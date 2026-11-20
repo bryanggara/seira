@@ -11,6 +11,7 @@ import {
   outgoing,
   PROBLEM_TEXT,
   problemText,
+  readingOrder,
   runnableProblem,
   saveProblems,
   serverProblems,
@@ -52,6 +53,12 @@ describe("workflow graph rules", () => {
     expect(outgoing(branching, "c").map((connection) => connection.id)).toEqual(["3", "2"]);
     expect(stepOrder(branching).map((step) => step.id)).toEqual(["a", "c", "y", "p", "n"]);
     expect(botIdsOf(branching)).toEqual(["ana", "ben"]);
+  });
+
+  it("visits the flow first, then loose steps from top to bottom and left to right", () => {
+    const loose = (id: string, x: number, y: number): WorkflowStep => ({ ...note(id), position: { x, y } });
+    const body = graph([loose("late", 200, 100), loose("left", 0, 100), loose("top", 100, 0), bot("a")], []);
+    expect(readingOrder(body).map((step) => step.id)).toEqual(["a", "top", "left", "late"]);
   });
 
   it("finds the connection that closes a loop", () => {
@@ -157,7 +164,9 @@ describe("workflow graph rules", () => {
     }
     expect(problemText({ code: "workflow_bot_missing", stepId: "a" }, body, botName)).toBe("Ana: choose a bot for this step.");
     expect(problemText({ code: "workflow_loop", stepId: "w" }, body, botName)).toBe("Wait: this connection makes a loop. Remove it.");
-    expect(problemText({ code: "workflow_name" }, body, botName)).toBe(`Give the workflow a name of ${WORKFLOW_LIMITS.name} characters or fewer.`);
+    expect(problemText({ code: "workflow_name" }, body, botName)).toBe(`Use a name of ${WORKFLOW_LIMITS.name} characters or fewer.`);
+    expect(problemText({ code: "workflow_name" }, { ...body, name: "x".repeat(81) }, botName)).toBe(`Use a name of ${WORKFLOW_LIMITS.name} characters or fewer.`);
+    expect(problemText({ code: "workflow_name" }, { ...body, name: "  " }, botName)).toBe("Give the workflow a name.");
     expect(problemText({ code: "workflow_too_big" }, body, botName)).toBe("A workflow can have 50 steps and 100 connections at most.");
     for (const key of Object.values(PROBLEM_TEXT)) expect(Object.hasOwn(en, key)).toBe(true);
   });

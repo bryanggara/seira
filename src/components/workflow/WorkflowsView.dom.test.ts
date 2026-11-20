@@ -77,7 +77,7 @@ describe("the Workflows view", () => {
     workflows = [];
     const container = mount();
     await settle();
-    expect(container.textContent).toContain("No workflows yet.");
+    expect(container.textContent).toContain("You have no workflows.");
     await act(async () => { button(container, "New workflow").dispatchEvent(new MouseEvent("click", { bubbles: true })); });
     await settle();
     expect(fixture.api).toHaveBeenCalledWith("/api/workflows", expect.objectContaining({ method: "POST" }));
@@ -123,19 +123,75 @@ describe("the Workflows view", () => {
     expect(JSON.parse((create[1] as { body: string }).body)).toMatchObject({ name: "Morning round", steps: morning.steps, connections: morning.connections });
   });
 
-  it("keeps Delete workflow off with the reason while a routine uses it", async () => {
+  it("brings back the unsaved steps on screen when Undo makes the workflow again", async () => {
+    const container = mount({ workflowId: "wf1" });
+    await settle();
+    click(container.querySelector("[data-workflow-palette=bot]")!);
+    expect(container.querySelectorAll("[data-workflow-step]")).toHaveLength(3);
+    await act(async () => { button(container, "Delete workflow").dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    await settle();
+    expect(fixture.api.mock.calls.filter(([, init]) => (init as { method?: string } | undefined)?.method === "PATCH")).toHaveLength(0);
+    const toast = document.body.querySelector("[data-access-toast]")!;
+    await act(async () => { button(toast, "Undo").dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    await settle();
+    expect(fixture.dispatch).toHaveBeenLastCalledWith({ type: "showRoutines", view: "workflows", workflowId: "wf-new" });
+    act(() => root!.render(createElement(WorkflowsView, { workflowId: "wf-new" })));
+    await settle();
+    expect(container.querySelectorAll("[data-workflow-step]")).toHaveLength(3);
+    expect(container.querySelector("[data-workflow-save]")?.getAttribute("data-workflow-save")).not.toBe("changed");
+  });
+
+  it("moves focus to the next step when a step is deleted, then to the canvas when none is left", async () => {
+    const container = mount({ workflowId: "wf1" });
+    await settle();
+    const stepButton = (id: string) => container.querySelector<HTMLElement>(`[data-workflow-step="${id}"]`)!;
+    act(() => { stepButton("a").focus(); });
+    act(() => { stepButton("a").dispatchEvent(new KeyboardEvent("keydown", { key: "Delete", bubbles: true, cancelable: true })); });
+    await settle();
+    expect(document.activeElement).toBe(stepButton("b"));
+    click(stepButton("b"));
+    click(button(container, "Delete step"));
+    await settle();
+    expect(container.querySelector("[data-workflow-step]")).toBeNull();
+    expect(document.activeElement).toBe(container.querySelector("[data-workflow-canvas]"));
+  });
+
+  it("keeps Delete workflow off with the reason, linked for screen readers, while a routine uses it", async () => {
     fixture.state = { bots: [scout, ledger], routines: [routine("wf1")] };
     const container = mount({ workflowId: "wf1" });
     await settle();
-    expect((button(container, "Delete workflow") as HTMLButtonElement).disabled).toBe(true);
-    expect(container.textContent).toContain("A routine runs this workflow: Daily. Change what it does first.");
+    const remove = button(container, "Delete workflow");
+    expect(remove.getAttribute("aria-disabled")).toBe("true");
+    expect(remove.hasAttribute("disabled")).toBe(false);
+    const reason = container.querySelector(`#${CSS.escape(remove.getAttribute("aria-describedby")!)}`)!;
+    expect(reason.textContent).toBe("A routine runs this workflow: Daily. Change what it does first.");
+    fixture.api.mockClear();
+    await act(async () => { remove.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    await settle();
+    expect(fixture.api).not.toHaveBeenCalled();
+  });
+
+  it("warns about an empty workflow that a routine runs, and not about one nobody uses", async () => {
+    workflows = [{ ...morning, steps: [], connections: [] }];
+    fixture.state = { bots: [scout, ledger], routines: [routine("wf1")] };
+    const linked = mount({ workflowId: "wf1" });
+    await settle();
+    expect(linked.querySelector("[data-workflow-warning]")!.textContent).toContain("Daily can't run this workflow until this is fixed.");
+    act(() => root!.unmount());
+    root = null;
+    document.body.innerHTML = "";
+    resetWorkflowsForTest();
+    fixture.state = { bots: [scout, ledger], routines: [] };
+    const plain = mount({ workflowId: "wf1" });
+    await settle();
+    expect(plain.querySelector("[data-workflow-warning]")).toBeNull();
   });
 
   it("warns when the workflow can't run, and names the routines that use it", async () => {
     workflows = [{ ...morning, steps: [botStep("a", "bot-a", 0), botStep("b", "bot-gone", 200)] }];
     const plain = mount({ workflowId: "wf1" });
     await settle();
-    expect(plain.querySelector("[data-workflow-warning]")!.textContent).toContain("It can't run yet.");
+    expect(plain.querySelector("[data-workflow-warning]")!.textContent).toContain("It can't run.");
     act(() => root!.unmount());
     root = null;
     document.body.innerHTML = "";
