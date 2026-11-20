@@ -22,13 +22,13 @@ const id = z.string().regex(/^[\w-]{1,64}$/);
 const text = z.string().default("");
 const base = { id, position: z.object({ x: z.number(), y: z.number() }) };
 const stepSchema = z.discriminatedUnion("kind", [
-  z.object({ ...base, kind: z.literal("bot"), botId: text, instruction: text }),
-  z.object({ ...base, kind: z.literal("check"), question: text }),
-  z.object({ ...base, kind: z.literal("wait"), minutes: z.number() }),
-  z.object({ ...base, kind: z.literal("post") }),
-  z.object({ ...base, kind: z.literal("note"), text }),
+  z.looseObject({ ...base, kind: z.literal("bot"), botId: text, instruction: text }),
+  z.looseObject({ ...base, kind: z.literal("check"), question: text }),
+  z.looseObject({ ...base, kind: z.literal("wait"), minutes: z.number() }),
+  z.looseObject({ ...base, kind: z.literal("post") }),
+  z.looseObject({ ...base, kind: z.literal("note"), text }),
 ]);
-const connectionSchema = z.object({ id, from: id, to: id, branch: z.enum(["yes", "no"]).optional() });
+const connectionSchema = z.looseObject({ id, from: id, to: id, branch: z.enum(["yes", "no"]).optional() });
 const inputSchema = z.object({
   name: z.string(),
   steps: z.array(stepSchema),

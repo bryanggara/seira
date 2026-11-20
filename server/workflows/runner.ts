@@ -12,6 +12,7 @@ import { redactSecretsInText } from "../redact.ts";
 import { continuityCarry } from "../routine-execution.ts";
 import type { Routine, RoutineRun } from "../routines.ts";
 import { botIdsOf, outgoing, reachable, runnable, startSteps, stepById, stepLabel, stepOrder } from "./graph.ts";
+import { WORKFLOW_TIME_WAIT, workflowBotWait } from "./rest-text.ts";
 import { botStepPrompt, checkPrompt, parseCheckAnswer } from "./step-prompt.ts";
 import type { WorkflowStore } from "./store.ts";
 import { runnableProblem } from "./validate.ts";
@@ -208,7 +209,8 @@ export function createWorkflowRunner(deps: WorkflowRunnerDeps): WorkflowRunner {
       case "check": return runCheck(run, step, from);
       case "wait": return runWait(run, step, from);
       case "post": return runPost(run, step, from);
-      default: return complete(run, "");
+      case "note": return complete(run, "");
+      default: return fail(run, stepRunOf(run, stepId, from), step, "turn_failed", "This step is from a newer version of Seira and can't run here.");
     }
   }
 
@@ -228,7 +230,7 @@ export function createWorkflowRunner(deps: WorkflowRunnerDeps): WorkflowRunner {
     if (now - since > BUSY_MAX_MS) return fail(run, stepRun, step, "bot_busy_too_long", `${name} stayed busy for 3 hours.`);
     patch(stepRun, { status: "waiting", waitingFor: "bot", botId, busySince: since, startedAt: stepRun.startedAt ?? now });
     saveStep(run, stepRun);
-    deps.runState(run.runId, "waiting", `Waiting for ${name} to finish other work`);
+    deps.runState(run.runId, "waiting", workflowBotWait(name));
     arm(run.runId, now + BUSY_POLL_MS, () => again(run.runId, step.id));
   }
 
@@ -276,7 +278,7 @@ export function createWorkflowRunner(deps: WorkflowRunnerDeps): WorkflowRunner {
     run.threads[botId] = threadId;
     patch(stepRun, {
       status: "running", botId, threadId, attempts: (stepRun.attempts ?? 0) + 1, startedAt: stepRun.startedAt ?? deps.now(),
-      waitingFor: undefined, busySince: undefined, resumeAt: undefined, error: undefined, errorCode: undefined, finishedAt: undefined,
+      waitingFor: undefined, resumeAt: undefined, error: undefined, errorCode: undefined, finishedAt: undefined,
     });
     if (newThread) {
       upsert(run, stepRun);
@@ -307,7 +309,7 @@ export function createWorkflowRunner(deps: WorkflowRunnerDeps): WorkflowRunner {
       if (!holdsTurn(currentStep)) return;
       if (result.ok) {
         const output = clipped(redactSecretsInText(result.text).trim(), WORKFLOW_STEP_OUTPUT_CHARS);
-        patch(currentStep, { status: "done", output: output.text, outputClipped: output.clipped ? true : undefined, finishedAt: deps.now(), waitingFor: undefined });
+        patch(currentStep, { status: "done", output: output.text, outputClipped: output.clipped ? true : undefined, finishedAt: deps.now(), waitingFor: undefined, busySince: undefined });
         saveStep(current, currentStep);
         return next(current, step, currentStep);
       }
@@ -358,7 +360,7 @@ export function createWorkflowRunner(deps: WorkflowRunnerDeps): WorkflowRunner {
       if (!answer) return fail(current, currentStep, step, "check_unclear", `The answer was not a clear yes or no: “${result.text.trim().slice(0, 40)}”`);
       const taken = outgoing(current.graph, step.id).find((connection) => connection.branch === answer);
       const other = outgoing(current.graph, step.id).find((connection) => connection.branch === (answer === "yes" ? "no" : "yes"));
-      patch(currentStep, { status: "done", answer, output: input, finishedAt: deps.now(), waitingFor: undefined });
+      patch(currentStep, { status: "done", answer, output: input, finishedAt: deps.now(), waitingFor: undefined, busySince: undefined });
       upsert(current, currentStep);
       current.currentStepId = step.id;
       const kept = reachable(current.graph, taken?.to);
@@ -379,7 +381,7 @@ export function createWorkflowRunner(deps: WorkflowRunnerDeps): WorkflowRunner {
     const resumeAt = stepRun.resumeAt ?? now + step.minutes * 60_000;
     patch(stepRun, { status: "waiting", waitingFor: "time", resumeAt, startedAt: stepRun.startedAt ?? now, output: previousOutput(run, stepRun) ?? "" });
     saveStep(run, stepRun);
-    deps.runState(run.runId, "waiting", `Waiting until ${new Date(resumeAt).toISOString()}`);
+    deps.runState(run.runId, "waiting", WORKFLOW_TIME_WAIT);
     arm(run.runId, resumeAt, () => resumeWait(run.runId, step.id));
   }
 
@@ -418,15 +420,16 @@ export function createWorkflowRunner(deps: WorkflowRunnerDeps): WorkflowRunner {
     if (!stepRun || !step) return enter(run, run.startStepId, run.input?.fromStepId);
     if (stepRun.status === "done") return next(run, step, stepRun);
     if (stepRun.status === "waiting" && step.kind === "wait" && stepRun.resumeAt !== undefined) {
-      deps.runState(run.runId, "waiting", `Waiting until ${new Date(stepRun.resumeAt).toISOString()}`);
+      deps.runState(run.runId, "waiting", WORKFLOW_TIME_WAIT);
       return arm(run.runId, Math.max(stepRun.resumeAt, deps.now()), () => resumeWait(run.runId, step.id));
     }
     if (stepRun.status === "waiting" && stepRun.waitingFor === "bot") {
-      deps.runState(run.runId, "waiting", `Waiting for ${deps.botName(stepRun.botId ?? "") ?? "the bot"} to finish other work`);
+      deps.runState(run.runId, "waiting", workflowBotWait(deps.botName(stepRun.botId ?? "") ?? "the bot"));
       return arm(run.runId, deps.now(), () => again(run.runId, step.id));
     }
     if (stepRun.status === "running" && step.kind === "post") return enter(run, step.id, stepRun.fromStepId);
     if (holdsTurn(stepRun)) {
+      patch(stepRun, { busySince: undefined });
       if ((stepRun.attempts ?? 0) < STEP_ATTEMPTS) return enter(run, step.id, stepRun.fromStepId, true);
       return fail(run, stepRun, step, "restart_cut", "Seira restarted while this step was running.");
     }
@@ -494,7 +497,7 @@ export function createWorkflowRunner(deps: WorkflowRunnerDeps): WorkflowRunner {
         const stepRun = run?.stepRuns.find((candidate) => candidate.stepId === turn.stepId);
         if (!run || !stepRun) return;
         if (attention !== null && stepRun.status === "running") {
-          patch(stepRun, { status: "waiting", waitingFor: "person" });
+          patch(stepRun, { status: "waiting", waitingFor: "person", busySince: undefined });
           saveStep(run, stepRun);
           deps.runState(runId, "waiting", redactSecretsInText(attention).trim() || "Waiting for your answer");
         } else if (attention === null && stepRun.status === "waiting" && stepRun.waitingFor === "person") {

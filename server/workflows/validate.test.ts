@@ -39,6 +39,16 @@ describe("saving a workflow", () => {
     expect(result.ok && result.value).toEqual({ name: "Morning", steps: [bot("a")], connections: [], ifUpdatedAt: 7 });
   });
 
+  it("keeps a field of a newer version on a step and on a connection", () => {
+    const result = validateWorkflowInput(input([{ ...bot("a"), color: "red" }, { ...post("p"), retries: 2 }], [{ ...link("1", "a", "p"), label: "then" }]), facts);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.steps[0]).toMatchObject({ color: "red" });
+      expect(result.value.steps[1]).toMatchObject({ retries: 2 });
+      expect(result.value.connections[0]).toMatchObject({ label: "then" });
+    }
+  });
+
   it("refuses a body that has the wrong shape (code 1)", () => {
     for (const body of [null, "x", {}, { name: "A", steps: "no", connections: [] }, input([{ id: "a", kind: "robot", position: at }]), input([bot("bad id!")]), input([{ ...wait("w"), minutes: "5" }])]) {
       expect(first(body)).toEqual({ code: "workflow_shape", message: "This workflow could not be saved. Reload it and try again." });

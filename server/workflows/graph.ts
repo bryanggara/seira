@@ -88,5 +88,6 @@ export function stepLabel(step: WorkflowStep, botName: (botId: string) => string
     case "wait": return "Wait";
     case "post": return "Post results";
     case "note": return "Note";
+    default: return "Step";
   }
 }

@@ -567,3 +567,47 @@ describe("the run limit of a routine run", () => {
     expect(k.store.run(k.started.id)!.status).toBe("completed");
   });
 });
+
+describe("a turn that keeps bouncing off a busy chat", () => {
+  it("fails after three hours, because the busy clock keeps running between starts", async () => {
+    const r = rig();
+    await r.begin();
+    for (let waited = 0; waited <= BUSY_MAX_MS + 2 * BUSY_POLL_MS && r.run().status === "active"; waited += BUSY_POLL_MS) {
+      if (r.step("a")?.status === "running") r.last().settle({ ok: false, busy: true, error: "The chat is busy" });
+      r.time.advance(BUSY_POLL_MS);
+    }
+    expect(r.step("a")).toMatchObject({ status: "failed", errorCode: "bot_busy_too_long" });
+    expect(r.run().status).toBe("failed");
+  });
+
+  it("starts the busy clock again for the next step after a turn really ran", async () => {
+    const r = rig();
+    await r.begin();
+    r.last().settle({ ok: false, busy: true, error: "The chat is busy" });
+    r.time.advance(BUSY_POLL_MS);
+    expect(r.step("a")?.busySince).toBeDefined();
+    r.reply("news");
+    expect(r.step("a")?.busySince).toBeUndefined();
+  });
+});
+
+describe("what a waiting run says", () => {
+  it("names a time wait without a clock time", async () => {
+    const r = rig();
+    await r.begin(flow([bot("a", "ana", "Collect"), { id: "w", kind: "wait", minutes: 10, position: at }, bot("b", "ben", "Write")], [link("a", "w"), link("w", "b")]));
+    r.reply("news");
+    expect(r.states.at(-1)).toEqual(["waiting", "Waiting for the planned time"]);
+    expect(r.states.at(-1)![1]).not.toMatch(/\d{4}-\d\d-\d\d|T\d\d:/);
+  });
+});
+
+describe("a step of a kind this version does not know", () => {
+  it("fails the step with a reason instead of completing the run", async () => {
+    const r = rig();
+    await r.begin(flow([bot("a", "ana", "Collect"), { id: "x", kind: "future", position: at } as unknown as WorkflowStep], [link("a", "x")]));
+    r.reply("news");
+    expect(r.run().status).toBe("failed");
+    expect(r.step("x")).toMatchObject({ status: "failed", errorCode: "turn_failed" });
+    expect(r.step("x")?.error).toContain("newer version");
+  });
+});
