@@ -4527,7 +4527,7 @@ describe("a routine linked to a workflow", () => {
 
   it("loses its link at load when it holds a setting a workflow refuses", () => {
     const schedule = { type: "interval" as const, everyMinutes: 60, anchorAt: start };
-    const linked = { id: "r1", name: "Morning", prompt: copy.prompt, target: "bot", botId: "ana", runOn: "maus", enabled: true, schedule, durationMinutes: 30, attachments: [], workflowId: "wf-1", workflowBotIds: ["ana", "ben"], createdAt: 1, updatedAt: 1, nextRunAt: null } as unknown as Routine;
+    const linked = { id: "r1", name: "Morning", prompt: copy.prompt, target: "bot", botId: "ana", runOn: "seira", enabled: true, schedule, durationMinutes: 30, attachments: [], workflowId: "wf-1", workflowBotIds: ["ana", "ben"], createdAt: 1, updatedAt: 1, nextRunAt: null } as unknown as Routine;
     expect(loadRoutine(linked, start)).toMatchObject({ workflowId: "wf-1", workflowBotIds: ["ana", "ben"] });
     for (const change of [{ access: "read-and-draft" }, { checks: [ROUTINE_CHECKS[0]!] }, { runOn: "cloud" }, { sameConversation: true }, { deliver: "brief" }]) {
       const loaded = loadRoutine({ ...linked, ...change } as unknown as Routine, start)!;

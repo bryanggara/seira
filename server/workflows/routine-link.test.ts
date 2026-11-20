@@ -136,7 +136,7 @@ describe("linking a routine to a workflow", () => {
 });
 
 describe("what a routine must not have to run a workflow", () => {
-  const clean = { target: "bot", runOn: "maus", scheduleType: "interval" };
+  const clean = { target: "bot", runOn: "seira", scheduleType: "interval" };
 
   it("accepts a plain routine", () => {
     expect(workflowRefusal(clean)).toBeNull();

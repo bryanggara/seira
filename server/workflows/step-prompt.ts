@@ -15,7 +15,7 @@ export function botStepPrompt(input: {
   const { run, instruction, first, carry, previous, restarted } = input;
   const trigger = run.triggerSource ?? (run.manual ? "manual" : "schedule");
   const parts = [composeExecutionPrompt(
-    { id: run.routineId, name: run.routineName, trigger, runOn: run.runOn ?? "maus" },
+    { id: run.routineId, name: run.routineName, trigger, runOn: run.runOn ?? "seira" },
     instruction,
     first ? run.attachments : undefined,
     first ? carry : null,

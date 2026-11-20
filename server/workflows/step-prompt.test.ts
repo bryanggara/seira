@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { botStepPrompt, checkPrompt, parseCheckAnswer } from "./step-prompt.ts";
 
-const run = { routineId: "r-1", routineName: "Morning", manual: false, runOn: "maus" as const };
+const run = { routineId: "r-1", routineName: "Morning", manual: false, runOn: "seira" as const };
 
 describe("a bot step's prompt", () => {
   it("holds the instruction and the routine's trigger", () => {

@@ -64,7 +64,7 @@ function rig(over: Partial<WorkflowHostDeps> = {}) {
   const host = createWorkflowHost(deps);
   hosts.push(host);
   const run = (over: Partial<RoutineRun> = {}) => {
-    const row = { id: "run-1", routineId: "r-1", routineName: "Morning", botId: "ana", target: "bot", status: "running", manual: false, runOn: "maus", workflowId: "", threadId: "t-ana", startedAt: now, ...over } as RoutineRun;
+    const row = { id: "run-1", routineId: "r-1", routineName: "Morning", botId: "ana", target: "bot", status: "running", manual: false, runOn: "seira", workflowId: "", threadId: "t-ana", startedAt: now, ...over } as RoutineRun;
     runRows.splice(0, runRows.length, row);
     return row;
   };
@@ -167,7 +167,7 @@ describe("the workflow host's runs", () => {
     const { errors, row } = await begin(r);
     expect(errors).toEqual([]);
     expect(r.turns).toHaveLength(1);
-    expect(r.turns[0]).toMatchObject({ botId: "ana", opts: { threadId: "t-ana", runOn: "maus", automationSource: "schedule", automationRunId: row.id, continuesRun: false } });
+    expect(r.turns[0]).toMatchObject({ botId: "ana", opts: { threadId: "t-ana", runOn: "seira", automationSource: "schedule", automationRunId: row.id, continuesRun: false } });
     expect(r.turns[0]!.text).toContain("Collect the news");
   });
 

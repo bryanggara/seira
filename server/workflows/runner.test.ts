@@ -71,7 +71,7 @@ function rig() {
   const routineRuns = new Map<string, RoutineRun>();
   const threads = { open: true };
   const routineRun = (id = "run-1", over: Partial<RoutineRun> = {}): RoutineRun => {
-    const row = { id, routineId: "r-1", routineName: "Morning", botId: "ana", target: "bot", status: "running", manual: false, runOn: "maus", workflowId: "w1", threadId: "t-ana", ...over } as RoutineRun;
+    const row = { id, routineId: "r-1", routineName: "Morning", botId: "ana", target: "bot", status: "running", manual: false, runOn: "seira", workflowId: "w1", threadId: "t-ana", ...over } as RoutineRun;
     routineRuns.set(id, row);
     return row;
   };
