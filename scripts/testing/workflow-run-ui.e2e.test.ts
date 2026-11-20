@@ -14,7 +14,7 @@ import { mountPreview } from "./preview-fixture.ts";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const SHOTS = process.env.SEIRA_WORKFLOW_SHOTS || join(ROOT, ".seira-scratch", "workflow-run");
-const SHORT_TMP = process.platform === "darwin" ? "/tmp" : tmpdir();
+const SHORT_TMP = process.platform === "win32" ? tmpdir() : "/tmp";
 const enabled = process.env.SEIRA_UI_E2E === "1";
 const SKINS = ["midnight", "daylight"] as const;
 const PANEL = 'aside[aria-label="Automation"]';
