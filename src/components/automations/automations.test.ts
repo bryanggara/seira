@@ -175,7 +175,7 @@ describe("a routine's panel", () => {
     };
     const { graph: _graph, ...update } = detail;
     const routine = { id: "routine-1", name: "Round", prompt: "1. Scout does it\n2. Ledger finishes", botId: "bot-a", runOn: "seira", enabled: true, createdAt: now, updatedAt: now,
-      schedule: { type: "daily", time: "09:00" }, nextRunAt: now + 86_400_000, durationMinutes: 30, workflowId: "wf1" };
+      schedule: { type: "daily", time: "09:00", weekdays: [1, 2, 3, 4, 5] }, nextRunAt: now + 86_400_000, durationMinutes: 30, workflowId: "wf1" };
     const routineRun = { id: "run-1", routineId: "routine-1", routineName: "Round", target: "bot", botId: "bot-a", runOn: "seira", scheduledFor: now, startedAt: now, createdAt: now, status: "failed", manual: false, workflowId: "wf1" };
     beforeEach(() => {
       fixture.api.mockImplementation(async (path: unknown) => {
@@ -206,7 +206,6 @@ describe("a routine's panel", () => {
     it("opens the run view from a run line of a workflow routine", () => {
       const container = panel();
       const line = [...container.querySelectorAll("section ul button")].find((candidate) => candidate.closest("section")?.querySelector("h3")?.textContent === "Recent runs")!;
-      if (!line) throw new Error(container.innerHTML);
       expect(line.hasAttribute("disabled")).toBe(false);
       flushSync(() => (line as HTMLButtonElement).click());
       expect(fixture.dispatch).toHaveBeenCalledWith({ type: "showRoutines", view: "workflows", workflowId: "wf1", workflowRunId: "run-1" });

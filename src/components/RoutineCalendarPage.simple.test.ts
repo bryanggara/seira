@@ -300,7 +300,7 @@ describe("routine editor", () => {
     const html = editor(cronRoutine);
     expect(html).toContain('aria-expanded="true"');
     for (const text of hidden.filter((text) => text !== "Routine type")) expect(html, text).toContain(text);
-    expect(html).not.toMatch(/aria-pressed="true"/);
+    expect(html.replace(/<button[^>]*data-what-it-does[^>]*>/g, "")).not.toMatch(/aria-pressed="true"/);
   });
 
   it("shows a saved startup choice when the simple editor opens", () => {

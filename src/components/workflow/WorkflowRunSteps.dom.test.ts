@@ -37,7 +37,7 @@ describe("the steps of a run", () => {
     const { container } = mount(makeRun(3, [{ stepId: "s1", status: "done" }, { stepId: "s2", status: "failed", errorCode: "turn_failed" }]));
     const rows = [...container.querySelectorAll("li")];
     expect(rows.map((row) => row.getAttribute("data-step-status"))).toEqual(["done", "failed", "not_started"]);
-    expect(rows.map((row) => row.querySelector("span:last-child")?.textContent)).toEqual(["Done", "Failed", "Not started"]);
+    expect(rows.map((row) => row.querySelector(":scope > span:last-child")?.textContent)).toEqual(["Done", "Failed", "Not started"]);
     expect(rows[0]!.querySelector("svg")).not.toBeNull();
     expect(rows[1]!.querySelector("svg")).not.toBeNull();
     expect(rows[0]!.textContent).toContain("Scout");
