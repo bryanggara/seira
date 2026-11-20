@@ -4,18 +4,18 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { freemem, loadavg, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { closeSync, openSync, readSync, realpathSync, statSync } from "node:fs";
+import { afterEach, describe, expect, it } from "vitest";
 import { verificationServerEnvironment } from "../scripts/control-seira.ts";
 import { writeFakeBrowser } from "./browser/chrome-import/testing/fake-profile.ts";
 import { credentialStoreFlags } from "./browser/egress/gate.ts";
+import { findChrome } from "./testing/chrome-pipe.ts";
 import { removeTempDir, waitForExit } from "./testing/cleanup.ts";
 import { freePortBlock } from "./testing/ports.ts";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const FAKE_CLI = join(ROOT, "server/testing/fake-claude-cli.ts");
 const FAKE_ENGINE = join(ROOT, "server/browser/chrome-import/testing/fake-engine.mjs");
-const CHROMIUM = process.env.CHROMIUM_BIN || "/usr/bin/chromium";
+const CHROME = findChrome() ?? "";
 
 const SESSION_VALUE = "e2e-cookie-value-3c9a71f0";
 const PREFERENCE_VALUE = "e2e-cookie-value-90b2d4ee";
@@ -36,7 +36,7 @@ afterEach(async () => {
 async function startBrowser(root: string): Promise<string> {
   const profile = join(root, "chromium-profile");
   mkdirSync(profile, { recursive: true });
-  const child = spawn(CHROMIUM, [
+  const child = spawn(CHROME, [
     "--headless=new", "--no-sandbox", "--disable-gpu", "--remote-debugging-port=0", `--user-data-dir=${profile}`,
     "--no-first-run", "--no-default-browser-check", "--disable-background-networking", "--disable-component-update", "--disable-sync",
     ...credentialStoreFlags(), "about:blank",
@@ -56,53 +56,6 @@ async function startBrowser(root: string): Promise<string> {
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
 }
-
-
-// TEMPORARY DIAGNOSTIC: how long a browser takes to open its DevTools port in CI, cold and warm.
-const readText = (path: string) => { try { return readFileSync(path, "utf8"); } catch { return ""; } };
-const majorFaults = (pid: number | undefined) => Number(readText(`/proc/${pid}/stat`).split(") ")[1]?.split(" ")[9] ?? NaN);
-async function probeLaunch(binary: string, label: string): Promise<Record<string, unknown>> {
-  const root = mkdtempSync(join(tmpdir(), "probe-"));
-  folders.push(root);
-  const profile = join(root, "p");
-  const started = Date.now();
-  const child = spawn(binary, ["--headless=new", "--no-sandbox", "--disable-gpu", "--remote-debugging-port=0", `--user-data-dir=${profile}`,
-    "--no-first-run", "--no-default-browser-check", "--disable-background-networking", "--disable-component-update", "--disable-sync",
-    ...credentialStoreFlags(), "about:blank"], { stdio: ["ignore", "ignore", "pipe"] });
-  child.stderr!.resume();
-  let ms = -1;
-  let faults = NaN;
-  while (Date.now() - started < 100_000) {
-    faults = majorFaults(child.pid) || faults;
-    if (existsSync(join(profile, "DevToolsActivePort")) && readFileSync(join(profile, "DevToolsActivePort"), "utf8").split("\n").length >= 2) { ms = Date.now() - started; break; }
-    if (child.exitCode !== null) break;
-    await new Promise((resolve) => setTimeout(resolve, 20));
-  }
-  await waitForExit(child, { signal: "SIGTERM" });
-  return { label, ms, majorFaults: faults, load: loadavg().map((value) => value.toFixed(1)).join(" "), io: readText("/proc/pressure/io").split("\n")[0] };
-}
-function timedRead(path: string): Record<string, unknown> {
-  const started = Date.now();
-  const fd = openSync(path, "r");
-  const buffer = Buffer.alloc(4 << 20);
-  let total = 0;
-  for (let read; (read = readSync(fd, buffer, 0, buffer.length, null)) > 0;) total += read;
-  closeSync(fd);
-  const ms = Date.now() - started;
-  return { path, mb: Math.round(total / 1_048_576), ms, mbPerSecond: Math.round(total / 1_048_576 / Math.max(ms, 1) * 1000) };
-}
-beforeAll(async () => {
-  if (process.platform !== "linux" || !existsSync(CHROMIUM)) return;
-  const report: unknown[] = [{ chromium: realpathSync(CHROMIUM), chromiumMb: Math.round(statSync(realpathSync(CHROMIUM)).size / 1_048_576), memFreeMb: Math.round(freemem() / 1_048_576) }];
-  report.push(await probeLaunch(CHROMIUM, "chromium first"));
-  report.push(await probeLaunch(CHROMIUM, "chromium second"));
-  const chrome = ["/opt/google/chrome/chrome"].find((path) => existsSync(path));
-  if (chrome) {
-    report.push(timedRead(chrome));
-    report.push(await probeLaunch(chrome, "google-chrome after a full read"));
-  }
-  console.log(`BROWSER START PROBE ${JSON.stringify(report)}`);
-}, 400_000);
 
 async function startServer(home: string, engine: string) {
   const port = await freePortBlock([0, 1]);
@@ -131,7 +84,7 @@ async function startServer(home: string, engine: string) {
   return { api, output: () => output.join("") };
 }
 
-describe.skipIf(process.platform !== "linux" || !existsSync(CHROMIUM))("importing sign-ins from Chrome", () => {
+describe.skipIf(process.platform !== "linux" || !CHROME)("importing sign-ins from Chrome", () => {
   it("copies chosen sites into a running bot browser, lists them, and signs out of them", async () => {
     const home = mkdtempSync(join(tmpdir(), "omb-chrome-import-"));
     folders.push(home);
