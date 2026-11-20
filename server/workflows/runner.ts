@@ -257,7 +257,7 @@ export function createWorkflowRunner(deps: WorkflowRunnerDeps): WorkflowRunner {
     }
   }
 
-  const holdsTurn = (stepRun: WorkflowStepRun | undefined): stepRun is WorkflowStepRun =>
+  const holdsTurn = (stepRun: WorkflowStepRun | undefined): boolean =>
     stepRun !== undefined && (stepRun.status === "running" || (stepRun.status === "waiting" && stepRun.waitingFor === "person"));
 
   /** The bot starts: its chat, its attempt count and the run's own state, saved before the turn begins. */
