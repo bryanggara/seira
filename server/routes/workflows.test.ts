@@ -46,7 +46,7 @@ function fixture(over: { workflows?: Workflow[]; runs?: WorkflowRun[]; routines?
   const calls: string[] = [];
   const host = {
     list: () => [...flows.values()],
-    get: (id) => flows.get(id) ?? null,
+    get: (id: string) => flows.get(id) ?? null,
     create: (input: WorkflowInput) => { const made = { ...input, id: "new", createdAt: 9, updatedAt: 9 } as Workflow; flows.set("new", made); return made; },
     update: (id: string, input: WorkflowInput) => { const next = { ...flows.get(id)!, ...input, updatedAt: 10 } as Workflow; flows.set(id, next); return next; },
     remove: (id: string) => { calls.push(`remove ${id}`); return flows.delete(id); },
