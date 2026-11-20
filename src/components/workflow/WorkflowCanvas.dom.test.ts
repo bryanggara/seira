@@ -293,7 +293,7 @@ const mountEditor = async (workflow: Workflow = flow) => {
   return container;
 };
 const stepCount = (container: ParentNode) => container.querySelectorAll("[data-workflow-step]").length;
-const palette = (container: ParentNode, label: string) => container.querySelector<HTMLButtonElement>(`[role=toolbar] button[aria-label="${label}"]`)!;
+const palette = (container: ParentNode, label: string) => container.querySelector<HTMLButtonElement>(`[data-workflow-palette] button[aria-label="${label}"]`)!;
 
 describe("the workflow editor on the canvas", () => {
   it("adds a step from the palette by click and by drop at the drop point", async () => {

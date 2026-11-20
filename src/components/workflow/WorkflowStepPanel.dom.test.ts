@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { createElement } from "react";
+import { createElement, useState } from "react";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -115,7 +115,19 @@ describe("the step panel", () => {
 
   it("turns a wait of 2 Hours into 120 minutes, and shows the range problem outside 1 minute to 30 days", () => {
     const wait: WorkflowStep = { id: "w", kind: "wait", minutes: 30, position: { x: 0, y: 0 } };
-    const { container, dispatch } = mount({ name: "Flow", steps: [wait], connections: [] }, "w");
+    const dispatch = vi.fn<(action: DraftAction) => void>();
+    function Harness() {
+      const [current, setCurrent] = useState<WorkflowStep>(wait);
+      const apply = (action: DraftAction) => {
+        dispatch(action);
+        if (action.type === "change") setCurrent((previous) => ({ ...previous, ...action.patch }) as WorkflowStep);
+      };
+      return createElement(WorkflowStepPanel, { draft: { name: "Flow", steps: [current], connections: [] }, step: current, bots, botName, dispatch: apply, onRemove: vi.fn(), onAnnounce: vi.fn() });
+    }
+    const container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    flushSync(() => root!.render(createElement(Harness)));
     choose(byLabel(container, "Unit"), "hours");
     type(byLabel(container, "Wait for"), "2");
     expect(dispatch).toHaveBeenLastCalledWith({ type: "change", stepId: "w", patch: { minutes: 120 } });
