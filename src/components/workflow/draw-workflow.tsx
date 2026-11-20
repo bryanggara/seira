@@ -8,7 +8,8 @@ import { t } from "@/lib/i18n";
 import { ApiError, type Action, type Message } from "@/state/store";
 import { workflowApi } from "@/state/workflows";
 
-export const finishedReply = (message: Message): boolean =>
+/** The server sends `turnSucceeded`; the renderer's `Message` does not name it. */
+export const finishedReply = (message: Message & { turnSucceeded?: boolean }): boolean =>
   message.role === "bot" && message.kind === "text" && message.turnTerminal === true && message.turnSucceeded !== false
   && !message.id.startsWith("optimistic-") && Boolean(message.text?.trim())
   && (message.requestMessageId !== undefined || message.from?.botId !== undefined);
