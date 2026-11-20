@@ -611,7 +611,7 @@ describe("the Workflows view", () => {
     listApi();
     fixture.state.routinesFocus = { view: "workflows" };
     const container = page();
-    await vi.waitFor(() => expect(container.textContent).toContain("No workflows yet."));
+    await vi.waitFor(() => expect(container.textContent).toContain("You have no workflows."));
     expect([...container.querySelectorAll("button")].some((node) => node.textContent?.trim() === "New workflow")).toBe(true);
     expect([...container.querySelectorAll("button")].some((node) => node.textContent?.trim() === "New")).toBe(false);
     expect(container.querySelector(`aside[aria-label="Automation"]`)).toBeNull();
@@ -627,10 +627,28 @@ describe("the Workflows view", () => {
       return path === "/api/workflows" ? { workflows: [] } : {};
     });
     const container = page();
-    await vi.waitFor(() => expect(container.textContent).toContain("No workflows yet."));
+    await vi.waitFor(() => expect(container.textContent).toContain("You have no workflows."));
     flushSync(() => [...container.querySelectorAll("button")].find((node) => node.textContent?.trim() === "New workflow")!.click());
     await vi.waitFor(() => expect(fixture.dispatch).toHaveBeenCalledWith({ type: "showRoutines", view: "workflows", workflowId: "wf-new" }));
     const post = fixture.api.mock.calls.find(([, init]) => (init as { method?: string } | undefined)?.method === "POST")!;
     expect(JSON.parse((post[1] as { body: string }).body)).toEqual({ name: "Untitled workflow", steps: [], connections: [] });
+  });
+
+  it("creates one workflow when New workflow is clicked twice at once", async () => {
+    fixture.state.routinesFocus = { view: "workflows" };
+    let release: (value: unknown) => void = () => {};
+    fixture.api.mockImplementation((path: unknown, init: unknown) => {
+      if (path === "/api/workflows" && (init as { method?: string } | undefined)?.method === "POST") return new Promise((resolve) => { release = resolve; });
+      return Promise.resolve(path === "/api/workflows" ? { workflows: [] } : {});
+    });
+    const container = page();
+    await vi.waitFor(() => expect(container.textContent).toContain("You have no workflows."));
+    const header = [...container.querySelectorAll("button")].find((node) => node.textContent?.trim() === "New workflow")!;
+    flushSync(() => { header.click(); header.click(); });
+    const posts = () => fixture.api.mock.calls.filter(([, init]) => (init as { method?: string } | undefined)?.method === "POST");
+    expect(posts()).toHaveLength(1);
+    release({ workflow: { id: "wf-new", name: "Untitled workflow", steps: [], connections: [], createdAt: 1, updatedAt: 1 } });
+    await vi.waitFor(() => expect(fixture.dispatch).toHaveBeenCalledWith({ type: "showRoutines", view: "workflows", workflowId: "wf-new" }));
+    expect(posts()).toHaveLength(1);
   });
 });

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Workflow, WorkflowRun, WorkflowRunUpdate } from "../../shared/workflows";
 import type { LiveFrameListener } from "@/lib/live-events";
@@ -50,6 +50,8 @@ const deferred = <T,>() => {
   return { promise, resolve, reject };
 };
 
+afterEach(() => { vi.useRealTimers(); });
+
 beforeEach(() => {
   resetWorkflowsForTest();
   fixture.api.mockReset();
@@ -71,16 +73,69 @@ describe("workflows on the client", () => {
     expect(fixture.api).toHaveBeenCalledTimes(2);
   });
 
-  it("marks workflows unavailable when the list answers 404 or 503", async () => {
+  it("marks workflows unavailable when the list answers 404", async () => {
     fixture.api.mockRejectedValueOnce(new ApiError("gone", 404));
     await loadWorkflows();
     expect(snapshot().unavailable).toBe(true);
     fixture.api.mockResolvedValueOnce({ workflows: [] });
     await loadWorkflows();
     expect(snapshot().unavailable).toBe(false);
-    fixture.api.mockRejectedValueOnce(new ApiError("down", 503));
-    await loadWorkflows();
+  });
+
+  it("tries again after a 503 while the server starts, and marks workflows unavailable only after the last try", async () => {
+    vi.useFakeTimers();
+    fixture.api.mockRejectedValueOnce(new ApiError("starting", 503)).mockRejectedValueOnce(new ApiError("starting", 503)).mockResolvedValueOnce({ workflows: [flow("w1")] });
+    const done = loadWorkflows();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(snapshot().loaded).toBe(false);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(fixture.api).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(3000);
+    await done;
+    expect(snapshot()).toMatchObject({ loaded: true, unavailable: false, workflows: [flow("w1")] });
+    fixture.api.mockReset();
+    fixture.api.mockRejectedValue(new ApiError("down", 503));
+    const failing = loadWorkflows();
+    await vi.advanceTimersByTimeAsync(3000 * 3);
+    await failing;
+    expect(fixture.api).toHaveBeenCalledTimes(4);
     expect(snapshot().unavailable).toBe(true);
+  });
+
+  it("keeps a workflow that arrived by frame while the list was loading, and drops one deleted meanwhile", async () => {
+    const pending = deferred<{ workflows: Workflow[] }>();
+    fixture.api.mockReturnValue(pending.promise);
+    const load = loadWorkflows();
+    applyWorkflowFrame({ kind: "workflow", workflow: flow("new", 5) });
+    applyWorkflowFrame({ kind: "workflow.deleted", workflowId: "old" });
+    pending.resolve({ workflows: [flow("w1"), flow("old")] });
+    await load;
+    expect(snapshot().workflows.map((workflow) => workflow.id)).toEqual(["new", "w1"]);
+    applyWorkflowFrame({ kind: "workflow", workflow: flow("old", 9) });
+    expect(snapshot().workflows.map((workflow) => workflow.id)).toEqual(["new", "w1"]);
+  });
+
+  it("keeps the newer copy of a workflow when the list answers with an older one", async () => {
+    const pending = deferred<{ workflows: Workflow[] }>();
+    fixture.api.mockReturnValue(pending.promise);
+    const load = loadWorkflows();
+    applyWorkflowFrame({ kind: "workflow", workflow: flow("w1", 8, "Edited") });
+    pending.resolve({ workflows: [flow("w1", 2, "Old")] });
+    await load;
+    expect(snapshot().workflows).toEqual([flow("w1", 8, "Edited")]);
+  });
+
+  it("keeps a completed run when a frame says so while its detail is loading", async () => {
+    const pending = deferred<{ run: WorkflowRun }>();
+    fixture.api.mockReturnValue(pending.promise);
+    const load = loadWorkflowRun("r1");
+    applyWorkflowFrame({ kind: "workflow.run", run: update("r1", { status: "completed", updatedAt: 5 }) });
+    pending.resolve({ run: full("r1", { status: "active", updatedAt: 3, graph: { steps: [{ id: "a", kind: "post", position: { x: 0, y: 0 } }], connections: [] } }) });
+    const run = await load;
+    expect(run).toMatchObject({ status: "completed", updatedAt: 5 });
+    expect(snapshot().runs.r1).toMatchObject({ status: "completed" });
+    expect(snapshot().details.r1).toMatchObject({ status: "completed" });
+    expect(snapshot().details.r1!.graph.steps).toHaveLength(1);
   });
 
   it("marks a failed load on a network error and keeps the workflows it had", async () => {
@@ -229,9 +284,9 @@ describe("workflows on the client", () => {
 
   it("keeps an unsaved draft per workflow until it is taken or the workflow is deleted", () => {
     const draft = { name: "Draft", steps: [], connections: [] };
-    keepDraft("w1", draft);
-    keepDraft("w2", { ...draft, name: "Other" });
-    expect(takeDraft("w1")).toBe(draft);
+    keepDraft("w1", draft, 7);
+    keepDraft("w2", { ...draft, name: "Other" }, 8);
+    expect(takeDraft("w1")).toEqual({ draft, base: 7 });
     expect(takeDraft("w1")).toBeUndefined();
     applyWorkflowFrame({ kind: "workflow.deleted", workflowId: "w2" });
     expect(takeDraft("w2")).toBeUndefined();

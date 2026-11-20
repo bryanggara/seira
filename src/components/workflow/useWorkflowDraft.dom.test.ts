@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
-import { act, createElement } from "react";
+import { act, createElement, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Workflow } from "../../../shared/workflows";
 import { ApiError } from "@/state/api";
-import { applyWorkflowFrame, resetWorkflowsForTest } from "@/state/workflows";
+import { applyWorkflowFrame, resetWorkflowsForTest, takeDraft } from "@/state/workflows";
 
 const fixture = vi.hoisted(() => ({ api: vi.fn(async (..._args: unknown[]) => ({}) as unknown) }));
 vi.mock("@/state/store", async (importOriginal) => ({
@@ -30,7 +30,7 @@ let root: Root | null = null;
 let hook: { current: Hook };
 let onGone: () => void;
 
-function mount(workflow: Workflow = flow) {
+function mount(workflow: Workflow = flow, options: { strict?: boolean } = {}) {
   hook = { current: null as unknown as Hook };
   function Probe() {
     hook.current = useWorkflowDraft(workflow, { botName, botExists, onGone });
@@ -39,7 +39,7 @@ function mount(workflow: Workflow = flow) {
   const container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
-  act(() => root!.render(createElement(Probe)));
+  act(() => root!.render(options.strict ? createElement(StrictMode, null, createElement(Probe)) : createElement(Probe)));
 }
 const unmount = () => { act(() => root?.unmount()); root = null; };
 const advance = async (ms: number) => { await act(async () => { await vi.advanceTimersByTimeAsync(ms); }); };
@@ -167,6 +167,113 @@ describe("useWorkflowDraft", () => {
     mount();
     await advance(0);
     expect(hook.current.draft.name).toBe("Half done");
+  });
+
+  it("sends the base it had at close when the editor opens again after another window saved", async () => {
+    mount();
+    await advance(0);
+    fixture.api.mockImplementation(async () => { throw new ApiError("offline", 0); });
+    rename("Half done");
+    unmount();
+    await advance(0);
+    const newer = { ...flow, name: "Elsewhere", updatedAt: 50 };
+    act(() => applyWorkflowFrame({ kind: "workflow", workflow: newer }));
+    fixture.api.mockImplementation(async (_path: unknown, init: unknown) => {
+      const body = JSON.parse((init as { body: string }).body) as { ifUpdatedAt: number };
+      if (body.ifUpdatedAt !== 50) throw new ApiError("conflict", 409, { code: "workflow_changed" });
+      return { workflow: { ...newer, updatedAt: 60 } };
+    });
+    mount(newer);
+    await advance(SAVE_DELAY_MS);
+    expect(sentBody(patches().length - 1)).toMatchObject({ name: "Half done", ifUpdatedAt: 10 });
+    expect(hook.current.status).toEqual({ state: "changed" });
+    expect(hook.current.draft.name).toBe("Half done");
+  });
+
+  it("forgets the kept draft when a save that was running at close succeeds", async () => {
+    mount();
+    await advance(0);
+    let release: (value: unknown) => void = () => {};
+    fixture.api.mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
+    rename("Closing");
+    await advance(SAVE_DELAY_MS);
+    expect(patches()).toHaveLength(1);
+    unmount();
+    await act(async () => { release({ workflow: { ...flow, name: "Closing", updatedAt: 20 } }); });
+    await advance(0);
+    expect(patches()).toHaveLength(1);
+    expect(takeDraft("wf1")).toBeUndefined();
+  });
+
+  it("does not report a false conflict after StrictMode runs the close step on a restored draft", async () => {
+    mount();
+    await advance(0);
+    fixture.api.mockImplementation(async () => { throw new ApiError("offline", 0); });
+    rename("Half done");
+    unmount();
+    await advance(0);
+    let stored = 10;
+    fixture.api.mockImplementation(async (_path: unknown, init: unknown) => {
+      const body = JSON.parse((init as { body: string }).body) as { ifUpdatedAt: number };
+      if (body.ifUpdatedAt !== stored) throw new ApiError("conflict", 409, { code: "workflow_changed" });
+      stored += 10;
+      return { workflow: { ...flow, name: "Half done", updatedAt: stored } };
+    });
+    mount(flow, { strict: true });
+    await advance(SAVE_DELAY_MS * 2);
+    expect(hook.current.status).toEqual({ state: "saved" });
+    rename("Next");
+    await advance(SAVE_DELAY_MS);
+    expect(hook.current.status).toEqual({ state: "saved" });
+  });
+
+  describe("while the workflow is being deleted", () => {
+    it("stops the pending save and hands back the draft on screen", async () => {
+      mount();
+      await advance(0);
+      rename("Never sent");
+      let handed: unknown;
+      act(() => { handed = hook.current.beginDelete(); });
+      expect(handed).toMatchObject({ name: "Never sent" });
+      await advance(SAVE_DELAY_MS * 2);
+      expect(patches()).toHaveLength(0);
+    });
+
+    it("does not send the next save and does not say the workflow is gone", async () => {
+      mount();
+      await advance(0);
+      let fail: (error: unknown) => void = () => {};
+      fixture.api.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject; }));
+      rename("One");
+      await advance(SAVE_DELAY_MS);
+      rename("Two");
+      act(() => { hook.current.beginDelete(); });
+      await act(async () => { fail(new ApiError("no such workflow", 404)); });
+      await advance(SAVE_DELAY_MS * 2);
+      expect(patches()).toHaveLength(1);
+      expect(onGone).not.toHaveBeenCalled();
+    });
+
+    it("keeps no draft and sends no save when the editor closes", async () => {
+      mount();
+      await advance(0);
+      rename("Gone with it");
+      act(() => { hook.current.beginDelete(); });
+      unmount();
+      await advance(SAVE_DELAY_MS * 2);
+      expect(patches()).toHaveLength(0);
+      expect(takeDraft("wf1")).toBeUndefined();
+    });
+
+    it("saves again after the delete fails", async () => {
+      mount();
+      await advance(0);
+      rename("Still here");
+      act(() => { hook.current.beginDelete(); });
+      act(() => hook.current.cancelDelete());
+      await advance(SAVE_DELAY_MS);
+      expect(patches()).toHaveLength(1);
+    });
   });
 
   it("goes back to the list when the workflow is deleted", async () => {

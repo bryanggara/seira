@@ -5,7 +5,7 @@ import { t } from "@/lib/i18n";
 import { draftReducer, type DraftAction } from "@/lib/workflow-canvas";
 import { problemText, saveProblems, serverProblems, type ClientProblem } from "@/lib/workflow-graph";
 import { ApiError } from "@/state/api";
-import { keepDraft, loadWorkflows, takeDraft, useWorkflows, workflowApi, type WorkflowDraft } from "@/state/workflows";
+import { discardDraft, keepDraft, loadWorkflows, takeDraft, useWorkflows, workflowApi, type KeptDraft, type WorkflowDraft } from "@/state/workflows";
 
 export const SAVE_DELAY_MS = 800;
 
@@ -32,20 +32,25 @@ export function useWorkflowDraft(workflow: Workflow, deps: Deps): {
   problems: ClientProblem[];
   retry: () => void;
   reload: () => void;
+  /** Stops saving this workflow and hands back the draft on screen. */
+  beginDelete: () => WorkflowDraft;
+  cancelDelete: () => void;
 } {
   const live = useWorkflows();
   const latest = live.workflows.find((candidate) => candidate.id === workflow.id);
-  const kept = useRef<WorkflowDraft | null | undefined>(undefined);
+  const kept = useRef<KeptDraft | null | undefined>(undefined);
   if (kept.current === undefined) kept.current = takeDraft(workflow.id) ?? null;
-  const [draft, setDraft] = useState<WorkflowDraft>(() => kept.current ?? fromWorkflow(workflow));
+  const [draft, setDraft] = useState<WorkflowDraft>(() => kept.current?.draft ?? fromWorkflow(workflow));
   const [status, setStatus] = useState<SaveStatus>({ state: "saved" });
   const [fromServer, setFromServer] = useState<ClientProblem[]>([]);
 
   const draftRef = useRef(draft);
-  const baseRef = useRef(workflow);
+  const baseRef = useRef(kept.current?.base ?? workflow.updatedAt);
   const dirty = useRef(kept.current !== null);
   const saving = useRef(false);
   const again = useRef(false);
+  const deleting = useRef(false);
+  const unmounted = useRef(false);
   const timer = useRef<number | null>(null);
   const depsRef = useRef(deps);
   depsRef.current = deps;
@@ -61,9 +66,10 @@ export function useWorkflowDraft(workflow: Workflow, deps: Deps): {
     stopTimer();
     const fresh = fromWorkflow(next);
     draftRef.current = fresh;
-    baseRef.current = next;
+    baseRef.current = next.updatedAt;
     dirty.current = false;
     again.current = false;
+    discardDraft(next.id);
     setDraft(fresh);
     setFromServer([]);
     setStatus({ state: "saved" });
@@ -83,7 +89,8 @@ export function useWorkflowDraft(workflow: Workflow, deps: Deps): {
       if (error.status === 403) return setStatus({ state: "refused", text: t("workflow.save.refused", { reason: t("workflow.error.notAllowed") }) });
       if (error.status === 404) {
         if (error.message === "no such bot") return setStatus({ state: "refused", text: t("workflow.save.hiddenBot") });
-        return onGone();
+        if (!deleting.current && !unmounted.current) onGone();
+        return;
       }
     }
     setStatus({ state: "failed" });
@@ -91,7 +98,7 @@ export function useWorkflowDraft(workflow: Workflow, deps: Deps): {
 
   const save = useCallback(async (): Promise<void> => {
     stopTimer();
-    if (!dirty.current) return;
+    if (!dirty.current || deleting.current) return;
     if (saving.current) {
       again.current = true;
       return;
@@ -105,13 +112,17 @@ export function useWorkflowDraft(workflow: Workflow, deps: Deps): {
     saving.current = true;
     setStatus({ state: "saving" });
     try {
-      const saved = await workflowApi.save(workflow.id, { ...sent, ifUpdatedAt: baseRef.current.updatedAt });
-      baseRef.current = saved;
+      const saved = await workflowApi.save(workflow.id, { ...sent, ifUpdatedAt: baseRef.current });
+      baseRef.current = saved.updatedAt;
       if (draftRef.current === sent) {
         dirty.current = false;
+        discardDraft(workflow.id);
         setFromServer([]);
         setStatus({ state: "saved" });
-      } else again.current = true;
+      } else {
+        again.current = true;
+        if (unmounted.current) keepDraft(workflow.id, draftRef.current, saved.updatedAt);
+      }
     } catch (error) {
       again.current = false;
       fail(error);
@@ -119,7 +130,7 @@ export function useWorkflowDraft(workflow: Workflow, deps: Deps): {
       saving.current = false;
       if (again.current) {
         again.current = false;
-        void save();
+        if (!deleting.current) void save();
       }
     }
   }, [fail, workflow.id]);
@@ -140,24 +151,24 @@ export function useWorkflowDraft(workflow: Workflow, deps: Deps): {
   }, [save]);
 
   useEffect(() => {
-    if (latest && latest.updatedAt > baseRef.current.updatedAt && !dirty.current && !saving.current) adopt(latest);
+    if (latest && latest.updatedAt > baseRef.current && !dirty.current && !saving.current) adopt(latest);
   }, [latest, adopt]);
 
   const gone = live.loaded && !latest;
   useEffect(() => {
-    if (gone) depsRef.current.onGone();
+    if (gone && !deleting.current) depsRef.current.onGone();
   }, [gone]);
 
-  useEffect(() => () => {
-    stopTimer();
-    if (!dirty.current) return;
-    const unsaved = draftRef.current;
-    keepDraft(workflow.id, unsaved);
-    if (saving.current || saveProblems(unsaved, depsRef.current.botExists).length > 0) return;
-    void workflowApi.save(workflow.id, { ...unsaved, ifUpdatedAt: baseRef.current.updatedAt })
-      .then(() => { if (draftRef.current === unsaved) takeDraft(workflow.id); })
-      .catch(() => {});
-  }, [workflow.id]);
+  useEffect(() => {
+    unmounted.current = false;
+    return () => {
+      unmounted.current = true;
+      stopTimer();
+      if (!dirty.current || deleting.current) return;
+      keepDraft(workflow.id, draftRef.current, baseRef.current);
+      void save();
+    };
+  }, [workflow.id, save]);
 
   const problems = useMemo(() => [...saveProblems(draft, deps.botExists), ...fromServer], [draft, fromServer, deps.botExists]);
 
@@ -168,8 +179,18 @@ export function useWorkflowDraft(workflow: Workflow, deps: Deps): {
     problems,
     retry: () => void save(),
     reload: () => {
-      adopt(latestRef.current ?? baseRef.current);
+      adopt(latestRef.current ?? workflow);
       void loadWorkflows({ background: true });
+    },
+    beginDelete: () => {
+      stopTimer();
+      deleting.current = true;
+      again.current = false;
+      return draftRef.current;
+    },
+    cancelDelete: () => {
+      deleting.current = false;
+      if (dirty.current) timer.current = window.setTimeout(() => void save(), SAVE_DELAY_MS);
     },
   };
 }

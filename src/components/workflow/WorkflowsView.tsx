@@ -4,11 +4,13 @@ import { Loader2 } from "lucide-react";
 import type { Workflow } from "../../../shared/workflows";
 import { t } from "@/lib/i18n";
 import { useStore } from "@/state/store";
-import { loadWorkflows, useWorkflows, workflowApi } from "@/state/workflows";
+import { keepDraft, loadWorkflows, useWorkflows, workflowApi, type WorkflowDraft } from "@/state/workflows";
 import { UndoToast } from "../bot-access/ShareBotButton";
 import { WorkflowEditor } from "./WorkflowEditor";
 import { WorkflowList } from "./WorkflowList";
 import { WorkflowRunView } from "./WorkflowRunView";
+import { fromWorkflow } from "./useWorkflowDraft";
+import { useCreateWorkflow } from "./useCreateWorkflow";
 
 const SPINNER_DELAY_MS = 300;
 
@@ -25,10 +27,8 @@ function useDelayed(active: boolean): boolean {
 export function WorkflowsView({ workflowId, workflowRunId, onUseInRoutine }: { workflowId?: string; workflowRunId?: string; onUseInRoutine?: (workflow: Workflow) => void }) {
   const { state, dispatch } = useStore();
   const workflows = useWorkflows();
-  const [creating, setCreating] = useState(false);
-  const [createFailed, setCreateFailed] = useState(false);
   const [vanished, setVanished] = useState(false);
-  const [deleted, setDeleted] = useState<{ workflow: Workflow; key: number } | null>(null);
+  const [deleted, setDeleted] = useState<{ workflow: Workflow; draft: WorkflowDraft; key: number } | null>(null);
   const leaving = useRef<string | null>(null);
   const deletedKey = useRef(0);
   const botName = useCallback((botId: string) => state.bots.find((bot) => bot.id === botId)?.name, [state.bots]);
@@ -37,25 +37,15 @@ export function WorkflowsView({ workflowId, workflowRunId, onUseInRoutine }: { w
   const showSpinner = useDelayed(loading);
 
   const open = useCallback((id?: string) => dispatch({ type: "showRoutines", view: "workflows", workflowId: id }), [dispatch]);
-  const created = async () => {
-    if (creating) return;
-    setCreating(true);
-    setCreateFailed(false);
-    try {
-      const made = await workflowApi.create({ name: t("workflow.untitled"), steps: [], connections: [] });
-      setVanished(false);
-      open(made.id);
-    } catch {
-      setCreateFailed(true);
-    } finally {
-      setCreating(false);
-    }
-  };
+  const { create, failed: createFailed } = useCreateWorkflow(useCallback((made: Workflow) => {
+    setVanished(false);
+    open(made.id);
+  }, [open]));
   const onGone = useCallback(() => {
     setVanished(true);
     open();
   }, [open]);
-  const onDelete = useCallback(async (removed: Workflow) => {
+  const onDelete = useCallback(async (removed: Workflow, draft: WorkflowDraft) => {
     leaving.current = removed.id;
     try {
       await workflowApi.remove(removed.id);
@@ -64,14 +54,17 @@ export function WorkflowsView({ workflowId, workflowRunId, onUseInRoutine }: { w
       throw error;
     }
     open();
-    setDeleted({ workflow: removed, key: ++deletedKey.current });
+    setDeleted({ workflow: removed, draft, key: ++deletedKey.current });
   }, [open]);
   const deletedDone = useCallback(() => setDeleted(null), []);
   const undoDelete = useCallback(async () => {
     if (!deleted) return;
-    const { name, steps, connections } = deleted.workflow;
-    await workflowApi.create({ name, steps, connections });
-  }, [deleted]);
+    const { workflow: saved, draft } = deleted;
+    const made = await workflowApi.create({ name: saved.name, steps: saved.steps, connections: saved.connections });
+    if (JSON.stringify(draft) === JSON.stringify(fromWorkflow(saved))) return;
+    keepDraft(made.id, draft, made.updatedAt);
+    open(made.id);
+  }, [deleted, open]);
 
   let body;
   if (workflowId && workflowRunId) {
@@ -92,7 +85,7 @@ export function WorkflowsView({ workflowId, workflowRunId, onUseInRoutine }: { w
     );
   } else {
     const gone = vanished || (Boolean(workflowId) && leaving.current !== workflowId);
-    body = <WorkflowList workflows={workflows.workflows} routines={state.routines} botName={botName} gone={gone} onOpen={(id) => { setVanished(false); open(id); }} onNew={() => void created()} />;
+    body = <WorkflowList workflows={workflows.workflows} routines={state.routines} botName={botName} gone={gone} onOpen={(id) => { setVanished(false); open(id); }} onNew={() => void create()} />;
   }
 
   return (

@@ -1,5 +1,3 @@
-// Workflows on the client: one shared copy of /api/workflows and of the runs, kept current by the workflow live frames,
-// for the Workflows view, the routine editor and the run cards.
 import { useEffect, useSyncExternalStore } from "react";
 
 import type { Workflow, WorkflowGraph, WorkflowInput, WorkflowRun, WorkflowRunUpdate, WorkflowStepRun } from "../../shared/workflows";
@@ -21,11 +19,15 @@ export interface WorkflowsState {
   details: Record<string, WorkflowRun>;
 }
 export type WorkflowDraft = WorkflowGraph & { name: string };
+/** `base` is the `updatedAt` of the saved workflow that `draft` was made from. */
+export interface KeptDraft { draft: WorkflowDraft; base: number }
 
 const EMPTY: WorkflowsState = { loaded: false, unavailable: false, failed: false, workflows: [], runs: {}, details: {} };
 const MAX_RUNS = 200;
 const MAX_DETAILS = 20;
 const RUNS_LIMIT = 20;
+const LOAD_RETRIES = 3;
+const LOAD_RETRY_MS = 3000;
 
 let state = EMPTY;
 const listeners = new Set<() => void>();
@@ -33,7 +35,10 @@ let stopListening: (() => void) | null = null;
 let started = false;
 let loading: Promise<void> | null = null;
 const runLoads = new Map<string, Promise<WorkflowRun | null>>();
-const drafts = new Map<string, WorkflowDraft>();
+const drafts = new Map<string, KeptDraft>();
+let changes = 0;
+const changedAt = new Map<string, number>();
+const removed = new Set<string>();
 
 function set(next: WorkflowsState): void {
   state = next;
@@ -73,10 +78,14 @@ function putRun(run: WorkflowRunUpdate): void {
 export function applyWorkflowFrame(frame: ServerFrame): void {
   if (frame.kind === "workflow") {
     const incoming = frame.workflow;
+    if (removed.has(incoming.id)) return;
     const known = state.workflows.find((workflow) => workflow.id === incoming.id);
     if (!known) set({ ...state, workflows: [incoming, ...state.workflows] });
     else if (incoming.updatedAt >= known.updatedAt) set({ ...state, workflows: state.workflows.map((workflow) => workflow.id === incoming.id ? incoming : workflow) });
+    else return;
+    changedAt.set(incoming.id, ++changes);
   } else if (frame.kind === "workflow.deleted") {
+    removed.add(frame.workflowId);
     drafts.delete(frame.workflowId);
     set({ ...state, workflows: state.workflows.filter((workflow) => workflow.id !== frame.workflowId) });
   } else if (frame.kind === "workflow.run") {
@@ -87,13 +96,43 @@ export function applyWorkflowFrame(frame: ServerFrame): void {
 const unreachable = (error: unknown): boolean =>
   error instanceof ApiError && (error.status === 404 || error.status === 503) && error.body?.error !== "asleep";
 
+const starting = (error: unknown): boolean => error instanceof ApiError && error.status === 503 && error.body?.error !== "asleep";
+
+/** The answer, plus what this client created or received after the request began, and not what it deleted. */
+function mergeAnswer(answer: Workflow[], since: number): Workflow[] {
+  const mine = new Map(state.workflows.map((workflow) => [workflow.id, workflow]));
+  const answered = new Set<string>();
+  const merged = answer.filter((workflow) => !removed.has(workflow.id)).map((workflow) => {
+    answered.add(workflow.id);
+    const local = mine.get(workflow.id);
+    return local && local.updatedAt > workflow.updatedAt ? local : workflow;
+  });
+  const newer = state.workflows.filter((workflow) => !answered.has(workflow.id) && (changedAt.get(workflow.id) ?? 0) > since);
+  return [...newer, ...merged];
+}
+
+async function fetchWorkflows(options: { background?: boolean }): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    const since = changes;
+    try {
+      const body = await api<{ workflows?: Workflow[] }>("/api/workflows", options.background ? { background: true } : undefined);
+      set({ ...state, loaded: true, unavailable: false, failed: false, workflows: mergeAnswer(body.workflows ?? [], since) });
+      return;
+    } catch (error) {
+      if (starting(error) && attempt < LOAD_RETRIES) {
+        await new Promise((resolve) => setTimeout(resolve, LOAD_RETRY_MS));
+        continue;
+      }
+      set(unreachable(error)
+        ? { ...state, loaded: true, unavailable: true, failed: false }
+        : { ...state, loaded: true, failed: true });
+      return;
+    }
+  }
+}
+
 export function loadWorkflows(options: { background?: boolean } = {}): Promise<void> {
-  loading ??= api<{ workflows?: Workflow[] }>("/api/workflows", options.background ? { background: true } : undefined)
-    .then((body) => set({ ...state, loaded: true, unavailable: false, failed: false, workflows: body.workflows ?? [] }))
-    .catch((error: unknown) => set(unreachable(error)
-      ? { ...state, loaded: true, unavailable: true, failed: false }
-      : { ...state, loaded: true, failed: true }))
-    .finally(() => { loading = null; });
+  loading ??= fetchWorkflows(options).finally(() => { loading = null; });
   return loading;
 }
 
@@ -102,7 +141,7 @@ export async function loadWorkflowRuns(workflowId: string, limit = RUNS_LIMIT): 
     const body = await api<{ runs?: WorkflowRunUpdate[] }>(`/api/workflows/${encodeURIComponent(workflowId)}/runs?limit=${limit}`);
     for (const run of body.runs ?? []) putRun(run);
   } catch {
-    // The runs already shown stay; the next frame or visit loads them again.
+    return;
   }
 }
 
@@ -113,12 +152,16 @@ export function loadWorkflowRun(runId: string, options: { force?: boolean } = {}
   if (pending && !options.force) return pending;
   const load: Promise<WorkflowRun | null> = api<{ run: WorkflowRun }>(`/api/workflow-runs/${encodeURIComponent(runId)}`)
     .then(({ run }) => {
+      const newer = state.runs[run.runId];
+      const merged: WorkflowRun = newer && newer.updatedAt > run.updatedAt
+        ? { ...newer, graph: run.graph, stepRuns: mergeStepRuns(run.stepRuns, newer.stepRuns) }
+        : run;
       set({
         ...state,
-        runs: newest({ ...state.runs, [run.runId]: withoutGraph(run) }, MAX_RUNS),
-        details: newest({ ...state.details, [run.runId]: run }, MAX_DETAILS),
+        runs: newest({ ...state.runs, [run.runId]: withoutGraph(merged) }, MAX_RUNS),
+        details: newest({ ...state.details, [run.runId]: merged }, MAX_DETAILS),
       });
-      return run;
+      return merged;
     })
     .catch((error: unknown) => {
       if (error instanceof ApiError && error.status === 404) return null;
@@ -136,12 +179,19 @@ function start(): void {
   void loadWorkflows();
 }
 
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+/** Reads the shared copy without starting a load. */
+export function useWorkflowsUnavailable(): boolean {
+  return useSyncExternalStore(subscribe, () => state.unavailable, () => false);
+}
+
 export function useWorkflows(): WorkflowsState {
   useEffect(start, []);
-  return useSyncExternalStore((listener) => {
-    listeners.add(listener);
-    return () => listeners.delete(listener);
-  }, () => state, () => EMPTY);
+  return useSyncExternalStore(subscribe, () => state, () => EMPTY);
 }
 
 const time = (run: WorkflowRunUpdate) => run.createdAt;
@@ -180,14 +230,18 @@ export const workflowApi = {
   },
 };
 
-export function keepDraft(workflowId: string, draft: WorkflowDraft): void {
-  drafts.set(workflowId, draft);
+export function keepDraft(workflowId: string, draft: WorkflowDraft, base: number): void {
+  drafts.set(workflowId, { draft, base });
 }
 
-export function takeDraft(workflowId: string): WorkflowDraft | undefined {
-  const draft = drafts.get(workflowId);
+export function takeDraft(workflowId: string): KeptDraft | undefined {
+  const kept = drafts.get(workflowId);
   drafts.delete(workflowId);
-  return draft;
+  return kept;
+}
+
+export function discardDraft(workflowId: string): void {
+  drafts.delete(workflowId);
 }
 
 export function resetWorkflowsForTest(): void {
@@ -197,6 +251,9 @@ export function resetWorkflowsForTest(): void {
   loading = null;
   runLoads.clear();
   drafts.clear();
+  changes = 0;
+  changedAt.clear();
+  removed.clear();
   state = EMPTY;
   listeners.clear();
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Trash2, Workflow as WorkflowIcon } from "lucide-react";
 
 import type { Workflow, WorkflowStepKind } from "../../../shared/workflows";
@@ -6,10 +6,11 @@ import { listOf } from "@/lib/cloud-send";
 import { t } from "@/lib/i18n";
 import type { Routine } from "@/lib/routines";
 import { freeSpot, newId, newStep, removalOf, STEP_HEIGHT, STEP_WIDTH, type Removal } from "@/lib/workflow-canvas";
-import { problemText, runnableProblem, stepById, stepTitle, type ClientProblem } from "@/lib/workflow-graph";
+import { problemText, readingOrder, runnableProblem, stepById, stepTitle, type ClientProblem } from "@/lib/workflow-graph";
 import type { Point } from "@/lib/team-canvas";
 import { useStore } from "@/state/store";
 import { schedulableBots, useTeamPeople } from "@/state/team-people";
+import type { WorkflowDraft } from "@/state/workflows";
 import { UndoToast } from "../bot-access/ShareBotButton";
 import { WorkflowCanvas } from "./WorkflowCanvas";
 import { routineLabel } from "./WorkflowList";
@@ -24,18 +25,19 @@ export function WorkflowEditor({ workflow, usedBy, onBack, onGone, onDelete, onU
   usedBy: Routine[];
   onBack: () => void;
   onGone: () => void;
-  onDelete: (workflow: Workflow) => Promise<void>;
+  onDelete: (workflow: Workflow, draft: WorkflowDraft) => Promise<void>;
   onUseInRoutine?: (workflow: Workflow) => void;
 }) {
   const { state } = useStore();
   const team = useTeamPeople();
   const botName = useCallback((botId: string) => state.bots.find((bot) => bot.id === botId)?.name, [state.bots]);
   const botExists = useCallback((botId: string) => state.bots.some((bot) => bot.id === botId), [state.bots]);
-  const { draft, dispatch, status, problems, retry, reload } = useWorkflowDraft(workflow, { botName, botExists, onGone });
+  const { draft, dispatch, status, problems, retry, reload, beginDelete, cancelDelete } = useWorkflowDraft(workflow, { botName, botExists, onGone });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [undo, setUndo] = useState<{ removal: Removal; text: string; key: number } | null>(null);
-  const [focusId, setFocusId] = useState<string | null>(null);
+  const [focusTarget, setFocusTarget] = useState<{ stepId: string | null } | null>(null);
+  const reasonId = useId();
   const [deleteFailed, setDeleteFailed] = useState(false);
   const center = useRef<(() => Point) | null>(null);
   const shell = useRef<HTMLDivElement>(null);
@@ -54,14 +56,18 @@ export function WorkflowEditor({ workflow, usedBy, onBack, onGone, onDelete, onU
     return byStep;
   }, [problems, draft, botName, botExists]);
 
-  const runBlock = draft.steps.length > 0 ? runnableProblem(draft, botExists) : null;
+  const runBlock = draft.steps.length > 0 || usedBy.length > 0 ? runnableProblem(draft, botExists) : null;
   const runBlockText = runBlock ? problemText(runBlock, draft, botName) : null;
 
   const removeStep = useCallback((stepId: string) => {
     const removal = removalOf(draft, stepId);
     if (!removal) return;
+    const order = readingOrder(draft);
+    const index = order.findIndex((step) => step.id === stepId);
+    const neighbour = order[index + 1] ?? order[index - 1];
     dispatch({ type: "remove", stepId });
     setSelectedId((current) => current === stepId ? null : current);
+    setFocusTarget({ stepId: neighbour?.id ?? null });
     setUndo({ removal, text: t("workflow.deletedStep", { step: stepTitle(removal.step, botName) }), key: ++undoKey.current });
   }, [draft, dispatch, botName]);
 
@@ -70,14 +76,15 @@ export function WorkflowEditor({ workflow, usedBy, onBack, onGone, onDelete, onU
     if (!undo) return;
     dispatch({ type: "restore", removal: undo.removal });
     setAnnouncement(t("workflow.announce.restored", { step: stepTitle(undo.removal.step, botName) }));
-    setFocusId(undo.removal.step.id);
+    setFocusTarget({ stepId: undo.removal.step.id });
   }, [undo, dispatch, botName]);
 
   useEffect(() => {
-    if (!focusId) return;
-    shell.current?.querySelector<HTMLElement>(`[data-workflow-step="${CSS.escape(focusId)}"]`)?.focus();
-    setFocusId(null);
-  }, [focusId, draft]);
+    if (!focusTarget) return;
+    const selector = focusTarget.stepId === null ? "[data-workflow-canvas]" : `[data-workflow-step="${CSS.escape(focusTarget.stepId)}"]`;
+    shell.current?.querySelector<HTMLElement>(selector)?.focus();
+    setFocusTarget(null);
+  }, [focusTarget, draft]);
 
   useEffect(() => {
     if (!undo) return;
@@ -91,10 +98,9 @@ export function WorkflowEditor({ workflow, usedBy, onBack, onGone, onDelete, onU
   }, [undo, undoRemoval, undoDone]);
 
   const defaultBot = (): string => {
-    if (selected?.kind === "bot") return selected.botId;
     const lastBot = [...draft.steps].reverse().find((step) => step.kind === "bot");
-    if (lastBot?.kind === "bot") return lastBot.botId;
-    return schedulableBots(visibleBots, team)[0]?.id ?? "";
+    const chosen = selected?.kind === "bot" && selected.botId ? selected.botId : lastBot?.kind === "bot" ? lastBot.botId : "";
+    return chosen || schedulableBots(visibleBots, team)[0]?.id || visibleBots[0]?.id || "";
   };
 
   const place = (kind: WorkflowStepKind, at: Point, after?: { stepId: string; connectionId: string }) => {
@@ -112,10 +118,13 @@ export function WorkflowEditor({ workflow, usedBy, onBack, onGone, onDelete, onU
   };
 
   const deleteWorkflow = async () => {
+    if (usedBy.length > 0) return;
     setDeleteFailed(false);
+    const unsaved = beginDelete();
     try {
-      await onDelete(workflow);
+      await onDelete(workflow, unsaved);
     } catch {
+      cancelDelete();
       setDeleteFailed(true);
     }
   };
@@ -136,13 +145,13 @@ export function WorkflowEditor({ workflow, usedBy, onBack, onGone, onDelete, onU
           <button type="button" onClick={() => onUseInRoutine(workflow)} className="h-8 rounded-lg bg-accent px-3 text-[13px] font-medium text-accent-ink hover:brightness-110">{t("workflow.useInRoutine")}</button>
         )}
         <div className="flex flex-col items-end">
-          <button type="button" disabled={usedBy.length > 0} onClick={() => void deleteWorkflow()}
-            className="flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px] text-danger outline-none hover:bg-danger/10 focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-50 disabled:hover:bg-transparent">
+          <button type="button" aria-disabled={usedBy.length > 0 || undefined} aria-describedby={usedBy.length > 0 ? reasonId : undefined} onClick={() => void deleteWorkflow()}
+            className="flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px] text-danger outline-none hover:bg-danger/10 focus-visible:ring-2 focus-visible:ring-focus aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-transparent">
             <Trash2 size={15} aria-hidden />{t("workflow.delete")}
           </button>
         </div>
       </div>
-      {usedBy.length > 0 && <p className="shrink-0 px-4 pt-2 text-right text-[12px] leading-4 text-ink-secondary">{t("workflow.deleteInUse", { routines: listOf(usedBy.map(routineLabel)) })}</p>}
+      {usedBy.length > 0 && <p id={reasonId} className="shrink-0 px-4 pt-2 text-right text-[12px] leading-4 text-ink-secondary">{t("workflow.deleteInUse", { routines: listOf(usedBy.map(routineLabel)) })}</p>}
       {deleteFailed && <p role="alert" className="shrink-0 px-4 pt-2 text-right text-[12px] text-danger">{t("workflow.save.failed")}</p>}
       {runBlockText && (
         <p data-workflow-warning className="shrink-0 border-b border-hairline/35 bg-warning/10 px-4 py-2 text-[13px] leading-[18px] text-warning">

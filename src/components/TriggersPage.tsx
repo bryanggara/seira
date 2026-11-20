@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 
 import { automationsFrom, automationSentence, automationStatus, orderAutomations, runLine, statusLine, type Automation } from "@/lib/automations";
@@ -10,7 +10,7 @@ import { botInDepartment, filterableDepartments, GENERAL_DEPARTMENT } from "@/li
 import { useStore } from "@/state/store";
 import { useAppTriggers } from "@/lib/app-triggers";
 import { botIdsOf, startSteps } from "@/lib/workflow-graph";
-import { useWorkflows, workflowApi } from "@/state/workflows";
+import { useWorkflows } from "@/state/workflows";
 import { AppEventEditor } from "./automations/AppEventEditor";
 import { useAllAutomationActions } from "./automations/app-actions";
 import { AutomationPanel } from "./automations/AutomationPanel";
@@ -24,6 +24,7 @@ import { SeiraCharacter } from "./seira-character";
 import { Switch } from "./SettingsPrimitives";
 import { TOOL_PAGE_TITLE, ToolPage, ToolPageActions, ToolPageHeader } from "./ToolPageShell";
 import { WebhookEditor } from "./WebhookTrigger";
+import { useCreateWorkflow } from "./workflow/useCreateWorkflow";
 import { WorkflowsView } from "./workflow/WorkflowsView";
 import { schedulableBots, useTeamPeople } from "@/state/team-people";
 
@@ -43,7 +44,7 @@ export function TriggersPage({ onBack, onOpenRoom }: { onBack: () => void; onOpe
   const [botFilter, setBotFilter] = useState(focus?.botId ?? "all");
   const [department, setDepartment] = useState("all");
   const [newText, setNewText] = useState<string | null>(null);
-  const [workflowFailed, setWorkflowFailed] = useState(false);
+  const { create: createWorkflow, failed: workflowFailed } = useCreateWorkflow(useCallback((created) => dispatch({ type: "showRoutines", view: "workflows", workflowId: created.id }), [dispatch]));
   const [editing, setEditing] = useState<{ kind: SetUpKind; id?: string; botId?: string; workflowId?: string } | null>(null);
   const routinesOnly = window.ogb?.remoteClient?.active === true;
   const visibleBots = state.bots.filter((bot) => !bot.hidden);
@@ -107,12 +108,7 @@ export function TriggersPage({ onBack, onOpenRoom }: { onBack: () => void; onOpe
                 </button>
               ))}
             </div>
-            <button type="button" onClick={view === "workflows" ? () => {
-              setWorkflowFailed(false);
-              workflowApi.create({ name: t("workflow.untitled"), steps: [], connections: [] })
-                .then((created) => dispatch({ type: "showRoutines", view: "workflows", workflowId: created.id }))
-                .catch(() => setWorkflowFailed(true));
-            } : () => setNewText("")} className="flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-[13px] font-semibold text-accent-ink hover:brightness-110"><Plus size={15} aria-hidden="true" />{view === "workflows" ? t("workflow.new") : t("automations.new")}</button>
+            <button type="button" onClick={view === "workflows" ? () => void createWorkflow() : () => setNewText("")} className="flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-[13px] font-semibold text-accent-ink hover:brightness-110"><Plus size={15} aria-hidden="true" />{view === "workflows" ? t("workflow.new") : t("automations.new")}</button>
           </ToolPageActions>
       </ToolPageHeader>
 
