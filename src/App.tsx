@@ -168,7 +168,7 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
   const roomPanelOpen = useRoomPanelShown({ group, state, simple: !advanced && !remoteClient, advanced: advanced && !remoteClient });
   const sidePanelOpen = (Boolean(bot) && (state.settingsOpen || state.computerOpen || state.inspectorOpen || state.activityOpen)) || Boolean(state.forkPanel) || roomPanelOpen || (notificationFeed && state.notificationsOpen) || inboxShown;
   const collapseSidebar = sidePanelOpen && !sidebarAndPanelFit;
-  const calendarFocus = state.activeView === "routines" && state.routinesFocus.view === "calendar";
+  const calendarFocus = state.activeView === "routines" && (state.routinesFocus.view === "calendar" || state.routinesFocus.view === "workflows");
   const notificationTray = notificationFeed && !calendarFocus;
 
   const noEngines =

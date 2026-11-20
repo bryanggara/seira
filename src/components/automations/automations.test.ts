@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { saveWebhookCredential } from "@/lib/webhook-credentials";
 import type { Bot } from "@/state/store";
+import { resetWorkflowsForTest } from "@/state/workflows";
 
 const fixture = vi.hoisted(() => ({
   state: {} as Record<string, unknown>,
@@ -18,6 +19,7 @@ vi.mock("@/state/store", async (importOriginal) => ({
   api: (...args: unknown[]) => fixture.api(...args),
 }));
 vi.mock("@/lib/thread-preferences", () => ({ useShowThreads: () => false }));
+vi.mock("@/lib/live-events", () => ({ listenLiveFrames: () => () => {} }));
 const copied = vi.hoisted(() => ({ texts: [] as string[] }));
 const credentials = vi.hoisted(() => {
   const items = new Map<string, string>();
@@ -57,6 +59,7 @@ const button = (container: HTMLElement, label: string) => {
   return found;
 };
 beforeEach(() => {
+  resetWorkflowsForTest();
   fixture.dispatch.mockReset();
   fixture.api.mockReset();
   fixture.api.mockResolvedValue({});
@@ -524,5 +527,57 @@ describe("a run that waits on the person", () => {
     expect(cancel(panel("failed"))).toBeNull();
     root?.unmount(); root = null; document.body.innerHTML = "";
     expect(cancel(panel("completed"))).toBeNull();
+  });
+});
+
+describe("the Workflows view", () => {
+  const page = () => mount(createElement(TriggersPage, { onBack: vi.fn(), onOpenRoom: vi.fn() }));
+  const listApi = () => fixture.api.mockImplementation(async (path: unknown) => (path === "/api/workflows" ? { workflows: [] } : {}));
+
+  it("offers Workflows beside List and Calendar, and opens it through the store", async () => {
+    listApi();
+    const container = page();
+    await vi.waitFor(() => expect(container.querySelector('[role=group] button[aria-pressed]')).not.toBeNull());
+    const labels = [...container.querySelectorAll('[role=group][aria-label="Show as"] button')].map((node) => node.textContent);
+    expect(labels).toEqual(["List", "Calendar", "Workflows"]);
+    flushSync(() => button(container, "Workflows").click());
+    expect(fixture.dispatch).toHaveBeenCalledWith({ type: "showRoutines", view: "workflows", botId: undefined });
+  });
+
+  it("hides Workflows when workflows are unavailable", async () => {
+    const { ApiError } = await import("@/state/api");
+    fixture.api.mockImplementation(async (path: unknown) => {
+      if (path === "/api/workflows") throw new ApiError("not found", 404);
+      return {};
+    });
+    const container = page();
+    await vi.waitFor(() => expect([...container.querySelectorAll('[role=group][aria-label="Show as"] button')].map((node) => node.textContent)).toEqual(["List", "Calendar"]));
+  });
+
+  it("shows New workflow instead of New, and no automation panel, in the Workflows view", async () => {
+    listApi();
+    fixture.state.routinesFocus = { view: "workflows" };
+    const container = page();
+    await vi.waitFor(() => expect(container.textContent).toContain("No workflows yet."));
+    expect([...container.querySelectorAll("button")].some((node) => node.textContent?.trim() === "New workflow")).toBe(true);
+    expect([...container.querySelectorAll("button")].some((node) => node.textContent?.trim() === "New")).toBe(false);
+    expect(container.querySelector(`aside[aria-label="Automation"]`)).toBeNull();
+  });
+
+  it("creates an untitled workflow with New workflow and opens it", async () => {
+    fixture.state.routinesFocus = { view: "workflows" };
+    fixture.api.mockImplementation(async (path: unknown, init: unknown) => {
+      if (path === "/api/workflows" && (init as { method?: string } | undefined)?.method === "POST") {
+        const body = JSON.parse((init as { body: string }).body) as Record<string, unknown>;
+        return { workflow: { ...body, id: "wf-new", createdAt: 1, updatedAt: 1 } };
+      }
+      return path === "/api/workflows" ? { workflows: [] } : {};
+    });
+    const container = page();
+    await vi.waitFor(() => expect(container.textContent).toContain("No workflows yet."));
+    flushSync(() => [...container.querySelectorAll("button")].find((node) => node.textContent?.trim() === "New workflow")!.click());
+    await vi.waitFor(() => expect(fixture.dispatch).toHaveBeenCalledWith({ type: "showRoutines", view: "workflows", workflowId: "wf-new" }));
+    const post = fixture.api.mock.calls.find(([, init]) => (init as { method?: string } | undefined)?.method === "POST")!;
+    expect(JSON.parse((post[1] as { body: string }).body)).toEqual({ name: "Untitled workflow", steps: [], connections: [] });
   });
 });
