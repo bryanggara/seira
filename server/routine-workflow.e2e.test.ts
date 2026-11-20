@@ -59,6 +59,19 @@ it("a routine that runs a workflow runs its steps on Run now, with no finished n
   } finally { await fixture.close(); }
 }, 120_000);
 
+it("a person's own reply in a step chat right after the run ends still raises its notice", async () => {
+  const { fixture, api, second, workflowRun } = await runWorkflow("Beta write-up");
+  const cli = (...args: string[]) => runControlSeira([...args, "--url", fixture.info.url]) as Promise<any>;
+  try {
+    const threadId = workflowRun.threads[second.id] as string;
+    await cli("send", "--bot", second.id, "--task", threadId, "--text", "Thanks, please shorten it.");
+    await expect.poll(async () => {
+      const notices = (await api("GET", "/api/notifications")).notifications as Array<{ kind: string; threadId?: string }>;
+      return notices.filter((notice) => notice.threadId === threadId && notice.kind === "done").length;
+    }, { timeout: 60_000 }).toBeGreaterThan(0);
+  } finally { await fixture.close(); }
+}, 150_000);
+
 it("hides a secret in a step's output before it is stored", async () => {
   const { fixture, workflowRun } = await runWorkflow(`The key is ${SECRET} for now`);
   try {
