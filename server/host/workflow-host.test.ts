@@ -95,9 +95,29 @@ describe("the workflow host's workflows", () => {
     const made = r.host.create(input());
     r.routineRows.push({ id: "r-1", workflowId: made.id } as Routine, { id: "r-2" } as Routine);
     r.host.update(made.id, input());
-    expect(r.updates).toEqual([["r-1", {}]]);
+    expect(r.updates).toEqual([["r-1", { rewriteWorkflow: true }]]);
     r.host.remove(made.id);
-    expect(r.updates.at(-1)).toEqual(["r-1", { workflowId: null }]);
+    expect(r.updates.at(-1)).toEqual(["r-1", { workflowId: null, enabled: false }]);
+  });
+
+  it("turns a routine off when its workflow is deleted, and keeps the copy as its instruction", () => {
+    const r = rig();
+    const made = r.host.create(input());
+    r.routineRows.push({ id: "r-1", workflowId: made.id, enabled: true, prompt: "copy" } as Routine);
+    r.host.remove(made.id);
+    expect(r.updates).toEqual([["r-1", { workflowId: null, enabled: false }]]);
+  });
+
+  it("rewrites a linked routine only when the copy, the bots or the first bot change", () => {
+    const r = rig();
+    const made = r.host.create(input());
+    const copy = r.host.copyFor(made.id) as { prompt: string; botId: string; botIds: string[] };
+    r.routineRows.push({ id: "r-1", workflowId: made.id, prompt: copy.prompt, botId: copy.botId, workflowBotIds: copy.botIds } as Routine);
+    const moved = { ...input(), steps: input().steps.map((step) => ({ ...step, position: { x: 40, y: 40 } })) };
+    r.host.update(made.id, moved);
+    expect(r.updates).toEqual([]);
+    r.host.update(made.id, { ...moved, steps: moved.steps.map((step) => (step.id === "a" ? { ...step, instruction: "Collect the weather" } as WorkflowStep : step)) });
+    expect(r.updates).toEqual([["r-1", { rewriteWorkflow: true }]]);
   });
 
   it("logs a routine that cannot be updated, and goes on", () => {
@@ -204,6 +224,14 @@ describe("the workflow host's runs", () => {
     const third = await begin(s);
     s.turns[0]!.opts.onDispatchError("Not allowed");
     expect(s.host.run(third.row.id)!.stepRuns[0]).toMatchObject({ status: "failed", error: "Not allowed" });
+  });
+
+  it.each(["thread_busy", "thread_limit", "workspace_busy", "settling"])("treats %s as a busy bot and waits", async (code) => {
+    const r = rig();
+    r.state.startTurn = async () => { throw Object.assign(new Error("Busy"), { code }); };
+    const { row } = await begin(r);
+    await Promise.resolve();
+    expect(r.host.run(row.id)!.stepRuns[0]).toMatchObject({ status: "waiting", waitingFor: "bot" });
   });
 
   it("follows a question in a step's chat", async () => {

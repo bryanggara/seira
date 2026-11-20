@@ -6,6 +6,7 @@ import type { Workflow, WorkflowFrame, WorkflowInput, WorkflowRun } from "../../
 import type { AutomationReports } from "../automation-reports.ts";
 import type { HostTurnResult } from "../coordinator.ts";
 import type { WorkflowRoutineOptions } from "../routine-dispatch.ts";
+import { BUSY_CODES } from "../routine-recovery.ts";
 import { askOf, waitingFor } from "../routine-waits.ts";
 import type { Routine, RoutineManager, RoutineManagerOptions, RoutineRun, RoutineRunOn } from "../routines.ts";
 import type { Store } from "../store.ts";
@@ -94,7 +95,7 @@ export function createWorkflowHost(deps: WorkflowHostDeps): WorkflowHost {
     const failed = (error: unknown) => {
       const code = (error as { code?: unknown } | null)?.code;
       const message = error instanceof Error ? error.message : String(error);
-      turn.settle(code === "thread_busy" || code === "thread_limit" ? { ok: false, busy: true, error: message } : { ok: false, error: message });
+      turn.settle(typeof code === "string" && BUSY_CODES.has(code) ? { ok: false, busy: true, error: message } : { ok: false, error: message });
     };
     try {
       void Promise.resolve(deps.startTurn(turn.botId, turn.prompt, {
@@ -128,15 +129,20 @@ export function createWorkflowHost(deps: WorkflowHostDeps): WorkflowHost {
     emit: deps.emit,
   });
 
-  const relink = (workflowId: string, patch: { workflowId?: null }) => {
+  const relink = (workflowId: string, patch: { workflowId: null; enabled: false } | { rewriteWorkflow: true }, stale?: (routine: Routine) => boolean) => {
     const routines = deps.routines();
-    for (const routine of routines?.listRoutines().filter((candidate) => candidate.workflowId === workflowId) ?? []) {
+    for (const routine of routines?.listRoutines().filter((candidate) => candidate.workflowId === workflowId && (stale?.(candidate) ?? true)) ?? []) {
       try {
         routines?.update(routine.id, patch);
       } catch (error) {
         deps.log?.(`workflows: could not update routine ${routine.id}: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
+  };
+
+  const copyChanged = (workflow: Workflow) => {
+    const copy = workflowCopy(workflow, botName);
+    return (routine: Routine) => routine.prompt !== copy.prompt || routine.botId !== copy.botId || routine.workflowBotIds?.join("\n") !== copy.botIds.join("\n");
   };
 
   return {
@@ -155,12 +161,12 @@ export function createWorkflowHost(deps: WorkflowHostDeps): WorkflowHost {
       const workflow: Workflow = { ...existing, name: input.name, steps: input.steps, connections: input.connections, updatedAt: Math.max(now(), existing.updatedAt + 1) };
       store.putWorkflow(workflow);
       deps.emit({ kind: "workflow", workflow });
-      relink(id, {});
+      relink(id, { rewriteWorkflow: true }, copyChanged(workflow));
       return workflow;
     },
     remove(id) {
       if (!store.workflow(id)) return false;
-      relink(id, { workflowId: null });
+      relink(id, { workflowId: null, enabled: false });
       store.deleteWorkflow(id);
       deps.emit({ kind: "workflow.deleted", workflowId: id });
       return true;
