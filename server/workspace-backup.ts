@@ -349,12 +349,10 @@ export async function createWorkspaceBackupSnapshot(dataDir: string, options: Cr
       try { snapshotDb.exec("PRAGMA journal_mode = DELETE"); } finally { snapshotDb.close(); }
     }
     const teamPrivate = teamPrivateThreads({ starters: join(root, "thread-starters.json"), groups: join(root, "groups.json"), bots: join(root, "bots.json") });
-    let privateWorkflowRuns: ReadonlySet<string> = new Set();
     const privacy = teamPrivate && { ...teamPrivate, attachments: teamPrivateAttachments(root, join(snapshot, SNAPSHOT_DATABASES["messages.db"]!), teamPrivate) };
-    if (privacy) {
-      privateWorkflowRuns = stripTeamPrivate({ messages: join(snapshot, SNAPSHOT_DATABASES["messages.db"]!), runtime: join(snapshot, SNAPSHOT_DATABASES["runtime.db"]!), workflows: join(snapshot, SNAPSHOT_DATABASES["workflows.db"]!) }, privacy);
-      warnings.push(TEAM_PRIVATE_NOTE);
-    }
+    const snapshotOf = (name: string) => join(snapshot, SNAPSHOT_DATABASES[name]!);
+    const privateWorkflowRuns = privacy ? stripTeamPrivate({ messages: snapshotOf("messages.db"), runtime: snapshotOf("runtime.db"), workflows: snapshotOf("workflows.db") }, privacy) : new Set<string>();
+    if (privacy) warnings.push(TEAM_PRIVATE_NOTE);
     const walk = (directory: string, prefix = "", chain: string[] = [root]) => {
       for (const name of readdirSync(directory).sort()) {
         if (!prefix && excluded(name)) continue;
