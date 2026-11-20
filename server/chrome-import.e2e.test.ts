@@ -1,10 +1,11 @@
 // Real server, a fake Chrome profile, and a real headless Chromium as the bot's browser behind a stand-in for agent-browser.
-import { spawn, type ChildProcess } from "node:child_process";
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { freemem, loadavg, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { realpathSync, statSync } from "node:fs";
 import { verificationServerEnvironment } from "../scripts/control-seira.ts";
 import { writeFakeBrowser } from "./browser/chrome-import/testing/fake-profile.ts";
 import { credentialStoreFlags } from "./browser/egress/gate.ts";
@@ -56,6 +57,41 @@ async function startBrowser(root: string): Promise<string> {
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
 }
+
+// TEMPORARY DIAGNOSTIC: how long each browser takes to open its DevTools port in CI with an empty page cache.
+const readText = (path: string) => { try { return readFileSync(path, "utf8"); } catch { return ""; } };
+const majorFaults = (pid: number | undefined) => Number(readText(`/proc/${pid}/stat`).split(") ")[1]?.split(" ")[9] ?? NaN);
+async function probeLaunch(binary: string, label: string): Promise<Record<string, unknown>> {
+  let dropped = "dropped";
+  try { execFileSync("sudo", ["-n", "sh", "-c", "sync; echo 3 > /proc/sys/vm/drop_caches"], { stdio: "ignore" }); } catch (error) { dropped = String(error).slice(0, 80); }
+  const root = mkdtempSync(join(tmpdir(), "probe-"));
+  folders.push(root);
+  const profile = join(root, "p");
+  const started = Date.now();
+  const child = spawn(binary, ["--headless=new", "--no-sandbox", "--disable-gpu", "--remote-debugging-port=0", `--user-data-dir=${profile}`,
+    "--no-first-run", "--no-default-browser-check", "--disable-background-networking", "--disable-component-update", "--disable-sync",
+    ...credentialStoreFlags(), "about:blank"], { stdio: ["ignore", "ignore", "pipe"] });
+  child.stderr!.resume();
+  let ms = -1;
+  let faults = NaN;
+  while (Date.now() - started < 100_000) {
+    faults = majorFaults(child.pid) || faults;
+    if (existsSync(join(profile, "DevToolsActivePort")) && readFileSync(join(profile, "DevToolsActivePort"), "utf8").split("\n").length >= 2) { ms = Date.now() - started; break; }
+    if (child.exitCode !== null) break;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  await waitForExit(child, { signal: "SIGTERM" });
+  const real = realpathSync(binary);
+  return { label, real, mb: Math.round(statSync(real).size / 1_048_576), dropped, ms, majorFaults: faults, load: loadavg().map((value) => value.toFixed(1)).join(" "), io: readText("/proc/pressure/io").split("\n")[0] };
+}
+beforeAll(async () => {
+  if (process.platform !== "linux" || !process.env.CI || !CHROME) return;
+  const report: unknown[] = [];
+  report.push(await probeLaunch(CHROME, "chrome cold 1"));
+  if (existsSync("/usr/bin/chromium")) report.push(await probeLaunch("/usr/bin/chromium", "chromium cold"));
+  report.push(await probeLaunch(CHROME, "chrome cold 2"));
+  console.log(`BROWSER COLD PROBE ${JSON.stringify(report)}`);
+}, 400_000);
 
 async function startServer(home: string, engine: string) {
   const port = await freePortBlock([0, 1]);
