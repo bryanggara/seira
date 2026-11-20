@@ -1,6 +1,20 @@
 import { isDone } from "@/lib/automations";
 import type { Routine, RoutineContextAttachment, RoutineInput, RoutineRunOn, RoutineTarget } from "@/lib/routines";
 
+export type WorkflowBlock = "room" | "cloud" | "limit";
+
+export function workflowBlock(fields: { target: RoutineTarget; runOn: RoutineRunOn; limitReset: boolean }): WorkflowBlock | null {
+  if (fields.target === "room-goal") return "room";
+  if (fields.runOn === "cloud") return "cloud";
+  if (fields.limitReset) return "limit";
+  return null;
+}
+
+/** True when saving a workflow routine turns off settings the routine has now. */
+export function workflowClears(routine: Routine | undefined): boolean {
+  return Boolean(routine && !routine.workflowId && (routine.deliver || routine.modelSelection || routine.checks?.length || routine.access === "read-and-draft"));
+}
+
 export interface RoutineEditorFields {
   name: string;
   description: string;
@@ -19,9 +33,18 @@ export interface RoutineEditorFields {
   runOnStartup: boolean;
   attachments: RoutineContextAttachment[];
   resultsThreadId: string | null | undefined;
+  workflowId?: string | null;
 }
 
-export function routineEditorInput(fields: RoutineEditorFields): RoutineInput {
+function workflowFields(fields: RoutineEditorFields): Partial<RoutineInput> & { sameConversation?: boolean } {
+  if (fields.workflowId) {
+    return { workflowId: fields.workflowId, deliver: null, modelSelection: null, checks: null, access: null, sameConversation: false };
+  }
+  if (fields.workflowId === null && fields.existingRoutine?.workflowId) return { workflowId: null };
+  return {};
+}
+
+export function routineEditorInput(fields: RoutineEditorFields): RoutineInput & { sameConversation?: boolean } {
   const { routineTarget, existingRoutine, savedAt } = fields;
   return {
     name: fields.name,
@@ -39,5 +62,6 @@ export function routineEditorInput(fields: RoutineEditorFields): RoutineInput {
     runOnStartup: !fields.recurrenceIsOnce && fields.runOnStartup,
     attachments: routineTarget === "room-goal" ? [] : fields.attachments,
     ...(routineTarget === "bot" ? { resultsThreadId: fields.resultsThreadId } : {}),
+    ...workflowFields(fields),
   };
 }
