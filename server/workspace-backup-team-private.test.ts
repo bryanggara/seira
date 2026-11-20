@@ -137,6 +137,34 @@ describe("what a Team Cloud's export leaves out (the private sentence: not the O
     expect(routinesWithoutTeamPrivate(routines, bots, privacy)).toEqual({ routines: [routines.routines[2]], runs: [routines.runs[2]], ownerNotices: [] });
   });
 
+  describe("a workflow routine in a team export", () => {
+    const privacy = { threads: new Set<string>(), bots: new Set(["bobs-own"]), attachments: new Set<string>() };
+    const bots = [{ id: "bot", tasks: [] }];
+    const routines = { routines: [
+      { id: "plain", botId: "bot" },
+      { id: "mixed", botId: "bot", workflowId: "wf", workflowBotIds: ["bot", "bobs-own"], prompt: "1. Bob: private step" },
+      { id: "flow", botId: "bot", workflowId: "wf2", workflowBotIds: ["bot"] },
+    ], runs: [
+      { id: "run-plain", routineId: "plain" },
+      { id: "run-mixed", routineId: "mixed" },
+      { id: "run-flow-gone", routineId: "flow" },
+      { id: "run-flow-kept", routineId: "flow" },
+    ] };
+    const out = (removed: string[] = []) => routinesWithoutTeamPrivate(routines, bots, privacy, new Set(removed)) as typeof routines;
+
+    it("is dropped when it lists a member's own bot", () => {
+      expect(out().routines.map((routine) => routine.id)).toEqual(["plain", "flow"]);
+    });
+
+    it("loses the runs of a dropped routine", () => {
+      expect(out().runs.map((run) => run.id)).not.toContain("run-mixed");
+    });
+
+    it("loses the routine runs of workflow runs that were removed", () => {
+      expect(out(["run-flow-gone"]).runs.map((run) => run.id)).toEqual(["run-plain", "run-flow-kept"]);
+    });
+  });
+
   it("strips the private conversations' rows from the snapshot databases and rebuilds them, so no freed page keeps their words", () => {
     const root = directory();
     teamData(root);
@@ -156,8 +184,9 @@ describe("what a Team Cloud's export leaves out (the private sentence: not the O
     const root = directory();
     teamData(root);
     const workflows = join(root, "workflows.db");
-    stripTeamPrivate({ messages: join(root, "messages.db"), runtime: join(root, "runtime.db"), workflows }, { threads: new Set(["bob-chat", "bobs-inbox"]), bots: new Set(["bobs-own"]), attachments: new Set() });
+    const removed = stripTeamPrivate({ messages: join(root, "messages.db"), runtime: join(root, "runtime.db"), workflows }, { threads: new Set(["bob-chat", "bobs-inbox"]), bots: new Set(["bobs-own"]), attachments: new Set() });
     expect(table(workflows, "SELECT id FROM workflows").map((row) => row.id).sort()).toEqual(["wf-bot", "wf-mixed"]);
+    expect([...removed].sort()).toEqual(["run-bobs-own", "run-mixed"]);
     expect(table(workflows, "SELECT run_id AS id FROM workflow_runs").map((row) => row.id)).toEqual(["run-bot"]);
     expect(table(workflows, "SELECT run_id AS id FROM workflow_step_runs").map((row) => row.id)).toEqual(["run-bot"]);
     expect(textOf(workflows).toLowerCase()).not.toContain("secret");

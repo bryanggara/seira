@@ -348,9 +348,10 @@ export async function createWorkspaceBackupSnapshot(dataDir: string, options: Cr
       try { snapshotDb.exec("PRAGMA journal_mode = DELETE"); } finally { snapshotDb.close(); }
     }
     const teamPrivate = teamPrivateThreads({ starters: join(root, "thread-starters.json"), groups: join(root, "groups.json"), bots: join(root, "bots.json") });
+    let privateWorkflowRuns: ReadonlySet<string> = new Set();
     const privacy = teamPrivate && { ...teamPrivate, attachments: teamPrivateAttachments(root, join(snapshot, SNAPSHOT_DATABASES["messages.db"]!), teamPrivate) };
     if (privacy) {
-      stripTeamPrivate({ messages: join(snapshot, SNAPSHOT_DATABASES["messages.db"]!), runtime: join(snapshot, SNAPSHOT_DATABASES["runtime.db"]!), workflows: join(snapshot, SNAPSHOT_DATABASES["workflows.db"]!) }, privacy);
+      privateWorkflowRuns = stripTeamPrivate({ messages: join(snapshot, SNAPSHOT_DATABASES["messages.db"]!), runtime: join(snapshot, SNAPSHOT_DATABASES["runtime.db"]!), workflows: join(snapshot, SNAPSHOT_DATABASES["workflows.db"]!) }, privacy);
       warnings.push(TEAM_PRIVATE_NOTE);
     }
     const walk = (directory: string, prefix = "", chain: string[] = [root]) => {
@@ -418,7 +419,7 @@ export async function createWorkspaceBackupSnapshot(dataDir: string, options: Cr
             const value = privateJson(source);
             if (path === "config.json") writeJson(destination, portableWorkspaceConfig(value));
             else if (path === "bots.json") writeJson(destination, withoutTeamPrivate(value, privacy!));
-            else if (path === "routines.json") writeJson(destination, routinesWithoutTeamPrivate(value, privateJson(join(root, "bots.json")), privacy!));
+            else if (path === "routines.json") writeJson(destination, routinesWithoutTeamPrivate(value, privateJson(join(root, "bots.json")), privacy!, privateWorkflowRuns));
             else {
               if (!record(value)) throw new Error("Invalid webhook definitions in workspace backup.");
               if (Array.isArray(value.webhooks)) for (const webhook of value.webhooks) if (record(webhook)) { delete webhook.secretHash; delete webhook.sealedSecret; }
