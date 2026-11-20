@@ -34,7 +34,7 @@ import { BOT_PROFILE_LIMITS } from "../shared/bot-profile.ts";
 import { CLOUD_COMPUTER_BUSY_ERROR } from "../shared/computer-contention.ts";
 import { failedTurnTool } from "../shared/failed-turn.ts";
 import { assistantTranscript, errorTranscript } from "../shared/client-cancel.ts"; import { PersonStops, stoppedTurnRow } from "./person-stops.ts"; import { LiveTurns } from "./live-turns.ts";
-import { phonePairingLink } from "../shared/pairing-link.ts"; import { personTagNames, withoutPersonTags } from "../shared/person-mention.ts";
+import { phonePairingLink, serverPairingLink } from "../shared/pairing-link.ts"; import { phoneRoutes, phoneRoutesFromEnv } from "./phone-routes.ts"; import { createCompanionEndpointRoutes } from "./routes/companion-endpoints.ts"; import { personTagNames, withoutPersonTags } from "../shared/person-mention.ts";
 import { canWorkOnCloud, type CloudEngine } from "../shared/cloud-computer.ts";
 import {
   approvalModeFor,
@@ -802,7 +802,7 @@ function savedCustomDomain(): string | null {
   try { return normalizeCustomDomain(cfg.customDomain); }
   catch { return null; }
 }
-function publicUrl(): string | null { return savedCustomDomain() ?? FALLBACK_PUBLIC_URL ?? tailnetShare.origin() ?? lanUrl(PORT); }
+const currentPhoneRoutes = () => phoneRoutes({ publicUrl: publicUrl(), tailnetOrigin: tailnetShare.origin(), customDomain: savedCustomDomain(), extra: phoneRoutesFromEnv(process.env) }); ROUTES.push(createCompanionEndpointRoutes({ snapshot: () => ({ serverName: cfg.computerName || environmentDescriptor({ environmentId: ENVIRONMENT_ID, ...TEAM_LABEL, desktopManaged: DESKTOP_MANAGED }).label, endpoints: currentPhoneRoutes().endpoints, version: serverVersion() }) })); function publicUrl(): string | null { return savedCustomDomain() ?? FALLBACK_PUBLIC_URL ?? tailnetShare.origin() ?? lanUrl(PORT); }
 function customDomainStatus() {
   return {
     customDomain: savedCustomDomain(), publicUrl: publicUrl(), fallbackUrl: FALLBACK_PUBLIC_URL,
@@ -12717,17 +12717,17 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         if ((error as { code?: unknown }).code === "cloud_personal") return json(res, 403, { error: (error as Error).message, code: "cloud_personal", ...userErrorFields(error) });
         throw error;
       }
-      const base = pairingLinkBase(publicUrl(), auth.kind === "session" ? requestOrigin(req) : null);
+      const routes = currentPhoneRoutes(), several = routes.endpoints.length >= 2; const base = (several ? routes.primary : null) ?? pairingLinkBase(publicUrl(), auth.kind === "session" ? requestOrigin(req) : null);
       const code = formatPairingCode(opened.code);
       // `inviteUrl` is the custom scheme the native companion scanners accept; they cannot take a typed code.
       const serverName = cfg.computerName || environmentDescriptor({ environmentId: ENVIRONMENT_ID, ...TEAM_LABEL, desktopManaged: DESKTOP_MANAGED }).label;
-      const invite = phoneRelay?.invite(opened.credential, serverName, base) ?? (base ? phonePairingLink({ address: base, token: opened.credential, name: serverName }) : null);
+      const invite = phoneRelay?.invite(opened.credential, serverName, base) ?? (base ? phonePairingLink({ address: base, token: opened.credential, name: serverName, ...(several ? { endpoints: routes.endpoints } : {}) }) : null);
       return json(res, 200, {
         id: opened.id,
         code,
         credential: opened.credential,
         expiresAt: opened.expiresAt,
-        url: base ? `${base}/pair#code=${code}` : null,
+        url: base ? serverPairingLink({ base, code, ...(several ? { endpoints: routes.endpoints } : {}) }) : null,
         inviteUrl: invite,
         serverName, ...(phoneRelay ? { relay: phoneRelay.status() } : {}), phoneSecrets: phoneSecrets.ready,
         hint: base
