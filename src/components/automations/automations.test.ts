@@ -206,6 +206,7 @@ describe("a routine's panel", () => {
     it("opens the run view from a run line of a workflow routine", () => {
       const container = panel();
       const line = [...container.querySelectorAll("section ul button")].find((candidate) => candidate.closest("section")?.querySelector("h3")?.textContent === "Recent runs")!;
+      if (!line) throw new Error(container.innerHTML);
       expect(line.hasAttribute("disabled")).toBe(false);
       flushSync(() => (line as HTMLButtonElement).click());
       expect(fixture.dispatch).toHaveBeenCalledWith({ type: "showRoutines", view: "workflows", workflowId: "wf1", workflowRunId: "run-1" });
