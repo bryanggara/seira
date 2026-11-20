@@ -15,7 +15,7 @@ function assignment(over: Partial<Assignment> & { botId: string; brief: string; 
   return {
     id: over.id ?? `a${serial}`, rootId: over.rootId ?? over.id ?? `a${serial}`, depth: over.parentId ? 1 : 0,
     origin: { kind: "person", source: "chat" },
-    requester: over.parentId ? { kind: "bot_turn", botId: requesterBot ?? "lumi", threadId: THREAD } : { kind: "person" },
+    requester: over.parentId ? { kind: "bot_turn", botId: requesterBot ?? "lumi", threadId: THREAD } : { kind: "person", botId, threadId: thread ?? THREAD },
     assignee: { botId, destination: { kind: group ? "room_thread" : "work_thread", threadId: thread ?? (over.parentId ? `t-${botId}` : THREAD), ...(group ? { groupId: group } : {}) } },
     mode: "work", reply: "resume", brief, status: "completed", level: "ask", levelSource: "own", executions: 1, restarts: 0,
     createdAt: 1000, lastActivityAt: 1000, result: "", rework: false, version: 1, ...rest,
@@ -23,13 +23,13 @@ function assignment(over: Partial<Assignment> & { botId: string; brief: string; 
 }
 
 const counter = () => { let n = 0; return (prefix: "s" | "c") => `${prefix}${++n}`; };
-const send = (at: number, name = "TELEGRAM_SEND_MESSAGE", over: Partial<DraftTurnRow["tool"]> = {}): DraftTurnRow => ({ at, role: "bot", kind: "activity", tool: { name, ok: true, ...over } });
+const send = (at: number, name = "TELEGRAM_SEND_MESSAGE", over: Partial<DraftTurnRow["tool"]> = {}, botId?: string): DraftTurnRow => ({ at, role: "bot", kind: "activity", ...(botId ? { from: { botId } } : {}), tool: { name, ok: true, ...over } });
 
 function source(over: Partial<DraftSource> & { turns?: Record<string, DraftTurnRow[] | null>; refuse?: string[]; hidden?: string[] } = {}): DraftSource {
   const { turns = {}, refuse = [], hidden = [], ...rest } = over;
   return {
     threadId: THREAD, room: false, request: { at: 900, text: "Summarize today's orders and send them to the store team" }, reply: { at: 5000, botId: "lumi" }, rows: [],
-    turnRows: (thread, from, to) => { const rows = turns[thread]; return rows === undefined ? [] : rows === null ? null : rows.filter((row) => row.at >= from && row.at <= to); },
+    turnRows: (thread, from, to, botId) => { const rows = turns[thread]; return rows === undefined ? [] : rows === null ? null : rows.filter((row) => row.at >= from && row.at <= to && (botId === undefined || row.from?.botId === botId)); },
     threadVisible: (thread) => !hidden.includes(thread),
     usable: (botId) => botId in names && !refuse.includes(botId),
     ...rest,
@@ -183,5 +183,67 @@ describe("draftFromThread", () => {
     const checked = validateWorkflowInput(draft, facts);
     expect(checked.ok).toBe(true);
     expect(runnableProblem(draft, facts)).toBeNull();
+  });
+
+  it("names the draft and its first step by the words of a request that carries attachment or paste tags", () => {
+    const tagged = '<attached-image path="/data/attachments/x.png" name="x.png" />\nSend the weekly report';
+    const { draft } = draftFromThread(source({ request: { at: 900, text: tagged } }), counter());
+    expect(draft.name).toBe("Send the weekly report");
+    expect(shape(draft.steps)).toEqual(["bot:lumi:Send the weekly report"]);
+    const pasted = draftFromThread(source({ request: { at: 900, text: '<pasted-text index="1">\nRename the files\n</pasted-text>' } }), counter());
+    expect(pasted.draft.name).toBe("Rename the files");
+    expect(JSON.stringify(pasted.draft)).not.toContain("pasted-text");
+    const only = draftFromThread(source({ request: { at: 900, text: '<attached-image path="/data/attachments/x.png" name="x.png" />' } }), counter());
+    expect(only.draft.name).toBe("");
+    expect(only.draft.steps).toEqual([]);
+  });
+
+  it("does not count a same-bot hand-off into a hidden conversation, which never becomes a step", () => {
+    const root = assignment({ id: "root", botId: "lumi", brief: "r" });
+    const own = assignment({ id: "h1", rootId: "root", parentId: "root", botId: "lumi", brief: "Own work", createdAt: 1100, thread: "t-hidden" });
+    const { omitted } = draftFromThread(source({ rows: [root, own], hidden: ["t-hidden"] }), counter());
+    expect(omitted).toBe(0);
+  });
+
+  it("clips the name by code point, so an emoji at the cut stays whole", () => {
+    const text = `${"a".repeat(78)}\u{1F600}${"b".repeat(5)}`;
+    const { draft } = draftFromThread(source({ request: { at: 900, text } }), counter());
+    expect(draft.name).toBe(`${"a".repeat(78)}\u{1F600}…`);
+    expect(draft.name).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
+  });
+
+  it("reads a hand-off into a room by the bot that took it", () => {
+    const root = assignment({ id: "root", botId: "lumi", brief: "r" });
+    const scout = assignment({ id: "h1", rootId: "root", parentId: "root", botId: "scout", brief: "Pull", createdAt: 1100, startedAt: 1200, finishedAt: 3000, thread: "t-room", group: "g1" });
+    const other = draftFromThread(source({ rows: [root, scout], turns: { "t-room": [send(1500, "TELEGRAM_SEND_MESSAGE", {}, "ava")] } }), counter());
+    expect(other.draft.steps.map((step) => step.kind)).toEqual(["bot", "bot"]);
+    const own = draftFromThread(source({ rows: [root, scout], turns: { "t-room": [send(1500, "TELEGRAM_SEND_MESSAGE", {}, "scout")] } }), counter());
+    expect(own.draft.steps.map((step) => step.kind)).toEqual(["bot", "bot", "post"]);
+  });
+
+  it("does not read the request's own conversation again for a hand-off that lands in it", () => {
+    const root = assignment({ id: "root", botId: "lumi", brief: "r" });
+    const scout = assignment({ id: "h1", rootId: "root", parentId: "root", botId: "scout", brief: "Pull", createdAt: 1100, startedAt: 1200, finishedAt: 3000, thread: THREAD });
+    const reads: number[] = [];
+    const base = source({ rows: [root, scout] });
+    draftFromThread({ ...base, turnRows: (thread, from, to, botId) => { reads.push(from); return base.turnRows(thread, from, to, botId); } }, counter());
+    expect(reads).toEqual([900]);
+  });
+
+  it("makes one post step for a send that two overlapping hand-offs both read", () => {
+    const root = assignment({ id: "root", botId: "lumi", brief: "r" });
+    const first = assignment({ id: "h1", rootId: "root", parentId: "root", botId: "scout", brief: "Pull", createdAt: 1100, startedAt: 1200, finishedAt: 4000, thread: "t-shared" });
+    const second = assignment({ id: "h2", rootId: "root", parentId: "root", botId: "ledger", brief: "Total", createdAt: 3000, startedAt: 3000, finishedAt: 4000, thread: "t-shared" });
+    const { draft } = draftFromThread(source({ rows: [root, first, second], turns: { "t-shared": [send(3500)] } }), counter());
+    expect(draft.steps.map((step) => step.kind)).toEqual(["bot", "bot", "bot", "post"]);
+  });
+
+  it("drops a post that falls after the 50th step and counts it as trimmed", () => {
+    const root = assignment({ id: "root", botId: "lumi", brief: "r" });
+    const rows = [root, ...Array.from({ length: 49 }, (_, i) => assignment({ id: `h${i}`, rootId: "root", parentId: "root", botId: i % 2 ? "scout" : "ava", brief: `Work ${i}`, createdAt: 1100 + i }))];
+    const { draft, trimmed } = draftFromThread(source({ rows, turns: { [THREAD]: [send(4000)] } }), counter());
+    expect(draft.steps).toHaveLength(WORKFLOW_LIMITS.steps);
+    expect(draft.steps.every((step) => step.kind === "bot")).toBe(true);
+    expect(trimmed).toBe(1);
   });
 });

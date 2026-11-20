@@ -24,7 +24,7 @@ const root = (botId: string, thread: string, brief: string, createdAt: number, e
   brief, status: "completed", createdAt, ...extra,
 }) as unknown as Assignment;
 
-function fixture(over: { messages?: Record<string, Message[]>; rows?: Assignment[]; levels?: Record<string, BotAccessLevel>; off?: boolean; viewer?: Viewer; gone?: string[] } = {}) {
+function fixture(over: { messages?: Record<string, Message[]>; rows?: Assignment[]; levels?: Record<string, BotAccessLevel>; off?: boolean; viewer?: Viewer; gone?: string[]; reads?: string[] } = {}) {
   const messages = over.messages ?? {
     "t-lumi": [
       msg({ id: "u1", at: 1000, role: "user", text: "Summarize today's orders" }),
@@ -38,7 +38,7 @@ function fixture(over: { messages?: Record<string, Message[]>; rows?: Assignment
       botByThread: (thread: string) => bots.find((b) => b.threadId === thread) ?? null,
       groupByThread: (thread: string) => groups.find((g) => g.threadId === thread),
       messagesFor: (thread: string) => messages[thread] ?? [],
-      activePath: (thread: string) => messages[thread] ?? [],
+      activePath: (thread: string) => { over.reads?.push(thread); return messages[thread] ?? []; },
     } as never,
     coordinator: { job: () => ({ scopes: [], rows: over.rows ?? [] }) },
     visible: () => visible,
@@ -128,5 +128,77 @@ describe("workflow draft route", () => {
     const call = fixture();
     expect((await call("GET", "/api/threads/t-lumi/messages/b1")).out).toBe(PASS);
     expect((await call("GET", "/api/workflows")).out).toBe(PASS);
+  });
+
+  const child = (botId: string, thread: string, brief: string, createdAt: number, id = `h-${botId}-${createdAt}`) =>
+    ({ ...root(botId, thread, brief, createdAt), id, parentId: "a-lumi-1100", rootId: "a-lumi-1100", requester: { kind: "bot_turn", botId: "lumi", threadId: "t-lumi" } }) as Assignment;
+  const lumiRoot = root("lumi", "t-lumi", "Summarize today's orders", 1100);
+
+  it("names the draft by the words of a request that carries an attachment tag, and keeps the tag out of the first step", async () => {
+    const tag = '<attached-image path="/data/attachments/x.png" name="x.png" />';
+    const messages = { "t-lumi": [msg({ id: "u1", at: 1000, role: "user", text: `${tag}\nSend the weekly report` }), msg({ id: "b1", at: 2000, turnTerminal: true, requestMessageId: "u1" })] };
+    const { body } = await fixture({ messages })("GET", draftPath("t-lumi", "b1"));
+    expect(body.draft.name).toBe("Send the weekly report");
+    expect(JSON.stringify(body)).not.toContain("attached-image");
+  });
+
+  it("falls back to the root brief when the request holds only an image or only pasted tags", async () => {
+    for (const text of ['<attached-image path="/data/attachments/x.png" name="x.png" />', '<pasted-text index="1">\n</pasted-text>']) {
+      const messages = { "t-lumi": [msg({ id: "u1", at: 1000, role: "user", text }), msg({ id: "b1", at: 2000, turnTerminal: true, requestMessageId: "u1" })] };
+      const { status, body } = await fixture({ messages, rows: [lumiRoot] })("GET", draftPath("t-lumi", "b1"));
+      expect(status).toBe(200);
+      expect(body.draft.name).toBe("Summarize today's orders");
+      expect(body.draft.steps[0].instruction).toBe("Summarize today's orders");
+    }
+  });
+
+  it("skips a steer, an aside and a hand-off post when it looks for a room's request", async () => {
+    for (const extra of [{ steered: true }, { aside: true }, { threadPost: { deliveryId: "d", fromBotId: "scout", fromThreadId: "t-scout" } }]) {
+      const messages = { "t-room": [
+        msg({ id: "u1", at: 1000, role: "user", text: "Plan the launch" }),
+        msg({ id: "u2", at: 1500, role: "user", text: "Also mention the date", ...extra }),
+        msg({ id: "b1", at: 3000, turnTerminal: true, from: { botId: "scout", name: "Scout", color: "" } }),
+      ] };
+      const rows = [root("lumi", "t-room", "Plan the launch", 1100), root("scout", "t-room", "Mentioned by Lumi (hop 1): Pull numbers", 2000)];
+      const { body } = await fixture({ messages, rows })("GET", draftPath("t-room", "b1"));
+      expect(body.draft.steps.map((s: any) => [s.botId, s.instruction])).toEqual([["lumi", "Plan the launch"], ["scout", "Pull numbers"]]);
+    }
+  });
+
+  it("finds the request of a 1:1 reply without a request id and skips a steer line", async () => {
+    const messages = { "t-lumi": [
+      msg({ id: "u1", at: 1000, role: "user", text: "Summarize today's orders" }),
+      msg({ id: "u2", at: 1500, role: "user", text: "Also the refunds", steered: true }),
+      msg({ id: "b1", at: 2000, turnTerminal: true }),
+    ] };
+    const { status, body } = await fixture({ messages, rows: [lumiRoot, child("scout", "t-scout", "Pull orders", 1200)] })("GET", draftPath("t-lumi", "b1"));
+    expect(status).toBe(200);
+    expect(body.draft.name).toBe("Summarize today's orders");
+    expect(body.draft.steps.map((s: any) => s.botId)).toEqual(["lumi", "scout"]);
+  });
+
+  it("leaves out a hand-off to a bot the person may only view, and counts it", async () => {
+    const { body } = await fixture({ rows: [lumiRoot, child("scout", "t-scout", "SCOUT-WORK", 1200)], levels: { scout: "view" } })("GET", draftPath("t-lumi", "b1"));
+    expect(body.draft.steps.map((s: any) => s.botId)).toEqual(["lumi"]);
+    expect(body.omitted).toBe(1);
+  });
+
+  it("draws a post from the messages of the hand-off's conversation", async () => {
+    const messages = {
+      "t-lumi": [msg({ id: "u1", at: 1000, role: "user", text: "Summarize today's orders" }), msg({ id: "b1", at: 5000, turnTerminal: true, requestMessageId: "u1" })],
+      "t-scout": [msg({ id: "m1", at: 1500, kind: "activity", from: { botId: "scout", name: "Scout", color: "" }, tool: { name: "TELEGRAM_SEND_MESSAGE", ok: true } } as never)],
+    };
+    const { body } = await fixture({ messages, rows: [lumiRoot, child("scout", "t-scout", "Pull orders", 1200)] })("GET", draftPath("t-lumi", "b1"));
+    expect(body.draft.steps.map((s: any) => s.kind)).toEqual(["bot", "bot", "post"]);
+  });
+
+  it("does not read a deleted conversation, and reads each conversation once", async () => {
+    const reads: string[] = [];
+    const rows = [lumiRoot, child("scout", "t-deleted", "Pull orders", 1200), child("scout", "t-scout", "Pull more", 1300), child("scout", "t-scout", "Pull last", 1400)];
+    const { status, body } = await fixture({ rows, viewer: { kind: "all" }, reads })("GET", draftPath("t-lumi", "b1"));
+    expect(status).toBe(200);
+    expect(body.draft.steps).toHaveLength(4);
+    expect(reads).not.toContain("t-deleted");
+    expect(reads.filter((thread) => thread === "t-scout")).toHaveLength(1);
   });
 });

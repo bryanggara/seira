@@ -38,11 +38,18 @@ export function windowRoots(rows: readonly Assignment[], source: Pick<DraftSourc
 
 const clip = (text: string, limit: number): string => (text.length > limit ? `${text.slice(0, limit - 1)}…` : text);
 
+const ATTACHMENT_TAG = /<attached-(?:image|file)\b[^>]*\/>/gi;
+const PASTE_TAG = /<\/?pasted-text\b[^>]*>/gi;
+
+/** A request without the tags the composer adds for attachments and pasted text; the words stay. */
+export const plainRequest = (text: string): string => text.replace(ATTACHMENT_TAG, " ").replace(PASTE_TAG, " ").trim();
+
 export function workflowName(requestText: string): string {
-  const line = requestText.split(/\r?\n/).map((part) => part.replace(/\s+/g, " ").trim()).find(Boolean) ?? "";
-  if (line.length <= WORKFLOW_LIMITS.name) return line;
-  const room = line.slice(0, WORKFLOW_LIMITS.name - 1);
-  const space = line[WORKFLOW_LIMITS.name - 1] === " " ? room.length : room.lastIndexOf(" ");
+  const line = plainRequest(requestText).split(/\r?\n/).map((part) => part.replace(/\s+/g, " ").trim()).find(Boolean) ?? "";
+  const chars = Array.from(line);
+  if (chars.length <= WORKFLOW_LIMITS.name) return line;
+  const room = chars.slice(0, WORKFLOW_LIMITS.name - 1).join("");
+  const space = chars[WORKFLOW_LIMITS.name - 1] === " " ? room.length : room.lastIndexOf(" ");
   return `${(space > 0 ? room.slice(0, space) : room).trimEnd()}…`;
 }
 
@@ -55,15 +62,15 @@ export function draftFromThread(source: DraftSource, newId: (prefix: "s" | "c") 
   const { threadId, room, request, reply } = source;
   const roots = windowRoots(source.rows, source);
   let omitted = 0;
-  const openable = (row: Assignment): boolean => {
+  const openable = (row: Assignment, becomesStep = true): boolean => {
     if (source.threadVisible(row.assignee.destination.threadId)) return true;
-    omitted += 1;
+    if (becomesStep) omitted += 1;
     return false;
   };
   const rootIds = new Set(roots.map((root) => root.id));
   const handOffs = source.rows.filter((row) => row.parentId !== undefined && rootIds.has(row.rootId)
-    && row.status !== "cancelled" && row.outcome !== "refused" && row.outcome !== "duplicate" && openable(row));
-  const events: Event[] = [{ at: Number.NEGATIVE_INFINITY, step: { kind: "bot", botId: roots[0]?.assignee.botId ?? reply.botId, instruction: request.text } }];
+    && row.status !== "cancelled" && row.outcome !== "refused" && row.outcome !== "duplicate" && openable(row, row.assignee.botId !== row.requester.botId));
+  const events: Event[] = [{ at: Number.NEGATIVE_INFINITY, step: { kind: "bot", botId: roots[0]?.assignee.botId ?? reply.botId, instruction: plainRequest(request.text) } }];
 
   for (const row of handOffs) {
     if (row.assignee.botId !== row.requester.botId) events.push({ at: row.createdAt, step: { kind: "bot", botId: row.assignee.botId, instruction: row.brief } });

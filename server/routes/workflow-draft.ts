@@ -3,7 +3,7 @@ import type { Coordinator } from "../coordinator.ts";
 import type { WorkflowHost } from "../host/workflow-host.ts";
 import type { RequestAuth } from "../request-auth.ts";
 import type { Store } from "../store.ts";
-import { draftFromThread, windowRoots, withoutMention, type DraftTurnRow } from "../workflows/draft-from-thread.ts";
+import { draftFromThread, plainRequest, windowRoots, withoutMention, type DraftTurnRow } from "../workflows/draft-from-thread.ts";
 import { PASS, type RouteHandler } from "./table.ts";
 
 export interface WorkflowDraftRouteDeps {
@@ -35,20 +35,29 @@ export function createWorkflowDraftRoutes(deps: WorkflowDraftRouteDeps): RouteHa
       return json(res, 409, { error: "This answer isn't finished.", code: "workflow_draw_unfinished" });
     }
 
-    const line = deps.store.activePath(threadId);
+    const paths = new Map<string, ReturnType<typeof deps.store.activePath>>();
+    const pathOf = (id: string) => {
+      let path = paths.get(id);
+      if (!path) {
+        path = !deps.store.botByThread(id) && !deps.store.groupByThread(id) ? [] : deps.store.activePath(id);
+        paths.set(id, path);
+      }
+      return path;
+    };
+    const line = pathOf(threadId);
     const upto = line.findIndex((message) => message.id === reply.id);
     const before = (upto >= 0 ? line.slice(0, upto) : line.filter((message) => message.at < reply.at)).reverse();
     const asked = bot && reply.requestMessageId
       ? deps.store.messagesFor(threadId).find((message) => message.id === reply.requestMessageId && message.role === "user")
       : undefined;
-    const requestMessage = asked ?? before.find((message) => message.role === "user" && message.kind === "text" && (bot || message.text?.trim()));
+    const requestMessage = asked ?? before.find((message) => message.role === "user" && message.kind === "text" && !message.steered && !message.aside && !message.threadPost && (bot || message.text?.trim()));
     if (!requestMessage) return json(res, 409, { error: "This answer has no request to draw.", code: "workflow_draw_no_request" });
 
-    const request = { at: requestMessage.at, text: requestMessage.text?.trim() ?? "" };
+    const request = { at: requestMessage.at, text: plainRequest(requestMessage.text ?? "") };
     const { rows } = deps.coordinator.job(threadId, request.at, bot?.id);
     const frame = { threadId, room: !bot, request, reply: { at: reply.at, botId: replyBotId } };
     const roots = windowRoots(rows, frame);
-    request.text ||= withoutMention(roots[0]?.brief ?? "").trim();
+    request.text ||= plainRequest(withoutMention(roots[0]?.brief ?? ""));
     if (!request.text) return json(res, 409, { error: "This answer has no request to draw.", code: "workflow_draw_no_request" });
 
     const requestBot = roots[0]?.assignee.botId ?? replyBotId;
@@ -60,7 +69,7 @@ export function createWorkflowDraftRoutes(deps: WorkflowDraftRouteDeps): RouteHa
       ...frame, rows,
       turnRows: (target, from, to, botId) => {
         if (visible.hides(target)) return null;
-        return deps.store.activePath(target)
+        return pathOf(target)
           .filter((message) => message.at >= from && message.at <= to && (botId === undefined || message.from?.botId === botId))
           .map((message): DraftTurnRow => ({ at: message.at, role: message.role, kind: message.kind, ...(message.from ? { from: { botId: message.from.botId } } : {}), ...(message.tool ? { tool: { name: message.tool.name, input: message.tool.input, ok: message.tool.ok } } : {}) }));
       },
