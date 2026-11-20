@@ -43,7 +43,7 @@ function run(runId: string, workflowId: string, over: Partial<WorkflowRun> = {})
   };
 }
 
-function fixture(over: { workflows?: Workflow[]; runs?: WorkflowRun[]; routines?: Array<Partial<Routine>>; viewer?: Viewer; again?: WorkflowHost["runAgain"]; edits?: WorkflowRoutineEdits; rewrite?: (routine: Routine) => void; levels?: Record<string, BotAccessLevel>; own?: string[] } = {}) {
+function fixture(over: { workflows?: Workflow[]; runs?: WorkflowRun[]; routines?: Array<Partial<Routine>>; viewer?: Viewer; again?: WorkflowHost["runAgain"]; edits?: WorkflowRoutineEdits; rewrite?: (routine: Routine) => void; creators?: Record<string, string>; levels?: Record<string, BotAccessLevel>; own?: string[] } = {}) {
   const flows = new Map((over.workflows ?? [workflow("open", "pub", "pub"), workflow("secret", "pub", "hr")]).map((flow) => [flow.id, flow]));
   const runs = over.runs ?? [run("run-open", "open"), run("run-secret", "secret", { botIds: ["pub", "hr"] })];
   const calls: string[] = [];
@@ -51,6 +51,7 @@ function fixture(over: { workflows?: Workflow[]; runs?: WorkflowRun[]; routines?
   const host = {
     list: () => [...flows.values()],
     get: (id: string) => flows.get(id) ?? null,
+    creator: (id: string) => over.creators?.[id],
     create: (input: WorkflowInput) => { const made = { ...input, id: "new", createdAt: 9, updatedAt: 9 } as Workflow; flows.set("new", made); return made; },
     update: (id: string, input: WorkflowInput) => { for (const linked of routines) if (linked.workflowId === id) over.rewrite?.(linked); const next = { ...flows.get(id)!, ...input, updatedAt: 10 } as Workflow; flows.set(id, next); return next; },
     remove: (id: string) => { for (const linked of routines) if (linked.workflowId === id) over.rewrite?.(linked); calls.push(`remove ${id}`); return flows.delete(id); },
@@ -60,7 +61,7 @@ function fixture(over: { workflows?: Workflow[]; runs?: WorkflowRun[]; routines?
   } as unknown as WorkflowHost;
   const visible = new VisibleSet(bots, [], over.viewer ?? BOB);
   const routes = createWorkflowRoutes({ visible: () => visible, botName: (id) => names[id], workflows: () => host, routines: () => ({ listRoutines: () => routines }),
-    routineEdits: over.edits ?? { refusal: () => null, edit: (_auth, _routines, change) => change() },
+    routineEdits: over.edits ?? { writer: () => "me", refusal: () => null, edit: (_auth, _routines, change) => change() },
     botsRefusal: (_auth, ids, needed) => (ids.some((id) => !atLeast(over.levels?.[id] ?? "edit", needed)) ? "You can't change this bot." : null),
     routineNeeds: (_auth, id) => (id === undefined || over.own?.includes(id) ? "chat" : "edit") });
   async function call(method: string, path: string, body?: unknown) {
@@ -147,10 +148,25 @@ describe("workflow routes", () => {
       expect((await call("DELETE", "/api/workflows/open")).status).toBe(403);
     });
 
-    it("lets a person who edits every bot change it, and who wrote the routine chat", async () => {
+    it("lets a person who edits every bot change it", async () => {
       expect((await fixture({ levels: { pub: "edit" } }).call("PATCH", "/api/workflows/open", input("pub"))).status).toBe(200);
-      const own = fixture({ levels: { pub: "chat" }, own: ["r1"] });
-      expect((await own.call("PATCH", "/api/workflows/open", input("pub"))).status).toBe(200);
+    });
+
+    it("a chat-level member cannot change a workflow they did not create, even when only their routine links it", async () => {
+      for (const creators of [{}, { open: "someone-else" }]) {
+        const { call, calls } = fixture({ levels: { pub: "chat" }, own: ["r1"], creators });
+        expect((await call("PATCH", "/api/workflows/open", input("pub"))).status).toBe(403);
+        expect((await call("DELETE", "/api/workflows/open")).status).toBe(403);
+        expect(calls).toEqual([]);
+      }
+    });
+
+    it("the creator with chat level can change their own workflow that only their routines link", async () => {
+      const mine = fixture({ levels: { pub: "chat" }, own: ["r1"], creators: { open: "me" } });
+      expect((await mine.call("PATCH", "/api/workflows/open", input("pub"))).status).toBe(200);
+      expect((await mine.call("DELETE", "/api/workflows/open")).status).toBe(200);
+      const shared = fixture({ levels: { pub: "chat" }, creators: { open: "me" } });
+      expect((await shared.call("PATCH", "/api/workflows/open", input("pub"))).status).toBe(403);
     });
 
     it("needs chat, not edit, to run a failed step again", async () => {
@@ -242,6 +258,7 @@ describe("workflow routes", () => {
   it("refuses to change a workflow that runs a routine the person can't change", async () => {
     const asked: string[] = [];
     const edits: WorkflowRoutineEdits = {
+      writer: () => "me",
       refusal: (_auth, routine) => { asked.push(routine.id); return routine.id === "mine-not" ? "This workflow runs a routine you can't change." : null; },
       edit: (_auth, _routines, change) => change(),
     };

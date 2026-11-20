@@ -47,7 +47,10 @@ export interface WorkflowHostDeps {
 export interface WorkflowHost {
   list(): Workflow[];
   get(id: string): Workflow | null;
-  create(input: WorkflowInput): Workflow;
+  /** `creator` is kept apart from the workflow, so no frame or answer carries it. */
+  create(input: WorkflowInput, creator?: string): Workflow;
+  /** Who created the workflow; undefined for one saved before this was kept. */
+  creator(id: string): string | undefined;
   update(id: string, input: WorkflowInput): Workflow | null;
   remove(id: string): boolean;
   runs(workflowId: string, limit: number): WorkflowRun[];
@@ -153,10 +156,12 @@ export function createWorkflowHost(deps: WorkflowHostDeps): WorkflowHost {
   return {
     list: () => store.listWorkflows(),
     get: (id) => store.workflow(id),
-    create(input) {
+    creator: (id) => store.creator(id),
+    create(input, creator) {
       const at = now();
       const workflow: Workflow = { id: randomUUID(), name: input.name, steps: input.steps, connections: input.connections, createdAt: at, updatedAt: at };
       store.putWorkflow(workflow);
+      if (creator) store.putCreator(workflow.id, creator);
       deps.emit({ kind: "workflow", workflow });
       return workflow;
     },

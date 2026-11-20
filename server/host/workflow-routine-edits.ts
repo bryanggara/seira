@@ -6,6 +6,8 @@ export const WORKFLOW_ROUTINE_REFUSAL = "This workflow runs a routine you can't 
 export interface WorkflowRoutineEdits {
   /** Why this person may not change this routine; null when they may. */
   refusal(auth: RequestAuth, routine: Routine): string | null;
+  /** Who a save by this person is recorded under. */
+  writer(auth: RequestAuth): string;
   /** Runs a workflow change as this person's rewrite of these routines, then settles who wrote them. */
   edit<T>(auth: RequestAuth, routines: readonly Routine[], change: () => T): T;
 }
@@ -23,6 +25,7 @@ export interface WorkflowRoutineEditsDeps {
 
 export function createWorkflowRoutineEdits(deps: WorkflowRoutineEditsDeps): WorkflowRoutineEdits {
   return {
+    writer: (auth) => deps.writer(auth),
     refusal: (auth, routine) => (deps.refusal(auth, routine) === null ? null : WORKFLOW_ROUTINE_REFUSAL),
     edit(auth, routines, change) {
       const writer = deps.writer(auth);

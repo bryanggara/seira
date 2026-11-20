@@ -72,6 +72,18 @@ function rig(over: Partial<WorkflowHostDeps> = {}) {
 }
 
 describe("the workflow host's workflows", () => {
+  it("keeps who created a workflow apart from the workflow, and forgets it on delete", () => {
+    const r = rig();
+    const made = r.host.create(input(), "p_ada");
+    const old = r.host.create(input());
+    expect(r.host.creator(made.id)).toBe("p_ada");
+    expect(r.host.creator(old.id)).toBeUndefined();
+    expect(JSON.stringify(r.host.get(made.id))).not.toContain("p_ada");
+    expect(JSON.stringify(r.frames)).not.toContain("p_ada");
+    r.host.remove(made.id);
+    expect(r.host.creator(made.id)).toBeUndefined();
+  });
+
   it("creates, lists, updates and deletes a workflow, and tells the screen each time", () => {
     const r = rig();
     const made = r.host.create(input());

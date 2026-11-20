@@ -10,6 +10,10 @@ CREATE TABLE IF NOT EXISTS workflows (
   json TEXT NOT NULL,
   updated_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS workflow_creators (
+  workflow_id TEXT PRIMARY KEY,
+  creator TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS workflow_runs (
   run_id TEXT PRIMARY KEY,
   workflow_id TEXT NOT NULL,
@@ -51,6 +55,9 @@ export function openWorkflowStore(dataDir: string) {
     getWorkflow: db.prepare("SELECT json FROM workflows WHERE id = ?"),
     putWorkflow: db.prepare("INSERT INTO workflows (id, json, updated_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET json = excluded.json, updated_at = excluded.updated_at"),
     deleteWorkflow: db.prepare("DELETE FROM workflows WHERE id = ?"),
+    getCreator: db.prepare("SELECT creator FROM workflow_creators WHERE workflow_id = ?"),
+    putCreator: db.prepare("INSERT INTO workflow_creators (workflow_id, creator) VALUES (?, ?) ON CONFLICT(workflow_id) DO UPDATE SET creator = excluded.creator"),
+    deleteCreator: db.prepare("DELETE FROM workflow_creators WHERE workflow_id = ?"),
     getRun: db.prepare("SELECT json FROM workflow_runs WHERE run_id = ?"),
     runsOf: db.prepare("SELECT json FROM workflow_runs WHERE workflow_id = ? ORDER BY created_at DESC, run_id LIMIT ?"),
     activeRuns: db.prepare("SELECT json FROM workflow_runs WHERE status = 'active' ORDER BY created_at, run_id"),
@@ -97,7 +104,15 @@ export function openWorkflowStore(dataDir: string) {
     putWorkflow(workflow: Workflow): void {
       rows.putWorkflow.run(workflow.id, JSON.stringify(workflow), workflow.updatedAt);
     },
+    creator(id: string): string | undefined {
+      const row = rows.getCreator.get(id) as { creator: string } | undefined;
+      return row?.creator;
+    },
+    putCreator(id: string, creator: string): void {
+      rows.putCreator.run(id, creator);
+    },
     deleteWorkflow(id: string): boolean {
+      rows.deleteCreator.run(id);
       return Number(rows.deleteWorkflow.run(id).changes) > 0;
     },
     run(runId: string): WorkflowRun | null {

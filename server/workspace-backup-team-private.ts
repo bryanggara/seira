@@ -211,6 +211,7 @@ function stripWorkflows(db: DatabaseSync, privacy: TeamPrivacy): string[] {
     deleteWhereIn(db, "workflow_runs", "run_id", privateRuns);
   }
   deleteWhereIn(db, "workflows", "id", privateWorkflows);
+  if (hasTable(db, "workflow_creators")) db.exec("DELETE FROM workflow_creators");
   return removedRuns;
 }
 

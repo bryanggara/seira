@@ -73,13 +73,14 @@ export function createWorkflowRoutes(deps: WorkflowRoutesDeps): RouteHandler {
     const linkedTo = (workflowId: string) => deps.routines()?.listRoutines().filter((routine) => routine.workflowId === workflowId) ?? [];
     const refused = (linked: readonly Routine[]) => linked.some((routine) => deps.routineEdits.refusal(auth, routine) !== null);
     const shownName = (id: string) => (visible.bot(id) ? deps.botName(id) : undefined);
-    const needsFor = (linked: readonly Routine[]) => (linked.length > 0 && linked.every((routine) => deps.routineNeeds(auth, routine.id) === "chat") ? "chat" : "edit");
+    const needsFor = (workflow: Workflow, linked: readonly Routine[]) =>
+      host.creator(workflow.id) === deps.routineEdits.writer(auth) && linked.every((routine) => deps.routineNeeds(auth, routine.id) === "chat") ? "chat" : "edit";
     const routineBots = (linked: readonly Routine[]) => linked.flatMap((routine) => [routine.botId, ...(routine.workflowBotIds ?? [])]);
     const save = (body: unknown, current: Workflow | null, write: (input: WorkflowInput) => Workflow | null, status: number, linked: readonly Routine[] = []) => {
       const checked = validateWorkflowInput(body, { botName: shownName });
       if (!checked.ok) return json(res, 400, problemBody(checked.problems));
       if (hiddenBot(checked.value.steps, visible, deps.botName)) return json(res, 404, { error: "no such bot" });
-      const needed = current ? needsFor(linked) : "chat";
+      const needed = current ? needsFor(current, linked) : "chat";
       const short = deps.botsRefusal(auth, [...workflowBotIds(current?.steps), ...workflowBotIds(checked.value.steps), ...routineBots(linked)], needed);
       if (short) return json(res, 403, { error: short });
       if (current && checked.value.ifUpdatedAt !== undefined && checked.value.ifUpdatedAt < current.updatedAt) {
@@ -92,7 +93,7 @@ export function createWorkflowRoutes(deps: WorkflowRoutesDeps): RouteHandler {
     if (path === "/api/workflows") {
       if (method === "GET") return json(res, 200, { workflows: host.list().filter((workflow) => workflowVisible(workflow, visible)) });
       if (method !== "POST") return json(res, 405, { error: "method not allowed" });
-      return save(await readBody(req), null, (input) => host.create(input), 201);
+      return save(await readBody(req), null, (input) => host.create(input, deps.routineEdits.writer(auth)), 201);
     }
 
     if (oneMatch) {
@@ -103,7 +104,7 @@ export function createWorkflowRoutes(deps: WorkflowRoutesDeps): RouteHandler {
       const linked = linkedTo(workflow.id);
       if (refused(linked)) return json(res, 403, { error: WORKFLOW_ROUTINE_REFUSAL });
       if (method === "DELETE") {
-        const short = deps.botsRefusal(auth, [...workflowBotIds(workflow.steps), ...routineBots(linked)], needsFor(linked));
+        const short = deps.botsRefusal(auth, [...workflowBotIds(workflow.steps), ...routineBots(linked)], needsFor(workflow, linked));
         if (short) return json(res, 403, { error: short });
       }
       if (method === "DELETE") return deps.routineEdits.edit(auth, linked, () => host.remove(workflow.id)) ? json(res, 200, { ok: true }) : json(res, 404, { error: "no such workflow" });
