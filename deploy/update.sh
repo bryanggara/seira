@@ -359,7 +359,7 @@ put_back() { # backup data image
   helper "$3" "$1:/from:ro" "$2:/to" -- "$VERIFY"'set -u
 stage=/to/.seira-restore
 old=/to/.seira-replaced
-rm -rf "$stage" "$old"
+rm -rf "$stage" "$old" /to/.omb-restore /to/.omb-replaced
 mkdir "$stage" || exit 1
 if ! cp -a /from/. "$stage"/ || ! same /from "$stage"; then rm -rf "$stage"; exit 1; fi
 mkdir "$old" || exit 1
