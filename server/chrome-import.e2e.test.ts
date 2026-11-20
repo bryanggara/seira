@@ -8,13 +8,14 @@ import { afterEach, describe, expect, it } from "vitest";
 import { verificationServerEnvironment } from "../scripts/control-seira.ts";
 import { writeFakeBrowser } from "./browser/chrome-import/testing/fake-profile.ts";
 import { credentialStoreFlags } from "./browser/egress/gate.ts";
+import { findChrome } from "./testing/chrome-pipe.ts";
 import { removeTempDir, waitForExit } from "./testing/cleanup.ts";
 import { freePortBlock } from "./testing/ports.ts";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const FAKE_CLI = join(ROOT, "server/testing/fake-claude-cli.ts");
 const FAKE_ENGINE = join(ROOT, "server/browser/chrome-import/testing/fake-engine.mjs");
-const CHROMIUM = process.env.CHROMIUM_BIN || "/usr/bin/chromium";
+const CHROME = findChrome() ?? "";
 
 const SESSION_VALUE = "e2e-cookie-value-3c9a71f0";
 const PREFERENCE_VALUE = "e2e-cookie-value-90b2d4ee";
@@ -35,7 +36,7 @@ afterEach(async () => {
 async function startBrowser(root: string): Promise<string> {
   const profile = join(root, "chromium-profile");
   mkdirSync(profile, { recursive: true });
-  const child = spawn(CHROMIUM, [
+  const child = spawn(CHROME, [
     "--headless=new", "--no-sandbox", "--disable-gpu", "--remote-debugging-port=0", `--user-data-dir=${profile}`,
     "--no-first-run", "--no-default-browser-check", "--disable-background-networking", "--disable-component-update", "--disable-sync",
     ...credentialStoreFlags(), "about:blank",
@@ -83,7 +84,7 @@ async function startServer(home: string, engine: string) {
   return { api, output: () => output.join("") };
 }
 
-describe.skipIf(process.platform !== "linux" || !existsSync(CHROMIUM))("importing sign-ins from Chrome", () => {
+describe.skipIf(process.platform !== "linux" || !CHROME)("importing sign-ins from Chrome", () => {
   it("copies chosen sites into a running bot browser, lists them, and signs out of them", async () => {
     const home = mkdtempSync(join(tmpdir(), "omb-chrome-import-"));
     folders.push(home);
