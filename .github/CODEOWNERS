@@ -1,1 +1,26 @@
+# Keep the existing fallback until dedicated code owners have write access.
 * @seira-bot/maintainers
+
+# TODO: Assign these paths to the core code owners.
+/server/ @seira-bot/maintainers
+/src/ @seira-bot/maintainers
+/shared/ @seira-bot/maintainers
+
+# TODO: Assign these paths to the CI and packaging code owners.
+/.github/workflows/ @seira-bot/maintainers
+/packaging/ @seira-bot/maintainers
+/build/ @seira-bot/maintainers
+/Dockerfile @seira-bot/maintainers
+/electron-builder.yml @seira-bot/maintainers
+
+# TODO: Assign these paths exclusively to the dedicated security code owners.
+# Keep this section after the broad core and CI patterns.
+/cloudflare/ @seira-bot/maintainers
+/relay/ @seira-bot/maintainers
+**/auth/ @seira-bot/maintainers
+**/auth.* @seira-bot/maintainers
+**/*-auth.* @seira-bot/maintainers
+**/sign-in* @seira-bot/maintainers
+**/*relay* @seira-bot/maintainers
+**/*billing* @seira-bot/maintainers
+/.github/CODEOWNERS @seira-bot/maintainers
