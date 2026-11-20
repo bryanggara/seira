@@ -1,5 +1,5 @@
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
-import { AlertTriangle, Bot, Check, Hourglass, Loader2, Minus, Send, Split, StickyNote, X, type LucideIcon } from "lucide-react";
+import { AlertTriangle, Bot, Check, Circle, Hourglass, Loader2, Minus, Send, Split, StickyNote, X, type LucideIcon } from "lucide-react";
 
 import type { WorkflowStep, WorkflowStepKind } from "../../../shared/workflows";
 import { cn } from "@/lib/cn";
@@ -23,7 +23,7 @@ export function StatusMark({ state, reduced }: { state: StepView["state"]; reduc
     case "skipped":
     case "not_run": return <Minus size={14} aria-hidden className="mt-px shrink-0 text-ink-tertiary" />;
     case "carried": return <Check size={14} aria-hidden className="mt-px shrink-0 text-ink-secondary" />;
-    case "not_started": return null;
+    case "not_started": return <Circle size={14} aria-hidden className="mt-px shrink-0 text-ink-tertiary" />;
   }
 }
 

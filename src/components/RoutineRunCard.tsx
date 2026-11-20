@@ -5,6 +5,7 @@ import { routineDateTime } from "@/lib/routine-display";
 import { t } from "@/lib/i18n";
 import type { LocaleKey } from "@/locales";
 import { useShowThreads } from "@/lib/thread-preferences";
+import { stepsWorkflowId } from "@/lib/workflow-run";
 import { liveCardKind } from "../../shared/live-approval";
 import type { AutomationLine, RoutineRunCardData } from "../../shared/routine-run";
 import { formatTime, openThread, useStore, type Message } from "@/state/store";
@@ -140,7 +141,7 @@ export function RoutineRunRow({ message, botId }: { message: Message; botId: str
   const { state, dispatch } = useStore();
   const showThreads = useShowThreads();
   const executionThreadId = message.routineRun?.executionThreadId;
-  const workflowId = state.routineRuns.find((candidate) => candidate.id === message.routineRun?.runId)?.workflowId;
+  const workflowId = stepsWorkflowId(state.routineRuns.find((candidate) => candidate.id === message.routineRun?.runId));
   const canOpen = executionThreadId && state.bots.some((candidate) =>
     candidate.threadId === executionThreadId || hasRoutineExecutionTask(candidate.tasks, executionThreadId)
   );

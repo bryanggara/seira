@@ -4,7 +4,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Workflow, WorkflowStep } from "../../../shared/workflows";
+import type { Workflow, WorkflowRun, WorkflowStep } from "../../../shared/workflows";
 import type { Bot } from "@/state/store";
 import { resetWorkflowsForTest } from "@/state/workflows";
 
@@ -207,5 +207,36 @@ describe("the Workflows view", () => {
     await settle();
     expect(container.querySelector("[data-workflow-gone]")).not.toBeNull();
     expect(container.querySelector("[data-workflow=wf1]")).not.toBeNull();
+  });
+
+  it("keeps the announcement and moves focus to the new run's heading after Run again from here", async () => {
+    const run = (runId: string): WorkflowRun => ({
+      runId, workflowId: "wf1", routineId: "r1", workflowName: "Morning round", status: "failed", graph: { steps: morning.steps, connections: morning.connections },
+      botIds: ["bot-a", "bot-b"], startStepId: "a", threads: {}, createdAt: 1, updatedAt: 1,
+      stepRuns: [{ stepId: "a", status: "done" }, { stepId: "b", status: "failed", botId: "bot-b", errorCode: "turn_failed" }],
+    });
+    fixture.state = { bots: [scout, ledger], routines: [{ ...routine("wf1"), botId: "bot-a" }], routineRuns: [] };
+    const baseApi = fixture.api.getMockImplementation()!;
+    fixture.api.mockImplementation(async (path: unknown, init: unknown) => {
+      const match = /^\/api\/workflow-runs\/(run-\d)$/.exec(String(path));
+      if (match) return { run: run(match[1]!) };
+      if (String(path).startsWith("/api/workflows/wf1/runs")) return { runs: [] };
+      if (String(path).endsWith("/run-again")) return { run: { id: "run-2" } };
+      return baseApi(path, init);
+    });
+    const show = (workflowRunId: string) => act(() => root!.render(createElement(WorkflowsView, { workflowId: "wf1", workflowRunId })));
+    fixture.dispatch.mockImplementation((action: { type: string; workflowRunId?: string }) => {
+      if (action.type === "showRoutines" && action.workflowRunId) show(action.workflowRunId);
+    });
+    const container = mount({ workflowId: "wf1" });
+    show("run-1");
+    await settle();
+    const region = container.querySelector(".sr-only")!;
+    expect(document.activeElement).not.toBe(container.querySelector("h2"));
+    await act(async () => { button(container, "Run again from here").dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    await settle();
+    expect(container.querySelector(".sr-only")).toBe(region);
+    expect(region.textContent).toBe("Started a new run from Ledger");
+    expect(document.activeElement).toBe(container.querySelector("h2"));
   });
 });

@@ -210,6 +210,25 @@ describe("a routine's panel", () => {
       flushSync(() => (line as HTMLButtonElement).click());
       expect(fixture.dispatch).toHaveBeenCalledWith({ type: "showRoutines", view: "workflows", workflowId: "wf1", workflowRunId: "run-1" });
     });
+
+    it("says nothing about the workflow until its list has loaded, then says the list couldn't load if it can't", async () => {
+      fixture.api.mockImplementation(async () => { throw new TypeError("offline"); });
+      const container = panel();
+      expect(container.textContent).not.toContain("Runs the workflow");
+      await vi.waitFor(() => expect(container.querySelector('[role="alert"]')?.textContent).toContain("Couldn't load your workflows."));
+      expect(container.textContent).not.toContain("Runs the workflow");
+    });
+
+    it.each(["queued", "missed"])("opens the chat, not the run view, from the line of a %s run that has no steps", (status) => {
+      const waiting = { ...routineRun, status, threadId: "t-1" };
+      fixture.state.routineRuns = [waiting];
+      const [automation] = automationsFrom({ routines: [routine] as never, webhooks: [], runs: [waiting] as never });
+      const container = mount(createElement(AutomationPanel, { automation: automation!, sentence: "s", onClose: vi.fn(), onEdit: vi.fn(), onDeleted: vi.fn() }));
+      const line = [...container.querySelectorAll("section ul button")].find((candidate) => candidate.closest("section")?.querySelector("h3")?.textContent === "Recent runs")!;
+      expect(line.hasAttribute("disabled")).toBe(false);
+      flushSync(() => (line as HTMLButtonElement).click());
+      expect(fixture.dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ workflowRunId: expect.anything() }));
+    });
   });
 
   it("falls back to its sentence when it has no name", () => {

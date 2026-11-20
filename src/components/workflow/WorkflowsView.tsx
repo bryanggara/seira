@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 
 import type { Workflow } from "../../../shared/workflows";
@@ -11,23 +11,14 @@ import { WorkflowList } from "./WorkflowList";
 import { WorkflowRunView } from "./WorkflowRunView";
 import { fromWorkflow } from "./useWorkflowDraft";
 import { useCreateWorkflow } from "./useCreateWorkflow";
-
-const SPINNER_DELAY_MS = 300;
-
-function useDelayed(active: boolean): boolean {
-  const [late, setLate] = useState(false);
-  useEffect(() => {
-    if (!active) return setLate(false);
-    const timer = window.setTimeout(() => setLate(true), SPINNER_DELAY_MS);
-    return () => window.clearTimeout(timer);
-  }, [active]);
-  return active && late;
-}
+import { useDelayed } from "./useDelayed";
 
 export function WorkflowsView({ workflowId, workflowRunId, onUseInRoutine }: { workflowId?: string; workflowRunId?: string; onUseInRoutine?: (workflow: Workflow) => void }) {
   const { state, dispatch } = useStore();
   const workflows = useWorkflows();
   const [vanished, setVanished] = useState(false);
+  const [announcement, setAnnouncement] = useState("");
+  const [focusRunId, setFocusRunId] = useState<string | null>(null);
   const [deleted, setDeleted] = useState<{ workflow: Workflow; draft: WorkflowDraft; key: number } | null>(null);
   const leaving = useRef<string | null>(null);
   const deletedKey = useRef(0);
@@ -68,7 +59,8 @@ export function WorkflowsView({ workflowId, workflowRunId, onUseInRoutine }: { w
 
   let body;
   if (workflowId && workflowRunId) {
-    body = <WorkflowRunView key={workflowRunId} workflowId={workflowId} runId={workflowRunId} />;
+    body = <WorkflowRunView key={workflowRunId} workflowId={workflowId} runId={workflowRunId} focusHeading={focusRunId === workflowRunId}
+      onAgainStarted={(newRunId, text) => { setFocusRunId(newRunId); setAnnouncement(text); }} />;
   } else if (workflow) {
     body = (
       <WorkflowEditor key={workflow.id} workflow={workflow} usedBy={state.routines.filter((routine) => routine.workflowId === workflow.id)}
@@ -80,7 +72,7 @@ export function WorkflowsView({ workflowId, workflowRunId, onUseInRoutine }: { w
     body = (
       <div role="alert" className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
         <p className="text-[13px] text-ink-secondary">{t("workflow.loadFailed")}</p>
-        <button type="button" onClick={() => void loadWorkflows()} className="rounded-lg bg-accent px-3.5 py-2 text-[13px] font-medium text-accent-ink hover:brightness-110">{t("common.tryAgain")}</button>
+        <button type="button" onClick={() => void loadWorkflows()} className="ui-button ui-button-primary">{t("common.tryAgain")}</button>
       </div>
     );
   } else {
@@ -92,6 +84,7 @@ export function WorkflowsView({ workflowId, workflowRunId, onUseInRoutine }: { w
     <div className="flex min-h-0 flex-1 flex-col">
       {createFailed && <p role="alert" className="shrink-0 px-4 pt-3 text-[13px] text-danger">{t("workflow.save.failed")}</p>}
       {body}
+      <p role="status" className="sr-only">{announcement}</p>
       {deleted && <UndoToast key={deleted.key} text={t("workflow.deleted", { name: deleted.workflow.name })} onUndo={undoDelete} onDone={deletedDone} />}
     </div>
   );

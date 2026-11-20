@@ -10,7 +10,10 @@ import { loadWorkflowRun } from "@/state/workflows";
 const SIMPLE_OUTPUT_CHARS = 300;
 const MAX_RUNS = 10;
 
-export type AgainState = { state: "show" } | { state: "busy" } | { state: "other" } | { state: "hidden" };
+export type AgainState = { state: "show" } | { state: "busy" } | { state: "other" } | { state: "none" } | { state: "hidden" };
+
+const AGAIN_REASON_ID = "workflow-again-reason";
+const keepShortResult = (): void => undefined;
 
 export function WorkflowRunPanel({ run, step, view, botName, advanced, again, onRunAgain, onOpenChat, runs, onOpenRun }: {
   run: WorkflowRun;
@@ -26,6 +29,7 @@ export function WorkflowRunPanel({ run, step, view, botName, advanced, again, on
 }) {
   const [pending, setPending] = useState(false);
   const [loadingFull, setLoadingFull] = useState(false);
+  const [reloaded, setReloaded] = useState<string[]>([]);
   const stepRun = view?.run;
   const output = stepRun?.output ?? "";
   const shownOutput = advanced || output.length <= SIMPLE_OUTPUT_CHARS ? output : `${output.slice(0, SIMPLE_OUTPUT_CHARS)}…`;
@@ -43,12 +47,14 @@ export function WorkflowRunPanel({ run, step, view, botName, advanced, again, on
       setPending(false);
     }
   };
+  const reloadKey = `${run.runId}:${step?.id}`;
   const showFull = async () => {
     setLoadingFull(true);
     try {
       await loadWorkflowRun(run.runId, { force: true });
+      setReloaded((keys) => [...keys, reloadKey]);
     } catch {
-      // The shortened result stays; the person can try again.
+      keepShortResult();
     } finally {
       setLoadingFull(false);
     }
@@ -69,9 +75,9 @@ export function WorkflowRunPanel({ run, step, view, botName, advanced, again, on
           ) : (
             <p className="text-ink-secondary">{t("workflow.result.none")}</p>
           )}
-          {advanced && stepRun?.outputClipped && (
-            <button type="button" disabled={loadingFull} onClick={() => void showFull()} className="rounded-lg border border-hairline/50 px-2.5 py-1.5 text-ink hover:bg-raised disabled:opacity-50">{t("workflow.result.full")}</button>
-          )}
+          {advanced && stepRun?.outputClipped && (reloaded.includes(reloadKey)
+            ? <p className="text-ink-secondary">{t("workflow.result.inChat")}</p>
+            : <button type="button" disabled={loadingFull} onClick={() => void showFull()} className="ui-button">{t("workflow.result.full")}</button>)}
           {advanced && stepRun?.error && (
             <details className="text-ink-secondary">
               <summary className="cursor-pointer hover:text-ink">{t("workflow.result.details")}</summary>
@@ -79,17 +85,18 @@ export function WorkflowRunPanel({ run, step, view, botName, advanced, again, on
             </details>
           )}
           {threadId && onOpenChat && (
-            <button type="button" onClick={() => onOpenChat(chatBot, threadId)} className="rounded-lg border border-hairline/50 px-2.5 py-1.5 text-ink hover:bg-raised">{t("workflow.result.openChat")}</button>
+            <button type="button" onClick={() => onOpenChat(chatBot, threadId)} className="ui-button">{t("workflow.result.openChat")}</button>
           )}
           {again.state === "show" && (
-            <button type="button" disabled={pending} onClick={() => void runAgain()} className="rounded-lg bg-accent px-3 py-1.5 font-medium text-accent-ink hover:brightness-110 disabled:opacity-50">{t("workflow.run.again")}</button>
+            <button type="button" disabled={pending} onClick={() => void runAgain()} className="ui-button ui-button-primary">{t("workflow.run.again")}</button>
           )}
           {again.state === "busy" && (
             <div className="space-y-1">
-              <button type="button" disabled className="cursor-not-allowed rounded-lg bg-accent px-3 py-1.5 font-medium text-accent-ink opacity-50">{t("workflow.run.again")}</button>
-              <p className="text-ink-secondary">{t("workflow.run.againBusy")}</p>
+              <button type="button" aria-disabled="true" aria-describedby={AGAIN_REASON_ID} className="ui-button ui-button-primary cursor-not-allowed opacity-50">{t("workflow.run.again")}</button>
+              <p id={AGAIN_REASON_ID} className="text-ink-secondary">{t("workflow.run.againBusy")}</p>
             </div>
           )}
+          {again.state === "none" && <p className="text-ink-secondary">{t("workflow.run.noWorkflow")}</p>}
           {again.state === "other" && <p className="text-ink-secondary">{t("workflow.run.otherWorkflow")}</p>}
         </section>
       )}

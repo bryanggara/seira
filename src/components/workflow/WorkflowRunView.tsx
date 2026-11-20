@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Workflow as WorkflowIcon } from "lucide-react";
+import { ArrowLeft, Loader2, Workflow as WorkflowIcon } from "lucide-react";
 
 import type { WorkflowRun } from "../../../shared/workflows";
 import { t } from "@/lib/i18n";
@@ -14,6 +14,7 @@ import { openThread } from "@/state/thread-navigation";
 import { loadWorkflowRun, loadWorkflowRuns, runsOf, useWorkflows, workflowApi } from "@/state/workflows";
 import { WorkflowCanvas } from "./WorkflowCanvas";
 import { WorkflowRunPanel, type AgainState } from "./WorkflowRunPanel";
+import { useDelayed } from "./useDelayed";
 
 type Load = "loading" | "gone" | "failed" | "ready";
 
@@ -26,14 +27,25 @@ function firstSelected(run: WorkflowRun): string | null {
 }
 
 function againErrorText(error: unknown): string {
-  if (!(error instanceof ApiError)) return t("workflow.save.failed");
+  if (!(error instanceof ApiError)) return t("workflow.run.againFailed");
   if (error.status === 403) return t("workflow.error.notAllowed");
-  if (error.status === 404) return t("workflow.run.gone");
   if (error.status === 409) return t("workflow.run.againConflict");
-  return t("workflow.save.failed");
+  if (error.status === 404) {
+    const cause = typeof error.body?.error === "string" ? error.body.error : error.message;
+    if (cause === "no such run") return t("workflow.run.gone");
+    if (cause === "no such routine" || cause === "no such workflow") return t("workflow.run.againGone");
+  }
+  return t("workflow.run.againFailed");
 }
 
-export function WorkflowRunView({ workflowId, runId }: { workflowId: string; runId: string }) {
+const buttonClass = "ui-button ui-button-primary";
+
+export function WorkflowRunView({ workflowId, runId, focusHeading, onAgainStarted }: {
+  workflowId: string;
+  runId: string;
+  focusHeading: boolean;
+  onAgainStarted: (newRunId: string, text: string) => void;
+}) {
   const { state, dispatch } = useStore();
   const workflows = useWorkflows();
   const advanced = useAdvancedMode();
@@ -41,11 +53,12 @@ export function WorkflowRunView({ workflowId, runId }: { workflowId: string; run
   const [load, setLoad] = useState<Load>("loading");
   const [attempt, setAttempt] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [announcement, setAnnouncement] = useState("");
   const [againError, setAgainError] = useState("");
   const chosen = useRef(false);
+  const heading = useRef<HTMLHeadingElement>(null);
   const botName = useCallback((botId: string) => state.bots.find((bot) => bot.id === botId)?.name, [state.bots]);
   const run = workflows.details[runId];
+  const showSpinner = useDelayed(load === "loading" && !run);
 
   useEffect(() => {
     let current = true;
@@ -57,6 +70,9 @@ export function WorkflowRunView({ workflowId, runId }: { workflowId: string; run
     return () => { current = false; };
   }, [runId, attempt]);
   useEffect(() => { void loadWorkflowRuns(workflowId); }, [workflowId]);
+  useEffect(() => {
+    if (run && focusHeading) heading.current?.focus();
+  }, [run, focusHeading]);
   useEffect(() => {
     if (!run || chosen.current) return;
     chosen.current = true;
@@ -72,6 +88,7 @@ export function WorkflowRunView({ workflowId, runId }: { workflowId: string; run
     if (!run || !step || view?.state !== "failed" || run.status === "active") return { state: "hidden" };
     const routine = state.routines.find((candidate) => candidate.id === run.routineId);
     if (!routine) return { state: "hidden" };
+    if (!routine.workflowId) return { state: "none" };
     if (routine.workflowId !== run.workflowId) return { state: "other" };
     const current = workflows.workflows.find((candidate) => candidate.id === run.workflowId);
     if (!current?.steps.some((candidate) => candidate.id === step.id)) return { state: "hidden" };
@@ -84,7 +101,7 @@ export function WorkflowRunView({ workflowId, runId }: { workflowId: string; run
     try {
       const started = await workflowApi.runAgain(run.runId, stepId);
       const target = stepById(run.graph, stepId);
-      setAnnouncement(t("workflow.run.againStarted", { step: target ? stepTitle(target, botName) : "" }));
+      onAgainStarted(started.id, t("workflow.run.againStarted", { step: target ? stepTitle(target, botName) : "" }));
       dispatch({ type: "showRoutines", view: "workflows", workflowId: run.workflowId, workflowRunId: started.id });
     } catch (error) {
       setAgainError(againErrorText(error));
@@ -92,10 +109,16 @@ export function WorkflowRunView({ workflowId, runId }: { workflowId: string; run
   };
 
   if (load === "gone" || (load === "ready" && !run)) {
+    const routineRun = state.routineRuns.find((candidate) => candidate.id === runId);
+    const chatBotId = state.routines.find((candidate) => candidate.id === routineRun?.routineId)?.botId;
+    const chatThreadId = routineRun?.threadId;
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
         <p role="status" className="text-[13px] text-ink-secondary">{t("workflow.run.gone")}</p>
-        <button type="button" onClick={() => open()} className="rounded-lg bg-accent px-3.5 py-2 text-[13px] font-medium text-accent-ink hover:brightness-110">{t("workflow.all")}</button>
+        <div className="flex flex-wrap justify-center gap-2">
+          {chatBotId && chatThreadId && <button type="button" onClick={() => openThread(dispatch, { botId: chatBotId, threadId: chatThreadId }, state, showThreads)} className={buttonClass}>{t("workflow.result.openChat")}</button>}
+          <button type="button" onClick={() => open()} className={buttonClass}>{t("workflow.all")}</button>
+        </div>
       </div>
     );
   }
@@ -103,11 +126,11 @@ export function WorkflowRunView({ workflowId, runId }: { workflowId: string; run
     return (
       <div role="alert" className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
         <p className="text-[13px] text-ink-secondary">{t("workflow.run.loadFailed")}</p>
-        <button type="button" onClick={() => setAttempt((count) => count + 1)} className="rounded-lg bg-accent px-3.5 py-2 text-[13px] font-medium text-accent-ink hover:brightness-110">{t("common.tryAgain")}</button>
+        <button type="button" onClick={() => setAttempt((count) => count + 1)} className={buttonClass}>{t("common.tryAgain")}</button>
       </div>
     );
   }
-  if (!run) return <div className="flex-1" />;
+  if (!run) return <div className="flex flex-1 items-center justify-center">{showSpinner && <Loader2 size={20} aria-hidden className="animate-spin text-ink-tertiary motion-reduce:animate-none" />}</div>;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -116,7 +139,7 @@ export function WorkflowRunView({ workflowId, runId }: { workflowId: string; run
           <ArrowLeft size={15} aria-hidden />{t("workflow.all")}
         </button>
         <WorkflowIcon size={16} aria-hidden className="shrink-0 text-ink-tertiary" />
-        <h2 className="min-w-0 truncate text-[15px] font-semibold text-ink" dir="auto">{run.workflowName}</h2>
+        <h2 ref={heading} tabIndex={-1} className="min-w-0 truncate text-[15px] font-semibold text-ink outline-none" dir="auto">{run.workflowName}</h2>
         <span className="text-[12px] text-ink-secondary">{t("workflow.run.started", { when: routineDateTime(run.createdAt) })}</span>
         <p role="status" data-workflow-run-status={run.status} className="min-w-0 flex-1 text-[13px] text-ink-secondary">{runStatusText(run, run.graph, botName)}</p>
         <button type="button" onClick={() => open(run.workflowId)} className="h-8 rounded-lg border border-hairline/50 px-3 text-[13px] text-ink hover:bg-raised">{t("workflow.run.edit")}</button>
@@ -130,7 +153,6 @@ export function WorkflowRunView({ workflowId, runId }: { workflowId: string; run
           onOpenChat={(botId, threadId) => { openThread(dispatch, { botId, threadId }, state, showThreads); }}
           runs={runsOf(workflows, run.workflowId, run.routineId)} onOpenRun={(id) => dispatch({ type: "showRoutines", view: "workflows", workflowId: run.workflowId, workflowRunId: id })} />
       </div>
-      <p role="status" className="sr-only">{announcement}</p>
     </div>
   );
 }

@@ -26,7 +26,7 @@ export function WorkflowList({ workflows, routines, botName, gone, onOpen, onNew
           <section aria-label={t("workflow.view")} className="px-6 py-16 text-center">
             <SeiraCharacter state="sleep" size={96} className="mx-auto mb-2" />
             <p className="mx-auto max-w-sm text-[15px] leading-snug text-ink">{t("workflow.list.empty")}</p>
-            <button type="button" onClick={onNew} className="mt-6 inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-[13px] font-medium text-accent-ink hover:brightness-110">
+            <button type="button" onClick={onNew} className="ui-button ui-button-primary mt-6">
               <Plus size={15} aria-hidden />{t("workflow.new")}
             </button>
           </section>

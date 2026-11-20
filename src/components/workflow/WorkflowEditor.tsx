@@ -142,7 +142,7 @@ export function WorkflowEditor({ workflow, usedBy, onBack, onGone, onDelete, onU
           className="h-8 min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-2 text-[15px] font-semibold text-ink outline-none hover:border-hairline/50 focus-visible:border-hairline focus-visible:ring-2 focus-visible:ring-focus" />
         <SaveLine status={status} botName={botName} graph={draft} onRetry={retry} onReload={reload} />
         {onUseInRoutine && (
-          <button type="button" onClick={() => onUseInRoutine(workflow)} className="h-8 rounded-lg bg-accent px-3 text-[13px] font-medium text-accent-ink hover:brightness-110">{t("workflow.useInRoutine")}</button>
+          <button type="button" onClick={() => onUseInRoutine(workflow)} className="ui-button ui-button-primary">{t("workflow.useInRoutine")}</button>
         )}
         <div className="flex flex-col items-end">
           <button type="button" aria-disabled={usedBy.length > 0 || undefined} aria-describedby={usedBy.length > 0 ? reasonId : undefined} onClick={() => void deleteWorkflow()}
@@ -168,7 +168,7 @@ export function WorkflowEditor({ workflow, usedBy, onBack, onGone, onDelete, onU
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <div className="pointer-events-auto flex flex-col items-center gap-3 rounded-xl bg-app/90 px-6 py-4 text-center">
                 <p className="text-[13px] text-ink-secondary">{t("workflow.empty")}</p>
-                <button type="button" onClick={() => add("bot")} className="rounded-lg bg-accent px-3.5 py-2 text-[13px] font-medium text-accent-ink hover:brightness-110">{t("workflow.emptyAction")}</button>
+                <button type="button" onClick={() => add("bot")} className="ui-button ui-button-primary">{t("workflow.emptyAction")}</button>
               </div>
             </div>
           )}

@@ -191,6 +191,11 @@ describe("RoutineRunCard", () => {
       expect(fixture.dispatch).toHaveBeenCalledWith({ type: "showRoutines", view: "workflows", workflowId: "wf1", workflowRunId: "run-1" });
     });
 
+    it.each(["queued", "missed"])("offers no Show steps for a %s run, which has no steps", (status) => {
+      const container = mountRow([{ id: "run-1", routineId: "routine-1", workflowId: "wf1", status }]);
+      expect(container.textContent).not.toContain("Show steps");
+    });
+
     it("offers no Show steps for a routine without a workflow", () => {
       const container = mountRow([{ id: "run-1", routineId: "routine-1" }]);
       expect(container.textContent).not.toContain("Show steps");

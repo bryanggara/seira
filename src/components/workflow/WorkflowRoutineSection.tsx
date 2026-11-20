@@ -2,7 +2,7 @@ import { useCallback, useEffect } from "react";
 
 import { t } from "@/lib/i18n";
 import { useStore } from "@/state/store";
-import { loadWorkflowRun, loadWorkflowRuns, runsOf, useWorkflows } from "@/state/workflows";
+import { loadWorkflowRun, loadWorkflowRuns, loadWorkflows, runsOf, useWorkflows } from "@/state/workflows";
 import { WorkflowRunSteps } from "./WorkflowRunSteps";
 
 export function WorkflowRoutineSection({ routineId, workflowId, runId }: { routineId: string; workflowId: string; runId?: string }) {
@@ -20,11 +20,20 @@ export function WorkflowRoutineSection({ routineId, workflowId, runId }: { routi
     if (shownRunId) void loadWorkflowRun(shownRunId).catch(() => {});
   }, [shownRunId]);
 
-  if (!workflow && workflows.loaded) return <p className="text-[13px] leading-[18px] text-ink-secondary">{t("workflow.routine.missing")}</p>;
+  if (!workflow && !workflows.loaded) return null;
+  if (!workflow && workflows.failed && workflows.workflows.length === 0) {
+    return (
+      <div role="alert" className="flex flex-wrap items-center gap-3 text-[13px] leading-[18px] text-ink-secondary">
+        <span className="min-w-0 flex-1">{t("workflow.loadFailed")}</span>
+        <button type="button" onClick={() => void loadWorkflows()} className="ui-button">{t("common.tryAgain")}</button>
+      </div>
+    );
+  }
+  if (!workflow) return <p className="text-[13px] leading-[18px] text-ink-secondary">{t("workflow.routine.missing")}</p>;
   return (
     <section data-workflow-routine={routineId} className="space-y-2.5">
       <div className="flex items-start justify-between gap-2">
-        <p className="min-w-0 text-[13px] font-medium leading-[18px] text-ink" dir="auto">{t("workflow.routine.runs", { name: workflow?.name ?? "" })}</p>
+        <p className="min-w-0 text-[13px] font-medium leading-[18px] text-ink" dir="auto">{t("workflow.routine.runs", { name: workflow.name })}</p>
         <button type="button" onClick={() => dispatch({ type: "showRoutines", view: "workflows", workflowId })} className="shrink-0 rounded-lg px-2 py-1 text-[13px] text-accent-text hover:bg-raised">{t("workflow.routine.open")}</button>
       </div>
       {run && (

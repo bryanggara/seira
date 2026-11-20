@@ -105,3 +105,7 @@ const ACTIVE_ROUTINE_RUN = new Set(["queued", "running", "waiting"]);
 export function activeRun(runs: readonly { status: string; routineId: string }[], routineId: string): boolean {
   return runs.some((run) => run.routineId === routineId && ACTIVE_ROUTINE_RUN.has(run.status));
 }
+
+export function stepsWorkflowId(run: { workflowId?: string; status: string } | undefined): string | undefined {
+  return run?.workflowId && run.status !== "queued" && run.status !== "missed" ? run.workflowId : undefined;
+}

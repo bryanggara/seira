@@ -11,6 +11,7 @@ import { applyWorkflowFrame, resetWorkflowsForTest } from "@/state/workflows";
 const fixture = vi.hoisted(() => ({
   state: {} as Record<string, unknown>,
   dispatch: vi.fn(),
+  againStarted: vi.fn(),
   api: vi.fn(async (..._args: unknown[]) => ({}) as unknown),
   advanced: false,
 }));
@@ -52,11 +53,11 @@ const updateOf = (run: WorkflowRun): WorkflowRunUpdate => { const { graph: _grap
 let root: Root | null = null;
 let current: WorkflowRun;
 let others: WorkflowRunUpdate[];
-function mount(runId = "run-1") {
+function mount(runId = "run-1", focusHeading = false) {
   const container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
-  act(() => root!.render(createElement(WorkflowRunView, { workflowId: "wf1", runId })));
+  act(() => root!.render(createElement(WorkflowRunView, { workflowId: "wf1", runId, focusHeading, onAgainStarted: fixture.againStarted })));
   return container;
 }
 const settle = async () => { await act(async () => { await vi.advanceTimersByTimeAsync(0); }); };
@@ -70,6 +71,7 @@ beforeEach(() => {
   current = makeRun();
   others = [];
   fixture.dispatch.mockReset();
+  fixture.againStarted.mockReset();
   fixture.api.mockReset();
   fixture.api.mockImplementation(async (path: unknown, init: unknown) => {
     const method = (init as { method?: string } | undefined)?.method;
@@ -127,15 +129,59 @@ describe("the run view", () => {
     await settle();
     expect(fixture.api).toHaveBeenCalledWith("/api/workflow-runs/run-1/steps/b/run-again", { method: "POST" });
     expect(fixture.dispatch).toHaveBeenCalledWith({ type: "showRoutines", view: "workflows", workflowId: "wf1", workflowRunId: "run-2" });
-    expect(container.textContent).toContain("Started a new run from Ledger");
+    expect(fixture.againStarted).toHaveBeenCalledWith("run-2", "Started a new run from Ledger");
+  });
+
+  it.each([
+    [403, "forbidden", "You can't change this workflow. Ask a person who can see all its bots."],
+    [404, "no such run", "This run is gone."],
+    [404, "no such routine", "This run can't start again. Its routine or workflow was removed."],
+    [404, "no such workflow", "This run can't start again. Its routine or workflow was removed."],
+    [409, "busy", "This step can't run again now. Reload and try again."],
+    [500, "boom", "Couldn't start the run. Try again."],
+    [503, "asleep", "Couldn't start the run. Try again."],
+  ])("says the right thing when Run again answers %i %s", async (status, error, text) => {
+    const original = fixture.api.getMockImplementation()!;
+    fixture.api.mockImplementation(async (path: unknown, init: unknown) => {
+      if (String(path).endsWith("/run-again")) throw new ApiError(error, status, { error });
+      return original(path, init);
+    });
+    const container = mount();
+    await settle();
+    await act(async () => { button(container, "Run again from here")!.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    await settle();
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(text);
+    expect(fixture.againStarted).not.toHaveBeenCalled();
+  });
+
+  it("says the same for a network failure", async () => {
+    const original = fixture.api.getMockImplementation()!;
+    fixture.api.mockImplementation(async (path: unknown, init: unknown) => {
+      if (String(path).endsWith("/run-again")) throw new Error("offline");
+      return original(path, init);
+    });
+    const container = mount();
+    await settle();
+    await act(async () => { button(container, "Run again from here")!.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    await settle();
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe("Couldn't start the run. Try again.");
+  });
+
+  it("moves focus to the heading when asked to, once the run shows", async () => {
+    const container = mount("run-1", true);
+    await settle();
+    expect(document.activeElement).toBe(container.querySelector("h2"));
   });
 
   it("turns Run again from here off while a run of the routine works, and says why", async () => {
     fixture.state = { ...fixture.state, routineRuns: [{ id: "run-5", routineId: "r1", status: "running" }] };
     const container = mount();
     await settle();
-    expect((button(container, "Run again from here") as HTMLButtonElement).disabled).toBe(true);
-    expect(container.textContent).toContain("A run is already working.");
+    const again = button(container, "Run again from here")!;
+    expect(again.getAttribute("aria-disabled")).toBe("true");
+    expect(container.querySelector(`#${again.getAttribute("aria-describedby")}`)?.textContent).toBe("A run is already working.");
+    click(again);
+    expect(fixture.api).not.toHaveBeenCalledWith(expect.stringContaining("run-again"), expect.anything());
   });
 
   it("says the routine now runs another workflow and offers no Run again", async () => {
@@ -144,6 +190,26 @@ describe("the run view", () => {
     await settle();
     expect(container.textContent).toContain("This routine now runs another workflow.");
     expect(button(container, "Run again from here")).toBeUndefined();
+  });
+
+  it("says the routine no longer runs a workflow when it went back to instructions", async () => {
+    fixture.state = { ...fixture.state, routines: [{ id: "r1", name: "Round", prompt: "Do it" }] };
+    const container = mount();
+    await settle();
+    expect(container.textContent).toContain("This routine no longer runs a workflow.");
+    expect(container.textContent).not.toContain("another workflow");
+    expect(button(container, "Run again from here")).toBeUndefined();
+  });
+
+  it("hides the full-result button once a reload is still clipped, and points to the chat", async () => {
+    fixture.advanced = true;
+    const container = mount();
+    await settle();
+    await act(async () => { button(container, "Show the full result")!.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    await settle();
+    expect(button(container, "Show the full result")).toBeUndefined();
+    expect(container.textContent).toContain("The full result is in the chat.");
+    expect(button(container, "Open the chat")).toBeDefined();
   });
 
   it("shows the step time and the full result only in Advanced", async () => {
@@ -176,6 +242,20 @@ describe("the run view", () => {
     expect(rows[1]!.textContent).toContain("Done");
     click(rows[1]!);
     expect(fixture.dispatch).toHaveBeenCalledWith({ type: "showRoutines", view: "workflows", workflowId: "wf1", workflowRunId: "run-0" });
+  });
+
+  it("offers the chat of a run that has no steps to show", async () => {
+    fixture.state = { ...fixture.state, routineRuns: [{ id: "run-9", routineId: "r1", status: "failed", threadId: "t-9" }], routines: [{ id: "r1", name: "Round", prompt: "", workflowId: "wf1", botId: "bot-a" }], groups: [] };
+    const container = mount("run-9");
+    await settle();
+    click(button(container, "Open the chat")!);
+    expect(fixture.dispatch).toHaveBeenCalledWith({ type: "revealThread", threadId: "t-9" });
+  });
+
+  it("offers no chat for a missing run whose routine run has no thread", async () => {
+    const container = mount("run-9");
+    await settle();
+    expect(button(container, "Open the chat")).toBeUndefined();
   });
 
   it("says the run is gone when it can't be found", async () => {

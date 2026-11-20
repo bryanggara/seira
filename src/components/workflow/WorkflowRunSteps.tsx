@@ -2,7 +2,7 @@ import type { WorkflowRun } from "../../../shared/workflows";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { reducedMotion } from "@/lib/onboarding";
-import { stepOrder, stepsText, stepTitle } from "@/lib/workflow-graph";
+import { stepOrder, stepTitle } from "@/lib/workflow-graph";
 import { stepStatusText, stepViews, type StepState } from "@/lib/workflow-run";
 import { StatusMark } from "./WorkflowStepCard";
 
@@ -27,7 +27,7 @@ export function WorkflowRunSteps({ run, botName, onOpen }: {
     <ol className="space-y-1">
       {items.map(({ step, view }) => view && (
         <li key={step.id} data-step-status={view.state} className="flex items-start gap-2 text-[13px] leading-[18px]">
-          <span className="mt-px flex">{view.state === "not_started" ? <span aria-hidden className="size-3.5 shrink-0" /> : <StatusMark state={view.state} reduced={reduced} />}</span>
+          <span className="mt-px flex"><StatusMark state={view.state} reduced={reduced} /></span>
           <span className="min-w-0 flex-1 truncate text-ink" dir="auto">{stepTitle(step, botName)}</span>
           <span className={cn("shrink-0", view.state === "failed" ? "text-danger" : "text-ink-secondary")}>{stepStatusText(view, step, botName)}</span>
         </li>
@@ -40,7 +40,7 @@ export function WorkflowRunSteps({ run, botName, onOpen }: {
       {list(shown)}
       {hidden.length > 0 && (
         <details className="text-[13px]">
-          <summary className="cursor-pointer text-ink-secondary hover:text-ink">{stepsText(hidden.length)}</summary>
+          <summary className="cursor-pointer text-ink-secondary hover:text-ink">{t(hidden.length === 1 ? "workflow.run.moreSteps.one" : "workflow.run.moreSteps.other", { count: hidden.length })}</summary>
           <div className="mt-1">{list(hidden)}</div>
         </details>
       )}

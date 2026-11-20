@@ -38,8 +38,7 @@ describe("the steps of a run", () => {
     const rows = [...container.querySelectorAll("li")];
     expect(rows.map((row) => row.getAttribute("data-step-status"))).toEqual(["done", "failed", "not_started"]);
     expect(rows.map((row) => row.querySelector(":scope > span:last-child")?.textContent)).toEqual(["Done", "Failed", "Not started"]);
-    expect(rows[0]!.querySelector("svg")).not.toBeNull();
-    expect(rows[1]!.querySelector("svg")).not.toBeNull();
+    for (const row of rows) expect(row.querySelector("svg")).not.toBeNull();
     expect(rows[0]!.textContent).toContain("Scout");
   });
 
@@ -47,10 +46,16 @@ describe("the steps of a run", () => {
     const done = [1, 2, 3, 4].map((n): WorkflowStepRun => ({ stepId: `s${n}`, status: "done" }));
     const { container } = mount(makeRun(8, [...done, { stepId: "s5", status: "running" }]));
     const folded = container.querySelector("details")!;
-    expect(folded.querySelector("summary")?.textContent).toBe("4 steps");
+    expect(folded.querySelector("summary")?.textContent).toBe("4 more steps");
     expect(folded.querySelectorAll("li")).toHaveLength(4);
     const outside = [...container.querySelectorAll("li")].filter((row) => !folded.contains(row));
     expect(outside.map((row) => row.getAttribute("data-step-status"))).toEqual(["done", "done", "done", "running"]);
+  });
+
+  it("counts one folded step in the singular", () => {
+    const { container } = mount(makeRun(7, [{ stepId: "s1", status: "done" }, { stepId: "s2", status: "done" }, { stepId: "s3", status: "done" }, { stepId: "s5", status: "failed", errorCode: "turn_failed" }, { stepId: "s6", status: "running" }, { stepId: "s7", status: "waiting" }]));
+    expect(container.querySelector("details summary")?.textContent).toBe("1 more step");
+    expect(container.querySelector("details li")?.textContent).toContain("Not started");
   });
 
   it("opens the run view with Open", () => {
