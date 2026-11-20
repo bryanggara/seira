@@ -167,7 +167,7 @@ async function openApp(server: { url: string; port: number; dataDir: string; log
     await expect.poll(() => text(PANEL)).toContain("Post results");
     await clickIn(PANEL, "Delete step");
     await expect.poll(() => count(STEPS)).toBe(3);
-    await expect.poll(() => text("body")).toContain("Deleted Post results");
+    await expect.poll(() => text("body")).toContain("Deleted Where the routine posts results");
     await ui("click", "--name", "Undo");
     await expect.poll(() => count(STEPS)).toBe(4);
     expect(await count(CONNECTIONS)).toBe(3);
