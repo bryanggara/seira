@@ -7,12 +7,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GroupGoalRunStatus } from "../shared/group-goal-run.ts";
 import { isRoutineProblemRun, ROUTINE_CHECKS } from "../shared/routines.ts";
 import { ROUTINE_SUPERSEDED } from "./routine-execution.ts";
+import { loadRoutine } from "./routine-load.ts";
 import { noStartSpacing } from "./routine-no-start.ts";
 import { RUN_PROGRESS_WINDOW_MS } from "./routine-progress-save.ts";
 import {
   nextOccurrence,
   RoutineManager,
   RoutineScheduleError,
+  type Routine,
   type RoutineManagerOptions,
   type RoutineRun,
   type RoutineSchedule,
@@ -4499,6 +4501,40 @@ describe("a routine linked to a workflow", () => {
     expect(plain?.workflowId).toBeUndefined();
     expect(plain?.workflowBotIds).toBeUndefined();
     expect(plain?.prompt).toBe("Plain prompt");
+  });
+
+  it("can still be paused, renamed and moved when its workflow can no longer run", () => {
+    const { h, input, gone } = setup();
+    const routine = h.manager.create(input);
+    gone();
+    expect(h.manager.update(routine.id, { enabled: false })).toMatchObject({ enabled: false, workflowId: "wf-1", prompt: copy.prompt, botId: "ana", workflowBotIds: ["ana", "ben"] });
+    expect(h.manager.update(routine.id, { name: "Renamed" })).toMatchObject({ name: "Renamed", workflowId: "wf-1", prompt: copy.prompt });
+  });
+
+  it("looks the workflow up again only when the edit names it or asks for a rewrite", () => {
+    const { h, input, gone } = setup();
+    const routine = h.manager.create(input);
+    gone();
+    expect(() => h.manager.update(routine.id, { rewriteWorkflow: true })).toThrow("That workflow is gone. Choose another one.");
+    expect(() => h.manager.update(routine.id, { workflowId: "wf-1" })).toThrow("That workflow is gone. Choose another one.");
+  });
+
+  it("refuses a setting a workflow cannot honour on a routine that is already linked", () => {
+    const { h, input } = setup();
+    const routine = h.manager.create(input);
+    expect(() => h.manager.update(routine.id, { access: "read-and-draft" })).toThrow("A workflow can't use read-only access.");
+  });
+
+  it("loses its link at load when it holds a setting a workflow refuses", () => {
+    const schedule = { type: "interval" as const, everyMinutes: 60, anchorAt: start };
+    const linked = { id: "r1", name: "Morning", prompt: copy.prompt, target: "bot", botId: "ana", runOn: "maus", enabled: true, schedule, durationMinutes: 30, attachments: [], workflowId: "wf-1", workflowBotIds: ["ana", "ben"], createdAt: 1, updatedAt: 1, nextRunAt: null } as unknown as Routine;
+    expect(loadRoutine(linked, start)).toMatchObject({ workflowId: "wf-1", workflowBotIds: ["ana", "ben"] });
+    for (const change of [{ access: "read-and-draft" }, { checks: [ROUTINE_CHECKS[0]!] }, { runOn: "cloud" }, { sameConversation: true }, { deliver: "brief" }]) {
+      const loaded = loadRoutine({ ...linked, ...change } as unknown as Routine, start)!;
+      expect(loaded, JSON.stringify(change)).not.toHaveProperty("workflowId");
+      expect(loaded).not.toHaveProperty("workflowBotIds");
+      expect(loaded.prompt).toBe(copy.prompt);
+    }
   });
 
   it("waits at load instead of being retried, and goes on to be ended by its workflow", async () => {

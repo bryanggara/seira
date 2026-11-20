@@ -37,7 +37,7 @@ import { attachmentPathsOf } from "./routine-attachments.ts";
 import { loadInstalledPackage, matchingRequestReceipt, rememberRequest } from "./routine-load.ts";
 import { applyHolds, holdCauses, type AppliedHolds } from "./routine-holds.ts";
 import { cancelUnfinishedRuns, interruptRunTurns } from "./routine-stops.ts";
-import { sanitizeInput } from "./routine-input.ts";
+import { sanitizeInput, workflowLookupFor } from "./routine-input.ts";
 import { startRoutineWork, type WorkflowRoutineOptions } from "./routine-dispatch.ts"; import { cloneRoutine, cloneRun } from "./routine-clone.ts";
 import { applyCheckResult, clipRunOutput, codedLine, routineLine, runLineFields, type RoutineLine, type RoutineLineCodes, type RoutineTroubleCode } from "./routine-lines.ts";
 import { checkHold, CHECK_BOOT_HOLD_MS, type CheckHold } from "./routine-check-pacing.ts";
@@ -199,7 +199,7 @@ export interface RoutineInput {
   checks?: RoutineCheck[] | null;
   access?: RoutineAccess | null;
   deliver?: RoutineDelivery | null;
-  resultsThreadId?: string | null; workflowId?: string | null;
+  resultsThreadId?: string | null; workflowId?: string | null; rewriteWorkflow?: true;
 }
 
 interface RoutineFile {
@@ -611,7 +611,7 @@ export class RoutineManager {
       checks: Object.hasOwn(patch, "checks") ? patch.checks : routine.checks,
       access: Object.hasOwn(patch, "access") ? patch.access : routine.access,
       deliver: Object.hasOwn(patch, "deliver") ? patch.deliver : routine.deliver, workflowId: Object.hasOwn(patch, "workflowId") ? patch.workflowId : routine.workflowId,
-    }, now, this.options.workflowCopy);
+    }, now, workflowLookupFor(patch, routine, this.options.workflowCopy));
     clean.schedule = this.timedSchedule(clean.schedule, routine.id);
     if (this.targetState(clean) === "missing") throw new Error(this.missingTargetMessage(clean.target));
     const scheduleChanged = JSON.stringify(clean.schedule) !== JSON.stringify(routine.schedule);

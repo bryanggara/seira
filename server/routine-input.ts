@@ -7,7 +7,9 @@ import { cleanSchedule } from "./routine-schedules.ts";
 import type { ModelSelection } from "../shared/wire.ts";
 import type { Routine, RoutineInput } from "./routines.ts";
 import { userErrorThrown } from "./user-errors.ts";
-import { linkWorkflow, type WorkflowCopyLookup } from "./workflows/routine-link.ts";
+import { linkWorkflow, workflowRefusal, type WorkflowCopyLookup } from "./workflows/routine-link.ts";
+
+export { workflowLookupFor } from "./workflows/routine-link.ts";
 
 type Refusal = { status: number; error: string };
 
@@ -93,16 +95,8 @@ export function sanitizeInput(input: RoutineInput, after: number, lookup?: Workf
   if (checks && (target !== "bot" || runsOnce(schedule))) throw userErrorThrown("serverError.routine.checksRepeat");
   if (input.access != null && input.access !== "read-and-draft") throw userErrorThrown("serverError.routine.access");
   if (input.deliver != null && (input.deliver !== "brief" || target !== "bot")) throw userErrorThrown("serverError.routine.deliver");
-  if (link) {
-    if (target === "room-goal") throw new Error("A workflow runs its own bots, not a channel.");
-    if (runOn === "cloud") throw new Error("A workflow runs on this computer.");
-    if (input.deliver != null) throw new Error("A workflow posts its results with a Post results step.");
-    if (sameConversation) throw new Error("A workflow opens new chats for each run.");
-    if (modelSelection) throw new Error("Each bot in a workflow uses its own model.");
-    if (schedule.type === "limit_reset") throw new Error("A workflow can't continue a chat after a usage limit.");
-    if (input.access === "read-and-draft") throw new Error("A workflow can't use read-only access.");
-    if (checks) throw new Error("A workflow can't use checks.");
-  }
+  const refused = link ? workflowRefusal({ target, runOn, deliver: input.deliver, sameConversation, modelSelection, scheduleType: schedule.type, access: input.access, checks }) : null;
+  if (refused) throw new Error(refused);
   return {
     name,
     prompt,
