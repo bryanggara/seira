@@ -9582,6 +9582,7 @@
   "workflow.draw.omitted.one": "{count} etapa ficou de fora. O bot dela não está disponível para você.",
   "workflow.draw.omitted.other": "{count} etapas ficaram de fora. Os bots delas não estão disponíveis para você.",
   "workflow.draw.tooMany": "Desenhamos as primeiras {count} etapas. Um fluxo de trabalho não comporta mais.",
+  "workflow.draw.unavailable": "Não foi possível desenhar o fluxo de trabalho. Os fluxos de trabalho não estão disponíveis agora.",
   "workflow.deleted": "Fluxo de trabalho excluído: {name}",
   "workflow.notRunnable": "Não pode rodar. {reason}",
   "workflow.linkedProblem": "Rotinas que usam este fluxo de trabalho não rodam até isto ser corrigido: {routines}. {reason}",

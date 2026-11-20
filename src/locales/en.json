@@ -9666,6 +9666,7 @@
   "workflow.draw.omitted.one": "Left out {count} step. Its bot isn't available to you.",
   "workflow.draw.omitted.other": "Left out {count} steps. Their bots aren't available to you.",
   "workflow.draw.tooMany": "Drew the first {count} steps. A workflow can't hold more.",
+  "workflow.draw.unavailable": "Couldn't draw the workflow. Workflows aren't available right now.",
   "workflow.deleted": "Deleted {name}",
   "workflow.notRunnable": "It can't run. {reason}",
   "workflow.linkedProblem": "{routines} can't run this workflow until this is fixed. {reason}",

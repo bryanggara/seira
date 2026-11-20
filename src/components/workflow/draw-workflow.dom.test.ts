@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { DrawnWorkflow, Workflow } from "../../../shared/workflows";
 import type { Message } from "@/state/store";
-import { resetWorkflowsForTest } from "@/state/workflows";
+import { resetWorkflowsForTest, useWorkflowsUnavailable } from "@/state/workflows";
 
 const fixture = vi.hoisted(() => ({ api: vi.fn(async (..._args: unknown[]) => ({}) as unknown) }));
 vi.mock("@/state/store", async (importOriginal) => ({
@@ -11,6 +11,10 @@ vi.mock("@/state/store", async (importOriginal) => ({
   api: (...args: unknown[]) => fixture.api(...args),
 }));
 vi.mock("@/lib/live-events", () => ({ listenLiveFrames: () => () => {} }));
+vi.mock("react", async (importOriginal) => ({
+  ...await importOriginal<typeof import("react")>(),
+  useSyncExternalStore: (_subscribe: unknown, snapshot: () => unknown) => snapshot(),
+}));
 
 const { ApiError } = await import("@/state/store");
 const { drawWorkflow, finishedReply } = await import("./draw-workflow");
@@ -82,10 +86,29 @@ describe("draw as workflow", () => {
     expect(await fail(new ApiError("x", 409, { code: "workflow_draw_no_request" }))).toBe("Couldn't draw the workflow. The message this answers has no words to start from.");
     const other = "Couldn't draw the workflow. Check that you're online and try again.";
     expect(await fail(new ApiError("x", 409, { code: "workflow_draw_unfinished" }))).toBe(other);
-    expect(await fail(new ApiError("x", 503))).toBe(other);
+    expect(await fail(new ApiError("x", 503, { error: "asleep" }))).toBe(other);
     expect(await fail(new Error("offline"))).toBe(other);
     expect(saved).toEqual([]);
     expect(dispatch.mock.calls.some(([action]) => action.type === "showRoutines")).toBe(false);
+  });
+
+  it("says workflows are unavailable on a 503 and hides the item once the list agrees", async () => {
+    vi.useFakeTimers();
+    try {
+      const base = fixture.api.getMockImplementation()!;
+      fixture.api.mockImplementation(async (path: unknown, init: unknown) => {
+        if (path === "/api/workflows" && !(init as { method?: string } | undefined)?.method) throw new ApiError("down", 503);
+        return base(path, init);
+      });
+      answer = async () => { throw new ApiError("Workflows are unavailable.", 503); };
+      await draw();
+      expect(notices().at(-1)?.text).toBe("Couldn't draw the workflow. Workflows aren't available right now.");
+      expect(useWorkflowsUnavailable()).toBe(false);
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(useWorkflowsUnavailable()).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("starts one drawing at a time, and blocks New workflow meanwhile", async () => {

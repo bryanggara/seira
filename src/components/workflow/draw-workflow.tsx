@@ -6,7 +6,7 @@ import { ACTION_ICON, type MessageMenuItem } from "@/components/MessageActions";
 import { createWorkflowOnce } from "@/components/workflow/useCreateWorkflow";
 import { t } from "@/lib/i18n";
 import { ApiError, type Action, type Message } from "@/state/store";
-import { workflowApi } from "@/state/workflows";
+import { loadWorkflows, workflowApi } from "@/state/workflows";
 
 /** The server sends `turnSucceeded`; the renderer's `Message` does not name it. */
 export const finishedReply = (message: Message & { turnSucceeded?: boolean }): boolean =>
@@ -14,8 +14,11 @@ export const finishedReply = (message: Message & { turnSucceeded?: boolean }): b
   && !message.id.startsWith("optimistic-") && Boolean(message.text?.trim())
   && (message.requestMessageId !== undefined || message.from?.botId !== undefined);
 
+const workflowsOff = (error: unknown): boolean => error instanceof ApiError && error.status === 503 && error.body?.error !== "asleep";
+
 function failure(error: unknown): string {
   if (error instanceof ApiError) {
+    if (workflowsOff(error)) return t("workflow.draw.unavailable");
     if (error.status === 404) return t("workflow.draw.gone");
     if (error.status === 403) return t("workflow.draw.notAllowed");
     if (error.status === 409 && error.body?.code === "workflow_draw_no_request") return t("workflow.draw.noRequest");
@@ -42,6 +45,7 @@ export async function drawWorkflow(target: { threadId: string; messageId: string
     if (said.length) note(said.join(" "));
   } catch (error) {
     note(failure(error));
+    if (workflowsOff(error)) void loadWorkflows({ background: true });
   }
 }
 
