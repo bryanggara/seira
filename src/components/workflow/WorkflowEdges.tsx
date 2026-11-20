@@ -45,7 +45,7 @@ export function WorkflowEdges({ graph, botName, selectedId, editable, pending, o
               <path d={d} fill="none" stroke={isSelected ? "var(--color-accent)" : "var(--color-ink-tertiary)"} strokeWidth={isSelected ? 2 : 1.5} markerEnd="url(#workflow-arrow)" />
               {editable && <path d={d} fill="none" stroke="transparent" strokeWidth={12} pointerEvents="stroke" data-workflow-connection-hit={connection.id}
                 className="cursor-pointer" onClick={() => onSelect(connection.id)} />}
-              {labelAt && connection.branch && (
+              {labelAt && connection.branch && !editable && (
                 <text x={labelAt.x} y={labelAt.y} textAnchor="middle" fontSize={11} fill="var(--color-ink-secondary)">
                   {t(connection.branch === "yes" ? "workflow.branch.yes" : "workflow.branch.no")}
                 </text>

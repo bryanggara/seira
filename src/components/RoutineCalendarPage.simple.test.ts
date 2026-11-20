@@ -398,10 +398,13 @@ describe("routine editor", () => {
     it("locks the bot picker while a workflow is chosen", () => {
       fixture.values = [];
       const tree = capture(() => EventEditor(props({ workflowId: "wf1" })));
+      const captions = (found: Node[]) => found.map((node) => textOf(node.props.children as ReactNode));
       expect(tree.find(named("BotPicker"))!.props.locked).toBe(true);
+      expect(captions(tree)).toContain("The workflow's first bot starts each run.");
       fixture.values = [];
       const free = capture(() => EventEditor(props()));
       expect(free.find(named("BotPicker"))!.props.locked).toBe(false);
+      expect(captions(free)).toContain("This bot owns each scheduled run.");
     });
   });
 

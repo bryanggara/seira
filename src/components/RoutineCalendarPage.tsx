@@ -933,7 +933,7 @@ export function EventEditor({
                   {bots.length > 0 ? (
                 <>
                   <BotPicker bots={bots} selected={botIds} multiple={kind === "call"} locked={Boolean(lockedBotId || workflowId)} onChange={selectBots} />
-                  <div className="mt-2 text-[12px] text-ink-secondary">{kind === "routine" ? t("routines.event.botOwnsRuns") : t(selectedBots.length === 0 ? "routines.event.invitedNone" : selectedBots.length === 1 ? "routines.event.invitedOne" : "routines.event.invitedMany", { count: selectedBots.length })}</div>{kind === "routine" && <RoutineAudience team={state.config?.team} bot={selectedBots[0]} value={resultsThreadId} madeIn={existingRoutine?.sourceThreadId} />}
+                  <div className="mt-2 text-[12px] text-ink-secondary">{kind === "routine" ? t(workflowId ? "workflow.slot.botLocked" : "routines.event.botOwnsRuns") : t(selectedBots.length === 0 ? "routines.event.invitedNone" : selectedBots.length === 1 ? "routines.event.invitedOne" : "routines.event.invitedMany", { count: selectedBots.length })}</div>{kind === "routine" && <RoutineAudience team={state.config?.team} bot={selectedBots[0]} value={resultsThreadId} madeIn={existingRoutine?.sourceThreadId} />}
                 </>
               ) : (
                 <button type="button" onClick={() => { dispatch({ type: "newBot" }); onClose(); }} className="w-full rounded-xl border border-dashed border-accent/45 bg-accent/[0.06] px-4 py-4 text-left hover:bg-accent/10">

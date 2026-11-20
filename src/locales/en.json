@@ -9797,6 +9797,7 @@
   "workflow.slot.removeNamed": "Stop using {name}",
   "workflow.slot.none": "You have no workflows. Draw one under Automations, in Workflows.",
   "workflow.slot.missing": "That workflow is gone. Choose another one or write instructions.",
+  "workflow.slot.botLocked": "The workflow's first bot starts each run.",
   "workflow.slot.blocked.room": "A team goal can't run a workflow. Write instructions instead.",
   "workflow.slot.blocked.cloud": "A workflow can't run on a cloud desktop. Change where this routine runs.",
   "workflow.slot.blocked.limit": "A workflow can't start when a usage limit resets. Choose another time.",

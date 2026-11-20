@@ -171,6 +171,17 @@ describe("the workflow canvas", () => {
     expect(edit.dispatch).toHaveBeenNthCalledWith(2, { type: "connect", connection: expect.objectContaining({ from: "k", to: "n", branch: "no" }) });
   });
 
+  it("names a check's branch once: on its port while editing, on its line when read-only", () => {
+    const flow: WorkflowGraph = { steps: [checkStep("k", 0, 0), botStep("y", "bot-a", 0, 240)], connections: [{ id: "c-yes", from: "k", to: "y", branch: "yes" }] };
+    const labels = (container: ParentNode) => [...container.querySelectorAll("[data-workflow-port=yes], [data-workflow-connection=c-yes]")].filter((node) => node.textContent === "Yes").length;
+    const editing = mount(createElement(WorkflowCanvas, canvasProps({ graph: flow }).props as never));
+    expect(labels(editing)).toBe(1);
+    expect(editing.querySelector("[data-workflow-connection=c-yes]")!.textContent).toBe("");
+    const reading = mount(createElement(WorkflowCanvas, canvasProps({ graph: flow, edit: undefined }).props as never));
+    expect(reading.querySelector("[data-workflow-port=yes]")).toBeNull();
+    expect(reading.querySelector("[data-workflow-connection=c-yes]")!.textContent).toBe("Yes");
+  });
+
   it("pans with arrow keys on the empty canvas, zooms with plus and minus, and fits with 0", () => {
     const { props } = canvasProps();
     const container = mount(createElement(WorkflowCanvas, props as never));
