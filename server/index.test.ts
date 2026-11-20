@@ -9370,7 +9370,7 @@ describe("harness HTTP API", () => {
       expect((await api("PATCH", `/api/bots/${bot.id}`, { modelSelection: { instanceId: "claude", model: "claude-haiku-4-5" }, approvalMode: "auto" })).status).toBe(200);
       rmSync(fakeClaudeDump, { force: true });
       expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "read my ledger" })).status).toBe(202);
-      const dump = z.object({ mcpConfig: z.object({ mcpServers: z.object({ ogb: z.object({ args: z.array(z.string()) }) }) }) }).parse(await readJsonFileWhenReady(fakeClaudeDump));
+      const dump = z.object({ mcpConfig: z.object({ mcpServers: z.object({ ogb: z.object({ args: z.array(z.string()) }) }) }) }).parse(await readJsonFileWhenReady(fakeClaudeDump, 15_000));
       const raise = async (id: string, summary: string, tool: string) => {
         const conn = connect(dump.mcpConfig.mcpServers.ogb.args[1]);
         conns.push(conn);
