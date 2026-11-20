@@ -15,7 +15,7 @@ function Instructions({ value, onChange, placeholder, label }: { value: string; 
 }
 
 function Choosing({ workflow, ...instructions }: { value: string; onChange: (value: string) => void; placeholder: string; label: string; workflow: WhatItDoesWorkflow }) {
-  const mode = workflow.workflowId === null ? "instructions" : "workflow";
+  const mode = workflow.choice.mode;
   const Icon = mode === "workflow" ? WorkflowIcon : FileText;
   return (
     <div className="flex items-start gap-4">
@@ -23,7 +23,7 @@ function Choosing({ workflow, ...instructions }: { value: string; onChange: (val
       <div className="min-w-0 flex-1 space-y-3">
         <Segmented attr="data-what-it-does" label={t("workflow.slot.label")} value={mode}
           options={[{ value: "instructions", label: t("workflow.slot.instructions") }, { value: "workflow", label: t("workflow.slot.workflow") }]}
-          onChange={(next) => workflow.onChange(next === "instructions" ? null : "")} />
+          onChange={(next) => workflow.onChange(next === "instructions" ? { mode: "instructions" } : { mode: "workflow", id: null })} />
         {mode === "workflow" ? <WorkflowSlot {...workflow} /> : <div className="flex"><Instructions {...instructions} /></div>}
       </div>
     </div>
@@ -34,7 +34,7 @@ function Gated(props: { value: string; onChange: (value: string) => void; placeh
   const workflows = useWorkflows();
   const { workflow, ...instructions } = props;
   const ready = workflows.loaded && !(workflows.failed && workflows.workflows.length === 0);
-  if (workflows.unavailable || (workflow.workflowId === null && !ready)) return <div className="flex items-start gap-4"><FileText size={18} className="mt-2.5 shrink-0 text-ink-secondary" /><Instructions {...instructions} /></div>;
+  if (workflows.unavailable || (workflow.choice.mode === "instructions" && !ready)) return <div className="flex items-start gap-4"><FileText size={18} className="mt-2.5 shrink-0 text-ink-secondary" /><Instructions {...instructions} /></div>;
   return <Choosing workflow={workflow} {...instructions} />;
 }
 

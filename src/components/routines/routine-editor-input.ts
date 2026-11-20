@@ -3,6 +3,16 @@ import type { Routine, RoutineContextAttachment, RoutineInput, RoutineRunOn, Rou
 
 export type WorkflowBlock = "room" | "cloud" | "limit";
 
+export type WorkflowChoice = { mode: "instructions" } | { mode: "workflow"; id: string | null };
+
+export function choiceOf(workflowId: string | null): WorkflowChoice {
+  return workflowId === null ? { mode: "instructions" } : { mode: "workflow", id: workflowId || null };
+}
+
+export function workflowIdOf(choice: WorkflowChoice): string | null {
+  return choice.mode === "instructions" ? null : choice.id ?? "";
+}
+
 export function workflowBlock(fields: { target: RoutineTarget; runOn: RoutineRunOn; limitReset: boolean }): WorkflowBlock | null {
   if (fields.target === "room-goal") return "room";
   if (fields.runOn === "cloud") return "cloud";
@@ -10,7 +20,6 @@ export function workflowBlock(fields: { target: RoutineTarget; runOn: RoutineRun
   return null;
 }
 
-/** True when saving a workflow routine turns off settings the routine has now. */
 export function workflowClears(routine: Routine | undefined): boolean {
   return Boolean(routine && !routine.workflowId && (routine.deliver || routine.modelSelection || routine.checks?.length || routine.access === "read-and-draft"));
 }

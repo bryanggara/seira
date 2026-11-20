@@ -83,7 +83,7 @@ import {
 } from "@/lib/routines"; import { ROUTINE_GOAL_RUN_LIMIT_MINUTES, ROUTINE_RUN_LIMIT_MAX_MINUTES, ROUTINE_RUN_LIMIT_MINUTES } from "@/lib/routines";
 import { api, openBotThread, openThread, useStore, type Bot, type Group } from "@/state/store";
 import { RoutineScheduleNote } from "./RoutineScheduleNote";
-import { routineEditorInput, workflowBlock, workflowClears } from "./routines/routine-editor-input";
+import { choiceOf, routineEditorInput, workflowBlock, workflowClears, workflowIdOf } from "./routines/routine-editor-input";
 import { WhatItDoes, WorkflowRoutineSection } from "./routines/WhatItDoes";
 import { CalendarEventCard, HOUR_HEIGHT, statusState } from "./routines/CalendarEventCard";
 
@@ -932,7 +932,7 @@ export function EventEditor({
                   <div className="mb-2 text-[13px] font-medium text-ink">{kind === "routine" ? (advanced ? t("routines.event.assignBot") : t("routines.editor.who")) : t("routines.event.addGuests")}</div>
                   {bots.length > 0 ? (
                 <>
-                  <BotPicker bots={bots} selected={botIds} multiple={kind === "call"} locked={Boolean(lockedBotId)} onChange={selectBots} />
+                  <BotPicker bots={bots} selected={botIds} multiple={kind === "call"} locked={Boolean(lockedBotId || workflowId)} onChange={selectBots} />
                   <div className="mt-2 text-[12px] text-ink-secondary">{kind === "routine" ? t("routines.event.botOwnsRuns") : t(selectedBots.length === 0 ? "routines.event.invitedNone" : selectedBots.length === 1 ? "routines.event.invitedOne" : "routines.event.invitedMany", { count: selectedBots.length })}</div>{kind === "routine" && <RoutineAudience team={state.config?.team} bot={selectedBots[0]} value={resultsThreadId} madeIn={existingRoutine?.sourceThreadId} />}
                 </>
               ) : (
@@ -947,7 +947,7 @@ export function EventEditor({
           </div>
 
           {advanced && resultsControl}
-          <WhatItDoes value={description} onChange={setDescription} label={t("routines.editor.descriptionLabel")} placeholder={isRoomGoal ? t("routines.goal.instructionsPlaceholder") : kind === "routine" ? (advanced ? t("routines.event.instructionsPlaceholder") : t("routines.editor.instructionsPlaceholder")) : t("routines.event.agendaPlaceholder")} workflow={kind === "routine" ? { workflowId, onChange: (id, startBotId) => { setWorkflowId(id); if (startBotId && !lockedBotId) selectBots([startBotId]); }, block: workflowBlock({ target: routineTarget, runOn, limitReset: recurrence === "limit_reset" }), lockedBotId, clears: workflowClears(existingRoutine) } : undefined} />
+          <WhatItDoes value={description} onChange={setDescription} label={t("routines.editor.descriptionLabel")} placeholder={isRoomGoal ? t("routines.goal.instructionsPlaceholder") : kind === "routine" ? (advanced ? t("routines.event.instructionsPlaceholder") : t("routines.editor.instructionsPlaceholder")) : t("routines.event.agendaPlaceholder")} workflow={kind === "routine" ? { choice: choiceOf(workflowId), onChange: (next, startBotId) => { setWorkflowId(workflowIdOf(next)); if (startBotId && !lockedBotId) selectBots([startBotId]); }, block: workflowBlock({ target: routineTarget, runOn, limitReset: recurrence === "limit_reset" }), lockedBotId, clears: workflowClears(existingRoutine) } : undefined} />
           {continuityControl}
 
           {advanced && attachmentsRow}
@@ -1445,7 +1445,7 @@ export function EventDetails({
             {routine?.schedule.type === "cron" && <div className="mt-2"><CronSchedulePreview schedule={routine.schedule} paused={!routine.enabled} /></div>}
           </DrawerField>
         )}
-        {(run?.workflowId ?? routine?.workflowId) && routineId ? <WorkflowRoutineSection routineId={routineId} workflowId={(run?.workflowId ?? routine?.workflowId)!} runId={run?.id} /> : description && <DrawerField label={isCall ? t("routines.drawer.agenda") : t("routines.drawer.what")}><div className="whitespace-pre-wrap text-[13px] leading-relaxed text-ink">{description}</div></DrawerField>}
+        {(run ? run.workflowId : routine?.workflowId) && routineId ? <WorkflowRoutineSection routineId={routineId} workflowId={(run ? run.workflowId : routine?.workflowId)!} runId={run?.id} /> : description && <DrawerField label={isCall ? t("routines.drawer.agenda") : t("routines.drawer.what")}><div className="whitespace-pre-wrap text-[13px] leading-relaxed text-ink">{description}</div></DrawerField>}
         {!isCall && (
           <DrawerField label={t("routines.drawer.runsOn")}>
             <div className="flex items-start gap-2 text-[13px] text-ink">{runOn === "cloud" ? <Cloud size={14} className="mt-0.5 shrink-0 text-ink-secondary" /> : <Laptop size={14} className="mt-0.5 shrink-0 text-ink-secondary" />}<span>{runsOn.label}</span></div>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Routine, RoutineContextAttachment } from "@/lib/routines";
-import { routineEditorInput, workflowBlock, workflowClears, type RoutineEditorFields } from "./routine-editor-input";
+import { choiceOf, routineEditorInput, workflowBlock, workflowIdOf, workflowClears, type RoutineEditorFields } from "./routine-editor-input";
 
 const attachment = { path: "/tmp/notes.md" } as unknown as RoutineContextAttachment;
 
@@ -97,5 +97,14 @@ describe("workflowClears", () => {
     expect(workflowClears({ checks: [{}] } as unknown as Routine)).toBe(true);
     expect(workflowClears({ access: "read-and-draft" } as unknown as Routine)).toBe(true);
     expect(workflowClears({ workflowId: "wf1", access: "read-and-draft" } as unknown as Routine)).toBe(false);
+  });
+});
+
+describe("the workflow choice", () => {
+  it("tells Instructions, Workflow with none picked, and a picked workflow apart, and turns back into the saved id", () => {
+    expect(choiceOf(null)).toEqual({ mode: "instructions" });
+    expect(choiceOf("")).toEqual({ mode: "workflow", id: null });
+    expect(choiceOf("wf1")).toEqual({ mode: "workflow", id: "wf1" });
+    for (const id of [null, "", "wf1"]) expect(workflowIdOf(choiceOf(id))).toBe(id);
   });
 });
