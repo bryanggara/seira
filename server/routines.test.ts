@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { GroupGoalRunStatus } from "../shared/group-goal-run.ts";
-import { isRoutineProblemRun } from "../shared/routines.ts";
+import { isRoutineProblemRun, ROUTINE_CHECKS } from "../shared/routines.ts";
 import { ROUTINE_SUPERSEDED } from "./routine-execution.ts";
 import { noStartSpacing } from "./routine-no-start.ts";
 import { RUN_PROGRESS_WINDOW_MS } from "./routine-progress-save.ts";
@@ -4479,6 +4479,16 @@ describe("a routine linked to a workflow", () => {
     expect(() => h.manager.create({ ...input, runOn: "cloud" as never })).toThrow("A workflow runs on this computer.");
     gone();
     expect(() => h.manager.create(input)).toThrow("That workflow is gone. Choose another one.");
+  });
+
+  it("refuses read-only access, whose fence covers one chat only", () => {
+    const { h, input } = setup();
+    expect(() => h.manager.create({ ...input, access: "read-and-draft" })).toThrow("A workflow can't use read-only access.");
+  });
+
+  it("refuses checks", () => {
+    const { h, input } = setup();
+    expect(() => h.manager.create({ ...input, checks: [ROUTINE_CHECKS[0]!] })).toThrow("A workflow can't use checks.");
   });
 
   it("keeps the copy when the routine is updated, and drops the link on null", () => {

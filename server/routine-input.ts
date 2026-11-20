@@ -100,6 +100,8 @@ export function sanitizeInput(input: RoutineInput, after: number, lookup?: Workf
     if (sameConversation) throw new Error("A workflow opens new chats for each run.");
     if (modelSelection) throw new Error("Each bot in a workflow uses its own model.");
     if (schedule.type === "limit_reset") throw new Error("A workflow can't continue a chat after a usage limit.");
+    if (input.access === "read-and-draft") throw new Error("A workflow can't use read-only access.");
+    if (checks) throw new Error("A workflow can't use checks.");
   }
   return {
     name,
