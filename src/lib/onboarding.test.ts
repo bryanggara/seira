@@ -134,12 +134,14 @@ describe("organisation sign-in in the engines beat", () => {
   const bridge = { begin: () => {} };
 
   it("is offered only by the packaged local desktop", () => {
-    expect(organisationSignIn({ organization: bridge }, { hosted: false })).toBe(bridge);
-    expect(organisationSignIn(undefined, { hosted: false })).toBeUndefined();
-    expect(organisationSignIn({}, { hosted: false })).toBeUndefined();
-    expect(organisationSignIn({ organization: bridge, remoteClient: { active: true } }, { hosted: false })).toBeUndefined();
-    expect(organisationSignIn({ organization: bridge }, { hosted: true })).toBeUndefined();
-    expect(organisationSignIn({ organization: bridge, remoteClient: { active: false } }, { hosted: false })).toBe(bridge);
+    expect(organisationSignIn({ organization: bridge }, { hosted: false, portalOffered: true })).toBe(bridge);
+    expect(organisationSignIn(undefined, { hosted: false, portalOffered: true })).toBeUndefined();
+    expect(organisationSignIn({}, { hosted: false, portalOffered: true })).toBeUndefined();
+    expect(organisationSignIn({ organization: bridge, remoteClient: { active: true } }, { hosted: false, portalOffered: true })).toBeUndefined();
+    expect(organisationSignIn({ organization: bridge }, { hosted: true, portalOffered: true })).toBeUndefined();
+    expect(organisationSignIn({ organization: bridge, remoteClient: { active: false } }, { hosted: false, portalOffered: true })).toBe(bridge);
+    expect(organisationSignIn({ organization: bridge }, { hosted: false, portalOffered: false })).toBeUndefined();
+    expect(organisationSignIn({ organization: bridge }, { hosted: false })).toBeUndefined();
   });
 
   it("counts the models the organisation approved", () => {
