@@ -76,7 +76,7 @@ export function draftFromThread(source: DraftSource, newId: (prefix: "s" | "c") 
     if (row.assignee.botId !== row.requester.botId) events.push({ at: row.createdAt, step: { kind: "bot", botId: row.assignee.botId, instruction: row.brief } });
   }
   if (room) {
-    for (const row of roots.slice(1).filter(openable)) events.push({ at: row.createdAt, step: { kind: "bot", botId: row.assignee.botId, instruction: withoutMention(row.brief) } });
+    for (const row of roots.slice(1).filter((row) => openable(row))) events.push({ at: row.createdAt, step: { kind: "bot", botId: row.assignee.botId, instruction: withoutMention(row.brief) } });
   }
 
   const seen = new Set<string>();
