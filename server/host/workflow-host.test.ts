@@ -114,7 +114,7 @@ describe("the workflow host's workflows", () => {
     const r = rig();
     const made = r.host.create(input());
     expect(r.host.copyFor(made.id)).toMatchObject({ workflowId: made.id, botId: "ana", botIds: ["ana", "ben"] });
-    const empty = r.host.create({ name: "Empty", steps: [{ id: "p", kind: "post", position: at }], connections: [] });
+    const empty = r.host.create({ name: "Empty", steps: [], connections: [] });
     expect(r.host.copyFor(empty.id)).toMatchObject({ code: "workflow_no_start" });
     expect(r.host.copyFor("missing")).toBeNull();
   });

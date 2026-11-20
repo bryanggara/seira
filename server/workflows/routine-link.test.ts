@@ -29,11 +29,23 @@ describe("the prompt copy of a workflow", () => {
     expect(workflowPromptCopy(flow(), botName)).toBe([
       'This routine runs the workflow "Morning". Do these steps in order:',
       "1. Ana: Collect the news",
-      "2. AI check: Is there news? If yes, go to 3. If no, go to 4.",
-      "3. Ben: Write the digest Then go to 5.",
-      "4. Wait 1 minute.",
-      "5. Post results.",
+      "2. AI check: Is there news? If yes, go to 3. If no, go to 5.",
+      "3. Ben: Write the digest",
+      "4. Post results.",
+      "5. Wait 1 minute.",
     ].join("\n"));
+  });
+
+  it("says where a bot step goes when its next step is not the one after it", () => {
+    const jump = flow({
+      steps: [
+        { id: "a", kind: "bot", botId: "ana", instruction: "First", position: at },
+        { id: "p", kind: "post", position: at },
+        { id: "b", kind: "bot", botId: "ben", instruction: "Second", position: at },
+      ],
+      connections: [{ id: "1", from: "a", to: "p" }, { id: "2", from: "a", to: "b" }, { id: "3", from: "b", to: "p" }],
+    });
+    expect(workflowPromptCopy(jump, botName)).toContain("1. Ana: First Then go to 2.");
   });
 
   it("leaves a note out", () => {

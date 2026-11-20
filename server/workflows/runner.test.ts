@@ -154,7 +154,7 @@ describe("a workflow run through its steps", () => {
     expect(errors).toEqual(["This routine's workflow is gone"]);
     r.store.putWorkflow(flow([{ id: "p", kind: "post", position: at }], []));
     await r.runner.start(r.routineRun("run-y"), "t-ana", (message) => errors.push(message));
-    expect(errors[1]).toBe("Add a bot step to start this workflow.");
+    expect(errors[1]).toBe("A workflow starts with a bot step.");
     await r.begin();
     r.reply("news"); r.reply("digest"); r.posts[0]!.written();
     await r.runner.start(r.routineRun("run-1"), "t-ana", (message) => errors.push(message));
@@ -172,10 +172,11 @@ describe("a workflow run through its steps", () => {
     expect(r.states.at(-1)).toEqual(["failed", "Ben failed: Ben is no longer available."]);
 
     const q = rig();
-    q.threads.open = false;
     await q.begin();
-    expect(q.step("a")).toMatchObject({ status: "failed", errorCode: "turn_failed", error: "Could not open a chat for Ana." });
-    expect(q.turns).toEqual([]);
+    q.threads.open = false;
+    q.reply("news");
+    expect(q.step("b")).toMatchObject({ status: "failed", errorCode: "turn_failed", error: "Could not open a chat for Ben." });
+    expect(q.turns).toHaveLength(1);
   });
 
   it("fails a step when its turn fails, or asks the person", async () => {
