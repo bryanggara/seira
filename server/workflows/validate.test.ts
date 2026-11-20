@@ -134,7 +134,7 @@ describe("saving a workflow", () => {
   });
 
   it("lists every problem, in the order of the rules", () => {
-    expect(codes(input([bot("a", ""), check("c", ""), wait("w", 0)], [link("k", "a", "gone")], ""))).toEqual([
+    expect(codes(input([bot("a", "", ""), check("c", ""), wait("w", 0)], [link("k", "a", "gone")], ""))).toEqual([
       "workflow_name", "workflow_bot_missing", "workflow_instruction_missing", "workflow_question_missing", "workflow_wait_range", "workflow_unknown_step",
     ]);
   });
