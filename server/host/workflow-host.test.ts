@@ -159,6 +159,27 @@ describe("the workflow host's runs", () => {
     expect(r.turns[0]!.text).toContain("Collect the news");
   });
 
+  it("starts no step turn once the app is closing", async () => {
+    const r = rig({ shuttingDown: () => true });
+    const { errors } = await begin(r);
+    expect(errors).toEqual([]);
+    expect(r.turns).toEqual([]);
+  });
+
+  it("does not recover its runs while the routine file cannot be read", async () => {
+    let unreadable = true;
+    const r = rig({ routinesUnreadable: () => unreadable });
+    const { row } = await begin(r);
+    r.runRows.splice(0, r.runRows.length);
+    r.host.recover();
+    expect(r.cancelled).toEqual([]);
+    expect(r.states).toEqual([]);
+    expect(r.host.run(row.id)?.status).toBe("active");
+    unreadable = false;
+    r.host.recover();
+    expect(r.host.run(row.id)?.status).not.toBe("active");
+  });
+
   it("opens a new chat for the next bot, marked as this run's and unread by nobody", async () => {
     const r = rig();
     const { row } = await begin(r);

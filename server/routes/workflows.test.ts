@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { Workflow, WorkflowInput, WorkflowRun } from "../../shared/workflows.ts";
+import { atLeast, type BotAccessLevel } from "../../shared/bot-access.ts";
 import { frameForMember, routineRunVisible, routineVisible, VisibleSet, type StreamSeen, type Viewer } from "../bot-visibility.ts";
 import type { WorkflowHost } from "../host/workflow-host.ts";
 import type { RequestAuth } from "../request-auth.ts";
@@ -13,7 +14,7 @@ import { RoutineManager, type Routine, type RoutineRun } from "../routines.ts";
 import { PASS, type RouteContext } from "./table.ts";
 import { createCloudRoutineAuthors, routineFingerprint } from "../cloud-lending.ts";
 import { createWorkflowRoutineEdits, type WorkflowRoutineEdits } from "../host/workflow-routine-edits.ts";
-import { createWorkflowRoutes, workflowTargetHidden } from "./workflows.ts";
+import { createWorkflowRoutes, workflowLinkRefusal, workflowTargetHidden } from "./workflows.ts";
 
 const BOB: Viewer = { kind: "member", email: "bob@example.test" };
 const bots = [
@@ -42,7 +43,7 @@ function run(runId: string, workflowId: string, over: Partial<WorkflowRun> = {})
   };
 }
 
-function fixture(over: { workflows?: Workflow[]; runs?: WorkflowRun[]; routines?: Array<Partial<Routine>>; viewer?: Viewer; again?: WorkflowHost["runAgain"]; edits?: WorkflowRoutineEdits; rewrite?: (routine: Routine) => void } = {}) {
+function fixture(over: { workflows?: Workflow[]; runs?: WorkflowRun[]; routines?: Array<Partial<Routine>>; viewer?: Viewer; again?: WorkflowHost["runAgain"]; edits?: WorkflowRoutineEdits; rewrite?: (routine: Routine) => void; levels?: Record<string, BotAccessLevel>; own?: string[] } = {}) {
   const flows = new Map((over.workflows ?? [workflow("open", "pub", "pub"), workflow("secret", "pub", "hr")]).map((flow) => [flow.id, flow]));
   const runs = over.runs ?? [run("run-open", "open"), run("run-secret", "secret", { botIds: ["pub", "hr"] })];
   const calls: string[] = [];
@@ -59,7 +60,9 @@ function fixture(over: { workflows?: Workflow[]; runs?: WorkflowRun[]; routines?
   } as unknown as WorkflowHost;
   const visible = new VisibleSet(bots, [], over.viewer ?? BOB);
   const routes = createWorkflowRoutes({ visible: () => visible, botName: (id) => names[id], workflows: () => host, routines: () => ({ listRoutines: () => routines }),
-    routineEdits: over.edits ?? { refusal: () => null, edit: (_auth, _routines, change) => change() } });
+    routineEdits: over.edits ?? { refusal: () => null, edit: (_auth, _routines, change) => change() },
+    botsRefusal: (_auth, ids, needed) => (ids.some((id) => !atLeast(over.levels?.[id] ?? "edit", needed)) ? "You can't change this bot." : null),
+    routineNeeds: (_auth, id) => (id === undefined || over.own?.includes(id) ? "chat" : "edit") });
   async function call(method: string, path: string, body?: unknown) {
     const sent: { status?: number; body?: any } = {};
     const context = {
@@ -116,13 +119,62 @@ describe("workflow routes", () => {
     expect(calls).toEqual([]);
   });
 
-  it("refuses a save that names a hidden bot", async () => {
+  it("answers a save that names a hidden bot as it answers an unknown bot", async () => {
     const { call, calls } = fixture();
-    const created = await call("POST", "/api/workflows", input("pub", "hr"));
-    expect(created).toMatchObject({ status: 404, body: { error: "no such bot" } });
-    const changed = await call("PATCH", "/api/workflows/open", input("hr"));
-    expect(changed).toMatchObject({ status: 404, body: { error: "no such bot" } });
+    const hidden = await call("POST", "/api/workflows", input("pub", "hr"));
+    const unknown = await call("POST", "/api/workflows", input("pub", "gone"));
+    expect(hidden.status).toBe(400);
+    expect(JSON.stringify(hidden.body).replace(/hr|Hal/g, "x")).toBe(JSON.stringify(unknown.body).replace(/gone/g, "x"));
+    expect(JSON.stringify(hidden.body)).not.toContain("Hal");
+    expect((await call("PATCH", "/api/workflows/open", input("hr"))).status).toBe(400);
     expect(calls).toEqual([]);
+  });
+
+  describe("on a Team Cloud, by what the person may do with a bot", () => {
+    it("refuses to change, delete or create a workflow when a bot is below the level", async () => {
+      const { call, calls } = fixture({ levels: { pub: "chat" }, routines: [] });
+      expect((await call("PATCH", "/api/workflows/open", input("pub"))).status).toBe(403);
+      expect((await call("DELETE", "/api/workflows/open")).status).toBe(403);
+      expect(calls).toEqual([]);
+      const viewOnly = fixture({ levels: { pub: "view" } });
+      expect((await viewOnly.call("POST", "/api/workflows", input("pub"))).status).toBe(403);
+      expect(viewOnly.calls).toEqual([]);
+    });
+
+    it("checks the bots the new graph names, and those of a linked routine", async () => {
+      const { call } = fixture({ levels: { pub: "edit", other: "view" }, routines: [{ id: "r1", botId: "other", workflowId: "open" }] });
+      expect((await call("PATCH", "/api/workflows/open", input("pub"))).status).toBe(403);
+      expect((await call("DELETE", "/api/workflows/open")).status).toBe(403);
+    });
+
+    it("lets a person who edits every bot change it, and who wrote the routine chat", async () => {
+      expect((await fixture({ levels: { pub: "edit" } }).call("PATCH", "/api/workflows/open", input("pub"))).status).toBe(200);
+      const own = fixture({ levels: { pub: "chat" }, own: ["r1"] });
+      expect((await own.call("PATCH", "/api/workflows/open", input("pub"))).status).toBe(200);
+    });
+
+    it("needs chat, not edit, to run a failed step again", async () => {
+      const chat = fixture({ levels: { pub: "chat" } });
+      expect((await chat.call("POST", "/api/workflow-runs/run-open/steps/s2/run-again")).status).toBe(201);
+      const view = fixture({ levels: { pub: "view" } });
+      expect((await view.call("POST", "/api/workflow-runs/run-open/steps/s2/run-again")).status).toBe(403);
+      expect(view.calls).toEqual([]);
+    });
+  });
+
+  describe("linking a routine to a workflow", () => {
+    const deps = (levels: Record<string, BotAccessLevel>) => ({
+      botsRefusal: (_auth: RequestAuth, ids: readonly string[], needed: "chat" | "edit") => (ids.some((id) => !atLeast(levels[id] ?? "edit", needed)) ? "no" : null),
+      routineNeeds: (_auth: RequestAuth, id: string | undefined) => (id === undefined ? "chat" as const : "edit" as const),
+    });
+    it("refuses a link to a workflow whose bots the person may not use", () => {
+      const { host } = fixture({ viewer: { kind: "all" } });
+      expect(workflowLinkRefusal({ workflowId: "open" }, undefined, auth, host, deps({ pub: "view" }))).toBe("no");
+      expect(workflowLinkRefusal({ workflowId: "open" }, undefined, auth, host, deps({ pub: "chat" }))).toBeNull();
+      const existing = { id: "r1", workflowId: "open", workflowBotIds: ["pub"] } as Routine;
+      expect(workflowLinkRefusal({ workflowId: "secret" }, existing, auth, host, deps({ pub: "chat", hr: "edit" }))).toBe("no");
+      expect(workflowLinkRefusal({ name: "x" }, existing, auth, host, deps({ pub: "view" }))).toBeNull();
+    });
   });
 
   it("creates, reads, changes and deletes a visible workflow", async () => {

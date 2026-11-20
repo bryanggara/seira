@@ -35,6 +35,10 @@ export interface WorkflowHostDeps {
   botState(botId: string): "ready" | "busy" | "missing";
   startTurn(botId: string, text: string, opts: WorkflowTurnOptions): Promise<unknown>;
   reports: Pick<AutomationReports, "postStep">;
+  /** True once the app is closing: no new step turn starts. */
+  shuttingDown?(): boolean;
+  /** True while routines.json cannot be read: a run is not recovered then, because its routine is not there to ask. */
+  routinesUnreadable?(): boolean;
   emit(frame: WorkflowFrame): void;
   now?: () => number;
   log?: (line: string) => void;
@@ -97,6 +101,7 @@ export function createWorkflowHost(deps: WorkflowHostDeps): WorkflowHost {
       const message = error instanceof Error ? error.message : String(error);
       turn.settle(typeof code === "string" && BUSY_CODES.has(code) ? { ok: false, busy: true, error: message } : { ok: false, error: message });
     };
+    if (deps.shuttingDown?.()) return;
     try {
       void Promise.resolve(deps.startTurn(turn.botId, turn.prompt, {
         threadId: turn.threadId,
@@ -197,7 +202,7 @@ export function createWorkflowHost(deps: WorkflowHostDeps): WorkflowHost {
       if (event.type === "request.opened") runner.asked(event.threadId, waitingFor(askOf(event, now())) ?? "");
       else if (event.type === "request.resolved") runner.asked(event.threadId, null);
     },
-    recover: () => runner.recover(),
+    recover: () => { if (!deps.routinesUnreadable?.()) runner.recover(); },
     close() {
       runner.close();
       store.close();

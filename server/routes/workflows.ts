@@ -13,12 +13,31 @@ export interface WorkflowRoutesDeps {
   workflows(): WorkflowHost | null;
   routines(): Pick<RoutineManager, "listRoutines"> | null;
   routineEdits: WorkflowRoutineEdits;
+  /** Why this person may not do this much with these bots (Team Cloud levels); null when they may. */
+  botsRefusal(auth: RequestAuth, botIds: readonly string[], needed: "chat" | "edit"): string | null;
+  /** What this person needs on the bots of a routine they save: "chat" on their own or a new one, else "edit". */
+  routineNeeds(auth: RequestAuth, routineId: string | undefined): "chat" | "edit";
 }
 
 const RUNS_DEFAULT = 20;
 const RUNS_MAX = 50;
 
 const withoutGraph = ({ graph: _graph, ...update }: WorkflowRun): WorkflowRunUpdate => update;
+
+export function workflowBotIds(steps: unknown): string[] {
+  if (!Array.isArray(steps)) return [];
+  const ids = steps.flatMap((step) => ((step as { kind?: unknown } | null)?.kind === "bot" && typeof (step as { botId?: unknown }).botId === "string" ? [(step as { botId: string }).botId] : []));
+  return [...new Set(ids)];
+}
+
+/** For the routine save: a person who may not edit the bots of the workflow a routine links to, or the one it links to now, may not link it. */
+export function workflowLinkRefusal(body: unknown, existing: Routine | undefined, auth: RequestAuth, workflows: WorkflowHost | null, deps: Pick<WorkflowRoutesDeps, "botsRefusal" | "routineNeeds">): string | null {
+  const { workflowId } = body && typeof body === "object" ? body as { workflowId?: unknown } : {};
+  const next = typeof workflowId === "string" ? workflows?.get(workflowId) : null;
+  const old = existing?.workflowId !== undefined && workflowId !== undefined ? existing.workflowBotIds ?? [] : [];
+  const bots = [...old, ...workflowBotIds(next?.steps)];
+  return bots.length ? deps.botsRefusal(auth, bots, deps.routineNeeds(auth, existing?.id)) : null;
+}
 
 function hiddenBot(steps: unknown, visible: VisibleSet, botName: (botId: string) => string | undefined): boolean {
   if (visible.everything || !Array.isArray(steps)) return false;
@@ -53,10 +72,16 @@ export function createWorkflowRoutes(deps: WorkflowRoutesDeps): RouteHandler {
 
     const linkedTo = (workflowId: string) => deps.routines()?.listRoutines().filter((routine) => routine.workflowId === workflowId) ?? [];
     const refused = (linked: readonly Routine[]) => linked.some((routine) => deps.routineEdits.refusal(auth, routine) !== null);
-    const save = (body: unknown, current: Workflow | null, write: (input: WorkflowInput) => Workflow | null, status: number) => {
-      const checked = validateWorkflowInput(body, { botName: deps.botName });
+    const shownName = (id: string) => (visible.bot(id) ? deps.botName(id) : undefined);
+    const needsFor = (linked: readonly Routine[]) => (linked.length > 0 && linked.every((routine) => deps.routineNeeds(auth, routine.id) === "chat") ? "chat" : "edit");
+    const routineBots = (linked: readonly Routine[]) => linked.flatMap((routine) => [routine.botId, ...(routine.workflowBotIds ?? [])]);
+    const save = (body: unknown, current: Workflow | null, write: (input: WorkflowInput) => Workflow | null, status: number, linked: readonly Routine[] = []) => {
+      const checked = validateWorkflowInput(body, { botName: shownName });
       if (!checked.ok) return json(res, 400, problemBody(checked.problems));
       if (hiddenBot(checked.value.steps, visible, deps.botName)) return json(res, 404, { error: "no such bot" });
+      const needed = current ? needsFor(linked) : "chat";
+      const short = deps.botsRefusal(auth, [...workflowBotIds(current?.steps), ...workflowBotIds(checked.value.steps), ...routineBots(linked)], needed);
+      if (short) return json(res, 403, { error: short });
       if (current && checked.value.ifUpdatedAt !== undefined && checked.value.ifUpdatedAt < current.updatedAt) {
         return json(res, 409, { error: "This workflow was changed somewhere else. Reload it and try again.", code: "workflow_changed" });
       }
@@ -77,8 +102,12 @@ export function createWorkflowRoutes(deps: WorkflowRoutesDeps): RouteHandler {
       if (method !== "DELETE" && method !== "PATCH") return json(res, 405, { error: "method not allowed" });
       const linked = linkedTo(workflow.id);
       if (refused(linked)) return json(res, 403, { error: WORKFLOW_ROUTINE_REFUSAL });
+      if (method === "DELETE") {
+        const short = deps.botsRefusal(auth, [...workflowBotIds(workflow.steps), ...routineBots(linked)], needsFor(linked));
+        if (short) return json(res, 403, { error: short });
+      }
       if (method === "DELETE") return deps.routineEdits.edit(auth, linked, () => host.remove(workflow.id)) ? json(res, 200, { ok: true }) : json(res, 404, { error: "no such workflow" });
-      return save(await readBody(req), workflow, (input) => deps.routineEdits.edit(auth, linked, () => host.update(workflow.id, input)), 200);
+      return save(await readBody(req), workflow, (input) => deps.routineEdits.edit(auth, linked, () => host.update(workflow.id, input)), 200, linked);
     }
 
     if (runsMatch) {
@@ -106,6 +135,8 @@ export function createWorkflowRoutes(deps: WorkflowRoutesDeps): RouteHandler {
     if (routine.workflowId !== old.workflowId) return json(res, 409, { error: "This routine now runs another workflow." });
     const workflow = shown(old.workflowId);
     if (!workflow) return json(res, 404, { error: "no such workflow" });
+    const short = deps.botsRefusal(auth, [...workflowBotIds(workflow.steps), routine.botId, ...(routine.workflowBotIds ?? [])], "chat");
+    if (short) return json(res, 403, { error: short });
     if (old.stepRuns.find((step) => step.stepId === stepId)?.status !== "failed") return json(res, 409, { error: "Only a failed step can run again." });
     const step = workflow.steps.find((candidate) => candidate.id === stepId);
     if (!step || step.kind === "note") return json(res, 409, { error: "That step is no longer in the workflow." });

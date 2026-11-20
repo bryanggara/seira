@@ -689,13 +689,12 @@ export function workflowVisible(workflow: { steps?: unknown }, visible: VisibleS
 }
 
 /** A workflow run carries its steps' outputs: every bot it used must be visible, and none of its chats hidden. */
-export function workflowRunVisible(run: { botIds?: unknown; stepRuns?: unknown }, visible: VisibleSet): boolean {
+export function workflowRunVisible(run: { botIds?: unknown; stepRuns?: unknown; threads?: unknown }, visible: VisibleSet): boolean {
   if (visible.everything) return true;
   const botIds = Array.isArray(run.botIds) ? run.botIds : [];
   if (!botIds.every((id) => typeof id === "string" && visible.bot(id))) return false;
   const stepRuns = Array.isArray(run.stepRuns) ? run.stepRuns : [];
-  return stepRuns.every((step) => {
-    const threadId = (step as { threadId?: unknown } | null)?.threadId;
-    return typeof threadId !== "string" || !visible.hides(threadId);
-  });
+  const threads = run.threads && typeof run.threads === "object" ? Object.values(run.threads) : [];
+  const hidden = (threadId: unknown) => typeof threadId === "string" && visible.hides(threadId);
+  return stepRuns.every((step) => !hidden((step as { threadId?: unknown } | null)?.threadId)) && !threads.some(hidden);
 }

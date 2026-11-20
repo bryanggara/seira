@@ -200,6 +200,13 @@ describe("VisibleSet", () => {
     expect(workflowRunVisible({ botIds: ["pub", "hr"], stepRuns: [] }, bob)).toBe(false);
   });
 
+  it("hides a workflow run when any chat in its thread map is hidden", () => {
+    const seen = { everything: false, bot: () => true, hides: (threadId: string) => threadId === "t-private" } as unknown as VisibleSet;
+    const run = (threads: Record<string, string>) => ({ botIds: ["pub"], stepRuns: [{ stepId: "s1" }], threads });
+    expect(workflowRunVisible(run({ s1: "t-open" }), seen)).toBe(true);
+    expect(workflowRunVisible(run({ s1: "t-open", s2: "t-private" }), seen)).toBe(false);
+  });
+
   it("shows a room webhook only to someone who sees both its bot and its room", () => {
     const bob = new VisibleSet(bots, groups, BOB);
     expect(webhookVisible({ botId: "pub" }, bob)).toBe(true);
