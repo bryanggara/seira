@@ -28,7 +28,7 @@ const botName = (id: string) => (id === "bot-a" ? "Scout" : undefined);
 
 let root: Root | null = null;
 let hook: { current: Hook };
-let onGone: ReturnType<typeof vi.fn>;
+let onGone: () => void;
 
 function mount(workflow: Workflow = flow) {
   hook = { current: null as unknown as Hook };
@@ -49,7 +49,7 @@ const sentBody = (index: number) => JSON.parse((patches()[index]![1] as { body: 
 
 beforeEach(() => {
   vi.useFakeTimers();
-  onGone = vi.fn();
+  onGone = vi.fn<() => void>();
   resetWorkflowsForTest();
   fixture.api.mockReset();
   fixture.api.mockImplementation(async (path: unknown, init: unknown) => {
