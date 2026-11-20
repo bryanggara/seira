@@ -25,11 +25,12 @@ function assignment(over: Partial<Assignment> & { botId: string; brief: string; 
 const counter = () => { let n = 0; return (prefix: "s" | "c") => `${prefix}${++n}`; };
 const send = (at: number, name = "TELEGRAM_SEND_MESSAGE", over: Partial<DraftTurnRow["tool"]> = {}): DraftTurnRow => ({ at, role: "bot", kind: "activity", tool: { name, ok: true, ...over } });
 
-function source(over: Partial<DraftSource> & { turns?: Record<string, DraftTurnRow[] | null>; refuse?: string[] } = {}): DraftSource {
-  const { turns = {}, refuse = [], ...rest } = over;
+function source(over: Partial<DraftSource> & { turns?: Record<string, DraftTurnRow[] | null>; refuse?: string[]; hidden?: string[] } = {}): DraftSource {
+  const { turns = {}, refuse = [], hidden = [], ...rest } = over;
   return {
     threadId: THREAD, room: false, request: { at: 900, text: "Summarize today's orders and send them to the store team" }, reply: { at: 5000, botId: "lumi" }, rows: [],
     turnRows: (thread, from, to) => { const rows = turns[thread]; return rows === undefined ? [] : rows === null ? null : rows.filter((row) => row.at >= from && row.at <= to); },
+    threadVisible: (thread) => !hidden.includes(thread),
     usable: (botId) => botId in names && !refuse.includes(botId),
     ...rest,
   };
@@ -100,6 +101,16 @@ describe("draftFromThread", () => {
     const grandchild = assignment({ id: "h5", rootId: "root", parentId: "h4", requesterBot: "lumi", botId: "ava", brief: "Handed on", createdAt: 1300 });
     const { draft } = draftFromThread(source({ rows: [root, cancelled, refused, duplicate, self, grandchild] }), counter());
     expect(shape(draft.steps)).toEqual(["bot:lumi:Summarize today's orders and send them to the store team", "bot:ava:Handed on"]);
+  });
+
+  it("leaves out a hand-off into a conversation the person may not open, and counts it", () => {
+    const root = assignment({ id: "root", botId: "lumi", brief: "r" });
+    const secret = assignment({ id: "h1", rootId: "root", parentId: "root", botId: "scout", brief: "Quote of PRIVATE-WORK", createdAt: 1100 });
+    const child = assignment({ id: "h2", rootId: "root", parentId: "h1", requesterBot: "scout", botId: "ledger", brief: "Open work", createdAt: 1200 });
+    const { draft, omitted } = draftFromThread(source({ rows: [root, secret, child], hidden: ["t-scout"], turns: { "t-scout": [send(1150)] } }), counter());
+    expect(shape(draft.steps)).toEqual(["bot:lumi:Summarize today's orders and send them to the store team", "bot:ledger:Open work"]);
+    expect(omitted).toBe(1);
+    expect(JSON.stringify(draft)).not.toContain("PRIVATE-WORK");
   });
 
   it("makes one post step for sends next to each other, and none for reads, drafts, failed sends or the app's own tools", () => {

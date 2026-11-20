@@ -64,6 +64,7 @@ export function createWorkflowDraftRoutes(deps: WorkflowDraftRouteDeps): RouteHa
           .filter((message) => message.at >= from && message.at <= to && (botId === undefined || message.from?.botId === botId))
           .map((message): DraftTurnRow => ({ at: message.at, role: message.role, kind: message.kind, ...(message.from ? { from: { botId: message.from.botId } } : {}), ...(message.tool ? { tool: { name: message.tool.name, input: message.tool.input, ok: message.tool.ok } } : {}) }));
       },
+      threadVisible: (id) => visible.thread(id),
       usable: (botId) => Boolean(deps.store.bot(botId)) && visible.bot(botId) && deps.botsRefusal(auth, [botId], "chat") === null,
     });
     return json(res, 200, drawn);

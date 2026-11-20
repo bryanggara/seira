@@ -15,6 +15,8 @@ export interface DraftSource {
   rows: readonly Assignment[];
   /** Rows of a conversation in [from, to]; null when the person may not see it. botId narrows a room. */
   turnRows(threadId: string, from: number, to: number, botId?: string): readonly DraftTurnRow[] | null;
+  /** The person may open this conversation. A hand-off into one they may not open is left out: its brief quotes that work. */
+  threadVisible(threadId: string): boolean;
   /** The person may chat with this bot and it still exists. */
   usable(botId: string): boolean;
 }
@@ -52,16 +54,22 @@ const sends = (row: DraftTurnRow): boolean => {
 export function draftFromThread(source: DraftSource, newId: (prefix: "s" | "c") => string = (prefix) => `${prefix}-${randomUUID().slice(0, 8)}`): DrawnWorkflow {
   const { threadId, room, request, reply } = source;
   const roots = windowRoots(source.rows, source);
+  let omitted = 0;
+  const openable = (row: Assignment): boolean => {
+    if (source.threadVisible(row.assignee.destination.threadId)) return true;
+    omitted += 1;
+    return false;
+  };
   const rootIds = new Set(roots.map((root) => root.id));
   const handOffs = source.rows.filter((row) => row.parentId !== undefined && rootIds.has(row.rootId)
-    && row.status !== "cancelled" && row.outcome !== "refused" && row.outcome !== "duplicate");
+    && row.status !== "cancelled" && row.outcome !== "refused" && row.outcome !== "duplicate" && openable(row));
   const events: Event[] = [{ at: Number.NEGATIVE_INFINITY, step: { kind: "bot", botId: roots[0]?.assignee.botId ?? reply.botId, instruction: request.text } }];
 
   for (const row of handOffs) {
     if (row.assignee.botId !== row.requester.botId) events.push({ at: row.createdAt, step: { kind: "bot", botId: row.assignee.botId, instruction: row.brief } });
   }
   if (room) {
-    for (const row of roots.slice(1)) events.push({ at: row.createdAt, step: { kind: "bot", botId: row.assignee.botId, instruction: withoutMention(row.brief) } });
+    for (const row of roots.slice(1).filter(openable)) events.push({ at: row.createdAt, step: { kind: "bot", botId: row.assignee.botId, instruction: withoutMention(row.brief) } });
   }
 
   const seen = new Set<string>();
@@ -95,7 +103,6 @@ export function draftFromThread(source: DraftSource, newId: (prefix: "s" | "c") 
 
   events.sort((a, b) => a.at - b.at);
 
-  let omitted = 0;
   const kept: Event["step"][] = [];
   for (const { step } of events) {
     if (step.kind === "bot") {

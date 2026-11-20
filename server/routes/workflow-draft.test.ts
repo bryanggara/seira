@@ -68,6 +68,15 @@ describe("workflow draft route", () => {
     expect([body.omitted, body.trimmed]).toEqual([0, 0]);
   });
 
+  it("leaves a hand-off into a conversation the person can't open out of the draft", async () => {
+    const child = { ...root("hal", "t-hal", "SECRET-WORK", 1200), id: "h", parentId: "a-lumi-1100", rootId: "a-lumi-1100", requester: { kind: "bot_turn", botId: "lumi", threadId: "t-lumi" } } as Assignment;
+    const { status, body } = await fixture({ rows: [root("lumi", "t-lumi", "Summarize today's orders", 1100), child] })("GET", draftPath("t-lumi", "b1"));
+    expect(status).toBe(200);
+    expect(body.draft.steps).toHaveLength(1);
+    expect(body.omitted).toBe(1);
+    expect(JSON.stringify(body)).not.toContain("SECRET-WORK");
+  });
+
   it("answers 200 for a finished room reply and reads the room's roots", async () => {
     const messages = { "t-room": [
       msg({ id: "u1", at: 1000, role: "user", text: "Plan the launch" }),
