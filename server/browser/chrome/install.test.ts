@@ -36,7 +36,7 @@ afterAll(async () => {
 });
 afterEach(() => { routes.clear(); requests = 0; });
 
-const pin = (overrides: Partial<ChromeForTestingPin> = {}): ChromeForTestingPin => ({ version: "153.0.8010.47", platform: "mac-arm64", bytes: ARCHIVE.length, sha256: SHA256, ...overrides });
+const pin = (overrides: Partial<ChromeForTestingPin> = {}): ChromeForTestingPin => ({ version: "158.0.8127.36", platform: "mac-arm64", bytes: ARCHIVE.length, sha256: SHA256, ...overrides });
 const dataDir = () => { const folder = mkdtempSync(join(tmpdir(), "seira-cft-")); folders.push(folder); return folder; };
 /** Unpacks only after reading the whole archive, as unzip does. */
 const extract: Extract = async (archive, directory) => {
@@ -44,7 +44,7 @@ const extract: Extract = async (archive, directory) => {
   mkdirSync(dirname(join(directory, RELATIVE)), { recursive: true });
   writeFileSync(join(directory, RELATIVE), "#!/bin/sh\n", { mode: 0o755 });
 };
-const leftovers = (root: string) => readdirSync(join(root, "tools", "chrome", "153.0.8010.47")).filter((name) => name.endsWith(".part"));
+const leftovers = (root: string) => readdirSync(join(root, "tools", "chrome", "158.0.8127.36")).filter((name) => name.endsWith(".part"));
 
 describe("downloading Chrome for Testing", () => {
   it("checks size and SHA-256 before unpacking, then moves the whole browser into place at once", async () => {
@@ -125,7 +125,7 @@ describe("downloading Chrome for Testing", () => {
 
   it("shares one download between callers, and clears what an interrupted one left, never another's live download", async () => {
     const root = dataDir();
-    const version = join(root, "tools", "chrome", "153.0.8010.47");
+    const version = join(root, "tools", "chrome", "158.0.8127.36");
     mkdirSync(join(version, "mac-arm64.dead.part"), { recursive: true });
     writeFileSync(join(version, "mac-arm64.dead.zip.part"), "half");
     const hourAgo = new Date(Date.now() - 60 * 60_000);
