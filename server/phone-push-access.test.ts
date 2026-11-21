@@ -17,7 +17,7 @@ const DAY = 24 * 60 * 60_000;
 const RELAY = "https://push.seira.bot";
 const credentialOf = (n: number) => `seira_install_${String(n).padStart(22, "a")}.${String(n).padStart(43, "b")}`;
 
-interface Call { url: string; authorization: string | null; origin: string | null; body: string | undefined; redirect: RequestRedirect | undefined }
+interface Call { url: string; authorization: string | null; origin: string | null; body: string | undefined; redirect: string | undefined }
 type Answer = { status: number; body?: unknown; retryAfter?: number } | "unreachable";
 
 let dataDir: string;
