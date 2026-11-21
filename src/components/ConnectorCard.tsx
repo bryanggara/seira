@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, PlugZap, RefreshCw, X } from "lucide-react";
 
 import { FIRST_HOUR_OFFER_KEY } from "../../shared/person-wait";
+import { announceAppConnected } from "@/lib/app-connected";
 import { api, type Bot, type Message } from "@/state/store";
 import { ApiError } from "@/state/api";
 import { t } from "@/lib/i18n";
@@ -29,6 +30,7 @@ export function ConnectorCard({ botId, color, threadId, message }: { botId: stri
   const [authorization, setAuthorization] = useState<(PendingAuthorization & { target: string }) | null>(null);
   const [label, setLabel] = useState("");
   const polling = useRef(false);
+  const startedHere = useRef(false);
   const opening = useRef<ReturnType<typeof reserveConnectionPage> | null>(null);
 
   const endpoint = `/api/bots/${encodeURIComponent(botId)}/connector-cards/${encodeURIComponent(message.id)}`;
@@ -84,10 +86,17 @@ export function ConnectorCard({ botId, color, threadId, message }: { botId: stri
     };
   }, [checkStatus, gone, connector.status]);
 
+  useEffect(() => {
+    if (connector.status !== "connected" || !startedHere.current) return;
+    startedHere.current = false;
+    if (!isMcp) announceAppConnected(connector.slug, connector.label);
+  }, [connector.status, connector.slug, connector.label, isMcp]);
+
   if (gone) return null;
 
   const connect = async (alias?: string) => {
     if (busy || opening.current) return;
+    startedHere.current = true;
     const launch = reserveConnectionPage();
     opening.current = launch;
     const isCurrent = () => opening.current === launch && currentTarget.current === target;

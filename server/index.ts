@@ -402,7 +402,6 @@ import {
   userProfileSystemPrompt,
   cloudHomePrompt, syncedFolders,
   computerPrompt,
-  composioSystemPrompt,
   customMcpPrompt,
   CREDENTIAL_PROMPT,
   longCommandsPrompt,
@@ -477,7 +476,7 @@ import { describeTool } from "./activity.ts";
 import { OutboundRequestService } from "./outbound-requests.ts";
 import { createOutboundHold, OUTBOUND_HOLD_MS, type OutboundHoldAnswer } from "./outbound-hold.ts";
 import { connectorCallsIn, outboundCallsIn } from "../shared/outbound.ts";
-import { connectorAccessDecision, describeConnectorScopes } from "../shared/connector-scopes.ts";
+import { connectorAccessDecision } from "../shared/connector-scopes.ts"; import { connectedAppsPrompt } from "./connected-apps-prompt.ts";
 import { bindThreadLogCapProvider, threadLogCapOrDefault } from "./thread-log-rotation.ts";
 import { listenWebhookIngress, type WebhookIngress } from "./webhook-ingress.ts"; import { createBotApiHost } from "./bot-api-host.ts"; import { BotApiManager } from "./bot-api.ts"; import { BOT_API_PARTS, BOT_API_REFUSAL, BOT_API_TOOLS, botApiRouteRefused } from "./bot-api-fence.ts";
 import { addressFor } from "./webhook-address.ts";
@@ -2956,7 +2955,7 @@ function previewSystemPrompt(bot: BotRecord) {
       browser: previewPlan.computer === undefined ? false : previewPlan.browser,
     }, { note: previewPlan.note, cloudHome: Boolean(CLOUD_HOME), ownComputer: CLOUD_HOME && agentsMounted && lendingEnabled() ? sharedComputers.known(CLOUD_HOME_LENDER) : undefined }) }, { id: "computer-selection", label: "Choosing a computer", text: agentsMounted && bot.computer !== "off" && !inheritedTeamComputer(bot) ? computerSelectionPrompt({ cloudHome: Boolean(CLOUD_HOME) }) : "" },
     { id: "cloud-home", label: "My Cloud", text: CLOUD_HOME ? cloudHomePrompt(agentsMounted && lendingEnabled(), syncedFolders(DATA_DIR), sharedComputers.known(CLOUD_HOME_LENDER), CLOUD_PERSONAL) + firstHourHooks.prompt(bot.id, bot.threadId) : "" }, phoneLinkPart(),
-    { id: "composio", label: "Connected apps", text: caps?.composioMcp && bot.composio !== false && composio.configured(cfg) ? composioSystemPrompt(bot.connectorTools) + describeConnectorScopes(bot.connectorScopes) : "" },
+    { id: "composio", label: "Connected apps", text: connectedAppsPrompt(bot, { engine: caps?.composioMcp === true, configured: composio.configured(cfg) }) },
     { id: "email", label: "Email", text: caps?.emailMcp === true ? emailHost.prompt(bot) : "" }, { id: "meetings", label: "Meetings", text: meetingsUnavailablePrompt({ agentsTools: agentsMounted, cloudComputer: boat.boatConfigured(cfg) }) }, toolsOffPart(bot),
     ...phones.previewParts(bot, caps?.deviceMcp === true),
     { id: "mcp", label: "MCP servers", text: caps?.customMcp ? customMcpPrompt(Object.keys(engineMcpServers(bot)), mcpServersHost.off(bot)) : "" }, { id: "to-connect", label: "Connections to make", text: cloudConnections.prompt(bot) },
@@ -8344,7 +8343,7 @@ async function beginTurn(
         { id: "team-computer", label: "Team computer", text: teamComputerPrompt(teamComputer) },
         { id: "plan", label: "Surface", text: surfacePrompt({ computer: mountedComputer, browser: Boolean(integrations.browser) }, { pinned: plan.pinned, note: plan.note + vpsUnavailableNote + vmUpdateNote + (computerSkipped && plan.computer !== "off" ? computerSkippedNote(redactSecretsInText(computerSkipped)) : "") + (computerSelectionTurns.get(threadId)?.handoff && !integrations.browser ? HANDOFF_BROWSER_NOTE : ""), canSelect: computerSelectionTurns.has(threadId) && !computerSelectionTurns.get(threadId)?.handoff, selectionRules: !selectionRulesStable, cloudHome: Boolean(CLOUD_HOME), botOpened: plan.botOpened, ownComputer: CLOUD_HOME && integrations.agents && lendingEnabled() ? sharedComputers.known(CLOUD_HOME_LENDER) : undefined, thisComputer: !CLOUD_HOME && bot.computer !== "off" && !inheritedTeamComputer(bot) && shouldMountLocalComputer({ requested: "local", providerSupportsLocal: instance.adapter.capabilities.localComputerMcp === true }) ? { bot: bot.name, botId: bot.id, platform: process.platform } : undefined }) }, { id: "computer-selection", label: "Choosing a computer", text: selectionRulesStable ? computerSelectionPrompt({ cloudHome: Boolean(CLOUD_HOME) }) : "" },
         { id: "cloud-home", label: "My Cloud", text: CLOUD_HOME ? cloudHomePrompt(Boolean(integrations.agents) && lendingEnabled(), syncedFolders(DATA_DIR), sharedComputers.known(CLOUD_HOME_LENDER), CLOUD_PERSONAL) + firstHourHooks.prompt(bot.id, threadId) : "" }, phoneLinkPart(),
-        { id: "composio", label: "Connected apps", text: integrations.composio ? composioSystemPrompt(liveBot?.connectorTools ?? bot.connectorTools) + describeConnectorScopes((liveBot ?? bot).connectorScopes) : "" },
+        { id: "composio", label: "Connected apps", text: connectedAppsPrompt({ composio: bot.composio, connectorTools: liveBot?.connectorTools ?? bot.connectorTools, connectorScopes: (liveBot ?? bot).connectorScopes }, { engine: instance.adapter.capabilities.composioMcp === true, configured: composio.configured(cfg), mounted: Boolean(integrations.composio) }) },
         { id: "mcp", label: "MCP servers", text: customMcpPrompt(Object.keys(integrations.custom ?? {}), mcpServersHost.off(bot)) }, { id: "to-connect", label: "Connections to make", text: cloudConnections.prompt(liveBot ?? bot, lentMcp.lines(liveBot ?? bot, { botId: bot.id, threadId, generation: dispatchClaimId })) + teamConnections.prompt(threadId, dispatchClaimId, integrations) },
         { id: "browser", label: "Browser", text: integrations.browser ? browserPromptFor(bot, Boolean(integrations.agents)) : "" },
         { id: "data", label: "Data", text: integrations.data ? dataPrompt(bot.id, threadId, providerText) : "" },
