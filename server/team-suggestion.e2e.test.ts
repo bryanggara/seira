@@ -12,7 +12,7 @@ import { launchCloudSendFixture, type CloudSendFixture, type CloudTeamFixture } 
 import { waitForExit } from "./testing/cleanup.ts";
 import { hostTimeout } from "./testing/host-timeout.ts";
 
-type Bot = { id: string; name: string; activeTaskId: string; tasks: Array<{ taskId: string; threadId: string }> };
+type Bot = { id: string; name: string; threadId?: string; mainThreadId?: string };
 type Line = { id: string; role: string; text?: string; teamAsk?: true; teamRequest?: true; teamSuggestion?: { state: string; document: { package: { agents: Array<{ key: string; name: string }> } } }; teamIntro?: { department: string; bots: Array<{ name: string; job: string }>; firstTask?: string } };
 type Mounted = { command: string; args: string[]; env: Record<string, string> };
 
@@ -36,7 +36,8 @@ it("suggests a team, creates only what is kept, and honors Skip and a newer card
   try {
     const { bot: chief } = await control(["new-bot", "--name", "Fixture Chief"]) as { bot: Bot };
     await call("PATCH", `/api/bots/${chief.id}`, { chiefOfStaff: true });
-    const thread = chief.tasks.find((task) => task.taskId === chief.activeTaskId)!.threadId;
+    const listed = (await call<{ bots: Bot[] }>("GET", "/api/bots?messages=0")).body.bots.find((bot) => bot.id === chief.id)!;
+    const thread = (listed.mainThreadId ?? listed.threadId)!;
     const ask = await call<{ message: Line }>("POST", `/api/bots/${chief.id}/team-ask`, { threadId: thread });
     expect(ask.status, JSON.stringify([ask.body, chief])).toBe(200);
     expect(ask.body.message.teamAsk).toBe(true);
