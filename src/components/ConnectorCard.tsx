@@ -30,6 +30,7 @@ export function ConnectorCard({ botId, color, threadId, message }: { botId: stri
   const [authorization, setAuthorization] = useState<(PendingAuthorization & { target: string }) | null>(null);
   const [label, setLabel] = useState("");
   const polling = useRef(false);
+  const startedHere = useRef(false);
   const opening = useRef<ReturnType<typeof reserveConnectionPage> | null>(null);
 
   const endpoint = `/api/bots/${encodeURIComponent(botId)}/connector-cards/${encodeURIComponent(message.id)}`;
@@ -85,19 +86,17 @@ export function ConnectorCard({ botId, color, threadId, message }: { botId: stri
     };
   }, [checkStatus, gone, connector.status]);
 
-  const wasConnected = useRef(connector.status === "connected");
   useEffect(() => {
-    if (connector.status !== "connected") wasConnected.current = false;
-    else if (!wasConnected.current) {
-      wasConnected.current = true;
-      if (!isMcp) announceAppConnected(connector.slug, connector.label);
-    }
+    if (connector.status !== "connected" || !startedHere.current) return;
+    startedHere.current = false;
+    if (!isMcp) announceAppConnected(connector.slug, connector.label);
   }, [connector.status, connector.slug, connector.label, isMcp]);
 
   if (gone) return null;
 
   const connect = async (alias?: string) => {
     if (busy || opening.current) return;
+    startedHere.current = true;
     const launch = reserveConnectionPage();
     opening.current = launch;
     const isCurrent = () => opening.current === launch && currentTarget.current === target;

@@ -77,16 +77,21 @@ it("does not watch a card that is not waiting for a sign-in", async () => {
   expect(statusChecks()).toBe(0);
 });
 
-it("announces the app once when the card turns connected, and not for a card that was already connected", async () => {
+it("announces the app once when this client's connect turns the card connected, and not for a change it did not start", async () => {
   const { takeAppConnections } = await import("@/lib/app-connected");
   takeAppConnections();
-  await render({ status: "authorizing" });
+  api.mockResolvedValue({ url: "https://connect.composio.dev/link/abc" });
+  vi.stubGlobal("open", vi.fn(() => ({ location: { replace: vi.fn() }, closed: false, close: vi.fn(), opener: {} })));
+  await render({ status: "requested" });
+  await render({ status: "connected" });
   expect(takeAppConnections()).toEqual([]);
+  await act(async () => root.unmount());
+  root = createRoot(host);
+  await render({ status: "requested" });
+  const connect = Array.from(host.querySelectorAll("button")).find((candidate) => candidate.textContent?.includes(t("connectors.card.connectSecurely")))!;
+  await act(async () => { connect.click(); });
   await render({ status: "connected" });
   await render({ status: "connected", resumed: true });
   expect(takeAppConnections()).toEqual([{ slug: "whatsapp", app: "WhatsApp" }]);
-  await act(async () => root.unmount());
-  root = createRoot(host);
-  await render({ status: "connected" });
-  expect(takeAppConnections()).toEqual([]);
+  vi.unstubAllGlobals();
 });
