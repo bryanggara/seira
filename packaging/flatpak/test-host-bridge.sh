@@ -2,10 +2,8 @@
 # Start-up under Xvfb, then the host bridge with a dummy agent program.
 # Needs the app installed as bot.seira.Seira and no other Seira on port 8799.
 set -eu
-log="$HOME/.var/app/bot.seira.Seira/config/seira/logs/server.log"
 bin="$HOME/.local/bin"
 run=$(mktemp)
-before=$(wc -l <"$log" 2>/dev/null || echo 0)
 made=0
 probe="$HOME/.seira/.host-bridge-probe-$$"
 [ ! -e "$bin/cline" ] || { echo "FAIL: $bin/cline exists; the test will not replace a real program"; exit 1; }
@@ -15,7 +13,8 @@ echo "start-up"
 dbus-run-session -- xvfb-run -a timeout 120 flatpak run bot.seira.Seira >"$run" 2>&1 &
 app=$!
 i=0
-until tail -n +"$((before + 1))" "$log" 2>/dev/null | grep -q "server ready"; do
+api=http://127.0.0.1:8799
+until curl -fsS -o /dev/null "$api/api/health" 2>/dev/null; do
   i=$((i + 1))
   if [ "$i" -gt 60 ]; then
     echo "FAIL: the server did not start in 60 s"
@@ -27,7 +26,6 @@ done
 ss -ltn | grep -q ":8799" || { echo "FAIL: port 8799 closed"; exit 1; }
 echo "PASS: server ready, port 8799 open"
 
-api=http://127.0.0.1:8799
 echo "host bridge: program installed"
 mkdir -p "$bin"
 made=1
