@@ -143,8 +143,8 @@ describe("the Chrome launcher", () => {
     });
     const chrome = launcher(machine, { install, readyWaitMs: 20, calibrate: async () => identity("153", "Not_A Brand") });
     expect(chrome.describe()).toBe("Chrome for Testing 158.0.8127.36 (not downloaded yet)");
-    await expect(chrome.ready(headless(chrome.path))).rejects.toThrow("Getting the browser ready (52 of 182 MB). Try again in a minute.");
-    expect(chrome.describe()).toBe("Chrome for Testing 158.0.8127.36 (downloading: 52 of 182 MB)");
+    await expect(chrome.ready(headless(chrome.path))).rejects.toThrow("Getting the browser ready (52 of 191 MB). Try again in a minute.");
+    expect(chrome.describe()).toBe("Chrome for Testing 158.0.8127.36 (downloading: 52 of 191 MB)");
     finish();
     await chrome.prepare();
     await chrome.ready(headless(chrome.path));
