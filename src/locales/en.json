@@ -11722,5 +11722,7 @@
   "aiImport.paste.placeholder": "Paste the answer here",
   "aiImport.paste.counts": "About you: {about}. How to reply: {reply}.",
   "aiImport.paste.empty": "Paste an answer to import.",
-  "aiImport.paste.tooLong": "The answer is longer than {chars} characters. Shorten it to import."
+  "aiImport.paste.tooLong": "The answer is longer than {chars} characters. Shorten it to import.",
+  "automations.newBox.drawWorkflow": "Draw a workflow instead",
+  "activity.tool.team.workflow": "Workflow"
 }
