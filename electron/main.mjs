@@ -87,7 +87,6 @@ import {
   companionAccountCleanupPending, companionTunnelRetired,
   createCompanionAccountService,
   managedEndpointNeed,
-  resolveCompanionControlPlaneURL,
 } from "./companion-account-service.mjs";
 import capabilitiesModule from "./capabilities.cjs";
 import environmentsModule from "./environments.cjs";
@@ -105,7 +104,7 @@ import { installCloudPlanIpc } from "./cloud-plan-ipc.mjs";
 import { cloudLinkOpensSheet, colorDotIcons, createCloudLook, createCloudReadyNotice, installCloudBuy, lookFile } from "./cloud-buy.mjs"; import { unreadBadgeIcon } from "./color-dot.mjs";
 import { createTrialNotices } from "./cloud-trial-notice.mjs";
 import { createDesktopText, DESKTOP_PORTS, jsonFile, registerDesktopPrefs, relabelDesktop } from "./desktop-prefs.mjs";
-import { createDesktopIncludedX } from "./included-x.mjs"; import { createDesktopIncludedPages } from "./included-pages.mjs"; import { createPhoneLinkFact } from "./phone-link-fact.mjs"; import { createPhonePushAccessSync } from "./phone-push-access.mjs";
+import { createDesktopIncludedX } from "./included-x.mjs"; import { createDesktopIncludedPages } from "./included-pages.mjs"; import { createPhoneLinkFact } from "./phone-link-fact.mjs";
 import { cloudPageSenderAllowed, cloudPlanDisk, cloudUnreachableText, createCloudPowerGate, isCloudHomeEntry, myCloudOrigin, rememberedCloudHome, savedCloudHomeOrigin, signInCloudSession, withCloudHome } from "./cloud-home.mjs";
 import { installCloudFiles } from "./cloud-sync-main.mjs";
 import { createCloudEntry } from "./cloud-entry.mjs"; import { installTeamJoin } from "./team-join-main.mjs";
@@ -296,7 +295,7 @@ let companyBackupClientStateRequest = null;
 let companyRestoreCommitting = false;
 let companyBackupConfigurationRevision = 0;
 const managedDesktopRelay = createManagedDesktopRelay();
-const includedX = createDesktopIncludedX({ account: () => cloudAccount, server: () => serverProc, log: slog }), includedPages = createDesktopIncludedPages({ account: () => cloudAccount, server: () => serverProc, log: slog }), phoneLinkFact = createPhoneLinkFact({ retired: () => companionTunnelRetired(secureCredentialState?.read() ?? secureCredentials), server: () => (serverReady ? serverProc : null), log: slog }), phonePushAccess = createPhonePushAccessSync({ server: () => (serverReady ? serverProc : null), credentials: () => secureCredentialState?.read() ?? secureCredentials, controlPlane: () => resolveCompanionControlPlaneURL({ isPackaged: app.isPackaged, environment: process.env }), log: slog });
+const includedX = createDesktopIncludedX({ account: () => cloudAccount, server: () => serverProc, log: slog }), includedPages = createDesktopIncludedPages({ account: () => cloudAccount, server: () => serverProc, log: slog }), phoneLinkFact = createPhoneLinkFact({ retired: () => companionTunnelRetired(secureCredentialState?.read() ?? secureCredentials), server: () => (serverReady ? serverProc : null), log: slog });
 const cloudPower = createCloudPowerGate({ power: () => cloudAccount?.power() ?? null, wanted: () => Boolean(cloudSync?.running() || computerSharing?.lendingToCloud()) });
 const utilityServerExits = new WeakMap(), systemProxy = createSystemProxyCache(); // A Mac app opened from Finder never gets the shell's proxy.
 const UTILITY_SERVER_STOP_TIMEOUT_MS = 9_500; // the server's shutdown deadline (8 s, server/graceful-shutdown.ts) and its 1 s log flush
@@ -313,7 +312,7 @@ const serverSupervisor = createServerSupervisor({
     serverStartConflictOnly = false;
     slog(`server ready pid=${proc.pid} port=${SERVER_PORT}`);
     void readCloudOfferBrand();
-    syncManagedComposioCredentials(); includedX.serverStarted(); includedPages.serverStarted(); phoneLinkFact.serverStarted(); phonePushAccess.serverStarted(); railChanged(); void systemProxy.refresh();
+    syncManagedComposioCredentials(); includedX.serverStarted(); includedPages.serverStarted(); phoneLinkFact.serverStarted(); railChanged(); void systemProxy.refresh();
     reportOwnListeners(proc);
     orgLibrary?.runtimeReady();
     if (managedDesktop) void managedDesktop.refresh().catch(() => {});
@@ -540,7 +539,7 @@ export async function updateSecureCredentialDocument(derive, afterPersist) {
   try {
     return await secureCredentialState.update(derive, afterPersist);
   } finally {
-    secureCredentials = secureCredentialState.read(); phonePushAccess.sync();
+    secureCredentials = secureCredentialState.read();
   }
 }
 

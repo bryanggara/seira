@@ -1,5 +1,5 @@
-// A stand-in for cloudflare/control-plane for `seira login` and `serve --tunnel` tests: the routes
-// the desktop's client uses, accepting only credentials it issued, recording every call.
+// A stand-in for cloudflare/control-plane for `seira login` and `serve --tunnel` tests, and for cloudflare/push-relay for
+// phone push tests: the routes the clients use, accepting only credentials it issued, recording every call.
 import { randomBytes, randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage } from "node:http";
 
@@ -153,6 +153,20 @@ export async function startControlPlaneStub(options: { otp?: string; endpointUrl
       if (!inst) return send(404, { error: "not_found" });
       inst.credential = newCredential();
       return send(201, { credential: inst.credential, createdAt: Date.now(), credentialExpiresAt: Date.now() + NINETY_DAYS });
+    }
+    if (path === "/v1/push/enroll" && method === "POST") {
+      const body = await readJson(req);
+      if (req.headers.origin) return send(403, { error: "forbidden" });
+      if (body.v !== 1) return send(400, { error: "invalid_request" });
+      const inst: StubInstallation = { id: randomUUID(), clientInstanceId: randomUUID(), name: "push relay", platform: "unknown", appVersion: null, credential: newCredential() };
+      installations.set(inst.id, inst);
+      return send(201, { installationId: inst.id, credential: inst.credential, expiresAt: Date.now() + NINETY_DAYS });
+    }
+    if (path === "/v1/installations/self/credentials/rotate" && method === "POST") {
+      const inst = byCredential();
+      if (!inst) return send(401, { error: "unauthorized" });
+      inst.credential = newCredential();
+      return send(200, { credential: inst.credential, expiresAt: Date.now() + NINETY_DAYS });
     }
     if (path === "/v1/installations/self" && method === "GET") {
       const inst = byCredential();
