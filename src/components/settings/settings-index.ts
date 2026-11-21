@@ -177,7 +177,7 @@ export const SETTINGS_INDEX: readonly SettingsIndexEntry[] = [
   { id: "pair", page: "phone", anchor: "pair", labelKey: "phone.pair.button", sectionKey: "phone.pair.section", topFor: ["phone", "pair", "pairing", "qr", "iphone", "android", "this server", "pair a device", "connect your phone"],
     synonyms: ["code", "mobile", "tablet", "companion", "get the phone app"] },
   { id: "paired", page: "phone", anchor: "paired", labelKey: "devices.paired", synonyms: ["devices", "remove", "revoke", "pair again"] },
-  { id: "phone-push", page: "phone", anchor: "phone-push", labelKey: "phone.push.title", topFor: ["push", "push notifications", "phone notifications"], synonyms: ["notifications", "alerts", "app closed", "locked phone", "fcm"] },
+  { id: "phone-push", page: "phone", anchor: "phone-push", labelKey: "phone.push.title", topFor: ["push", "push notifications", "phone notifications"], synonyms: ["notifications", "alerts", "app closed", "locked phone"] },
   { id: "wifi", page: "phone", anchor: "reach", labelKey: "devices.route.wifi", sectionKey: "phone.reach.title", when: hereOnly, synonyms: ["wifi", "wi-fi", "lan", "local network"] },
   { id: "relay", page: "phone", anchor: "reach", labelKey: "devices.route.relay", sectionKey: "phone.reach.title", when: hereOnly, synonyms: ["anywhere", "relay", "away"] },
   { id: "keep-awake", page: "phone", anchor: "reach", labelKey: "remote.keepAwake", sectionKey: "phone.reach.title", when: hereOnly, synonyms: ["sleep", "awake", "overnight", "scheduled"] },

@@ -38038,7 +38038,10 @@
       "board.stopped": "f8ec77e7a3a08e74c874907cf6d20cd0ec0a6ad2c637f8f2a11770e986f92676",
       "board.loadFailed": "4986828c901a1cf84ea96ec1a4d6ab10fb29546a902dd06a5f60308c45e00a52",
       "board.retry": "d8b8392e2c542950ca64867168e4ef87d4ad606882d5898f826b51c6d553988f",
-      "board.columns": "53aade77cd69a77bbb51bf8ca4e7ea8b282db75edce8883775e47042478d35b5"
+      "board.columns": "53aade77cd69a77bbb51bf8ca4e7ea8b282db75edce8883775e47042478d35b5",
+      "phone.push.detail": "110ecd97683ca3e4e5f22c1f250027bc5185277353a82be879b3f8bc364873cf",
+      "phone.push.short": "b5d444d5b277680f123b48c7bc266b59b33e0b09f9f690c12357484986fde5af",
+      "phone.push.title": "e92adf8015a7dd9a488e5962d2639e49e6035a95b055be012fa199867be7ab0c"
     },
     "zh": {
       "pro.fromPrice": "d8188d4e671cf89854e625efbc479c60eb5db3af842a34fea84bb9b67ea39bc5",
