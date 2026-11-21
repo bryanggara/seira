@@ -12,7 +12,7 @@ import { launchCloudSendFixture, type CloudSendFixture, type CloudTeamFixture } 
 import { waitForExit } from "./testing/cleanup.ts";
 import { hostTimeout } from "./testing/host-timeout.ts";
 
-type Bot = { id: string; threadId: string; name: string };
+type Bot = { id: string; threadId: string; mainThreadId?: string; name: string };
 type Line = { id: string; role: string; text?: string; teamAsk?: true; teamRequest?: true; teamSuggestion?: { state: string; document: { package: { agents: Array<{ key: string; name: string }> } } }; teamIntro?: { department: string; bots: Array<{ name: string; job: string }>; firstTask?: string } };
 type Mounted = { command: string; args: string[]; env: Record<string, string> };
 
@@ -36,14 +36,15 @@ it("suggests a team, creates only what is kept, and honors Skip and a newer card
   try {
     const { bot: chief } = await control(["new-bot", "--name", "Fixture Chief"]) as { bot: Bot };
     await call("PATCH", `/api/bots/${chief.id}`, { chiefOfStaff: true });
-    const ask = await call<{ message: Line }>("POST", `/api/bots/${chief.id}/team-ask`, { threadId: chief.threadId });
+    const thread = chief.mainThreadId ?? chief.threadId;
+    const ask = await call<{ message: Line }>("POST", `/api/bots/${chief.id}/team-ask`, { threadId: thread });
     expect(ask.status).toBe(200);
     expect(ask.body.message.teamAsk).toBe(true);
 
     rmSync(fixture.fixtureDumpPath, { force: true });
-    await call("POST", `/api/bots/${chief.id}/messages`, { text: "I run a small bakery", threadId: chief.threadId });
+    await call("POST", `/api/bots/${chief.id}/messages`, { text: "I run a small bakery", threadId: thread });
     await expect.poll(() => existsSync(fixture.fixtureDumpPath), { timeout: 15_000 }).toBe(true);
-    expect((await lines(chief.threadId)).find((line) => line.text === "I run a small bakery")?.teamRequest).toBe(true);
+    expect((await lines(thread)).find((line) => line.text === "I run a small bakery")?.teamRequest).toBe(true);
     const { mcpConfig } = z.object({ mcpConfig: z.object({ mcpServers: z.object({ agents: z.object({ command: z.string(), args: z.array(z.string()), env: z.record(z.string(), z.string()) }) }) }) }).parse(JSON.parse(readFileSync(fixture.fixtureDumpPath, "utf8")));
     const mounted: Mounted = mcpConfig.mcpServers.agents;
     const proxy = spawn(mounted.command, mounted.args, { cwd: process.cwd(), env: { ...mounted.env, HOME: fixture.info.dataDir, USERPROFILE: fixture.info.dataDir, ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}) }, stdio: ["pipe", "pipe", "pipe"] });
@@ -58,7 +59,7 @@ it("suggests a team, creates only what is kept, and honors Skip and a newer card
       proxy.stdin!.write(JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n");
     });
     const suggest = async (args: Record<string, unknown>) => (await rpc<{ isError?: boolean }>("tools/call", { name: "suggest_team", arguments: args }));
-    const cards = async () => (await lines(chief.threadId)).filter((line) => line.teamSuggestion);
+    const cards = async () => (await lines(thread)).filter((line) => line.teamSuggestion);
 
     expect((await rpc<{ tools: Array<{ name: string }> }>("tools/list")).tools.map((tool) => tool.name)).toContain("suggest_team");
     const before = await botNames();
@@ -74,10 +75,10 @@ it("suggests a team, creates only what is kept, and honors Skip and a newer card
     const [older, newer] = await cards();
     expect(older?.teamSuggestion?.state).toBe("replaced");
     expect(newer?.teamSuggestion?.state).toBe("open");
-    expect((await call("POST", `/api/teams/suggestion/${older!.id}`, { threadId: chief.threadId, keep: [] })).status).toBe(409);
+    expect((await call("POST", `/api/teams/suggestion/${older!.id}`, { threadId: thread, keep: [] })).status).toBe(409);
 
     // AC-06: Skip creates nothing.
-    expect((await call("POST", `/api/teams/suggestion/${newer!.id}/skip`, { threadId: chief.threadId, keep: [] })).status).toBe(200);
+    expect((await call("POST", `/api/teams/suggestion/${newer!.id}/skip`, { threadId: thread, keep: [] })).status).toBe(200);
     expect((await cards()).at(-1)?.teamSuggestion?.state).toBe("skipped");
     expect(await botNames()).toEqual(before);
 
@@ -86,17 +87,17 @@ it("suggests a team, creates only what is kept, and honors Skip and a newer card
     const open = (await cards()).at(-1)!;
     const keys = open.teamSuggestion!.document.package.agents.map((agent) => agent.key);
     const created = await call<{ bots: Array<{ name: string }>; groups?: unknown[] }>("POST", `/api/teams/suggestion/${open.id}`, {
-      threadId: chief.threadId, keep: [keys[0], keys[1]], names: { [keys[1]!]: "Ledger" }, department: "Corner Bakery",
+      threadId: thread, keep: [keys[0], keys[1]], names: { [keys[1]!]: "Ledger" }, department: "Corner Bakery",
     });
     expect(created.status).toBe(201);
     expect(created.body.bots.map((entry) => entry.name)).toEqual(["Baker", "Ledger"]);
     expect(await botNames()).toEqual([...before, "Baker", "Ledger"].sort());
-    const after = await lines(chief.threadId);
+    const after = await lines(thread);
     expect(after.find((line) => line.id === open.id)?.teamSuggestion?.state).toBe("created");
     const intro = after.find((line) => line.teamIntro)?.teamIntro;
     expect(intro).toMatchObject({ department: "Corner Bakery", firstTask: "Plan this week's orders" });
     expect(intro?.bots.map((entry) => entry.job)).toEqual(["Tracks the daily orders.", "Keeps the weekly books."]);
-    expect((await call("POST", `/api/teams/suggestion/${open.id}`, { threadId: chief.threadId, keep: [] })).status).toBe(409);
+    expect((await call("POST", `/api/teams/suggestion/${open.id}`, { threadId: thread, keep: [] })).status).toBe(409);
   } finally {
     for (const proxy of proxies) await waitForExit(proxy, { signal: "SIGTERM" });
     await fixture.close();
