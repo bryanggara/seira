@@ -30,6 +30,8 @@ services:
       # "1": phones pair by QR through Seira Relay (docs/phone-relay-server.md). Sign the
       # container in once first: docker compose exec seira seira login --relay
       SEIRA_PHONE_RELAY: ${SEIRA_PHONE_RELAY:-}
+      # Empty: Seira's push relay for alerts to a closed phone app (docs/phone-push.md).
+      SEIRA_PUSH_RELAY_URL: ${SEIRA_PUSH_RELAY_URL:-}
     healthcheck:
       test:
         - CMD

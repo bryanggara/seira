@@ -4095,7 +4095,8 @@
       "apps.category.hr": "b721ff42cc1e87773997df5f9788557c4ab7b0ac5ff6065d6255a767064bf849",
       "apps.category.entertainment": "ceaa553e838fb9f12e3e473ec6a8fe0c53329041cdee871874a3e4b2769e36ea",
       "apps.category.education": "512ab3c6b9869577bd4474c56b88f9e3f1c40c54d18e8e5a2329821254d362d2",
-      "aiImport.title": "d2bba1cbb99d34656f4cf4571432dd5a1185cdccb2355882c765ed73bcda2ae9"
+      "aiImport.title": "d2bba1cbb99d34656f4cf4571432dd5a1185cdccb2355882c765ed73bcda2ae9",
+      "phone.push.title": "e92adf8015a7dd9a488e5962d2639e49e6035a95b055be012fa199867be7ab0c"
     },
     "es": {
       "hostedMcp.connect": "90af8c699b876e65cb575aecfa9b4001ab9476dccd259b0b40d0512bf18747d7",
@@ -10563,7 +10564,8 @@
       "apps.category.hr": "b721ff42cc1e87773997df5f9788557c4ab7b0ac5ff6065d6255a767064bf849",
       "apps.category.entertainment": "ceaa553e838fb9f12e3e473ec6a8fe0c53329041cdee871874a3e4b2769e36ea",
       "apps.category.education": "512ab3c6b9869577bd4474c56b88f9e3f1c40c54d18e8e5a2329821254d362d2",
-      "aiImport.title": "d2bba1cbb99d34656f4cf4571432dd5a1185cdccb2355882c765ed73bcda2ae9"
+      "aiImport.title": "d2bba1cbb99d34656f4cf4571432dd5a1185cdccb2355882c765ed73bcda2ae9",
+      "phone.push.title": "e92adf8015a7dd9a488e5962d2639e49e6035a95b055be012fa199867be7ab0c"
     },
     "fr": {
       "pro.fromPrice": "d8188d4e671cf89854e625efbc479c60eb5db3af842a34fea84bb9b67ea39bc5",
@@ -14440,7 +14442,8 @@
       "apps.category.hr": "b721ff42cc1e87773997df5f9788557c4ab7b0ac5ff6065d6255a767064bf849",
       "apps.category.entertainment": "ceaa553e838fb9f12e3e473ec6a8fe0c53329041cdee871874a3e4b2769e36ea",
       "apps.category.education": "512ab3c6b9869577bd4474c56b88f9e3f1c40c54d18e8e5a2329821254d362d2",
-      "aiImport.title": "d2bba1cbb99d34656f4cf4571432dd5a1185cdccb2355882c765ed73bcda2ae9"
+      "aiImport.title": "d2bba1cbb99d34656f4cf4571432dd5a1185cdccb2355882c765ed73bcda2ae9",
+      "phone.push.title": "e92adf8015a7dd9a488e5962d2639e49e6035a95b055be012fa199867be7ab0c"
     },
     "hi": {
       "pro.fromPrice": "d8188d4e671cf89854e625efbc479c60eb5db3af842a34fea84bb9b67ea39bc5",
@@ -18171,7 +18174,8 @@
       "apps.category.hr": "b721ff42cc1e87773997df5f9788557c4ab7b0ac5ff6065d6255a767064bf849",
       "apps.category.entertainment": "ceaa553e838fb9f12e3e473ec6a8fe0c53329041cdee871874a3e4b2769e36ea",
       "apps.category.education": "512ab3c6b9869577bd4474c56b88f9e3f1c40c54d18e8e5a2329821254d362d2",
-      "aiImport.title": "d2bba1cbb99d34656f4cf4571432dd5a1185cdccb2355882c765ed73bcda2ae9"
+      "aiImport.title": "d2bba1cbb99d34656f4cf4571432dd5a1185cdccb2355882c765ed73bcda2ae9",
+      "phone.push.title": "e92adf8015a7dd9a488e5962d2639e49e6035a95b055be012fa199867be7ab0c"
     },
     "ja": {
       "hostedMcp.connect": "90af8c699b876e65cb575aecfa9b4001ab9476dccd259b0b40d0512bf18747d7",
@@ -26165,7 +26169,8 @@
       "apps.category.hr": "b721ff42cc1e87773997df5f9788557c4ab7b0ac5ff6065d6255a767064bf849",
       "apps.category.entertainment": "ceaa553e838fb9f12e3e473ec6a8fe0c53329041cdee871874a3e4b2769e36ea",
       "apps.category.education": "512ab3c6b9869577bd4474c56b88f9e3f1c40c54d18e8e5a2329821254d362d2",
-      "aiImport.title": "d2bba1cbb99d34656f4cf4571432dd5a1185cdccb2355882c765ed73bcda2ae9"
+      "aiImport.title": "d2bba1cbb99d34656f4cf4571432dd5a1185cdccb2355882c765ed73bcda2ae9",
+      "phone.push.title": "e92adf8015a7dd9a488e5962d2639e49e6035a95b055be012fa199867be7ab0c"
     },
     "pt-br": {
       "voice.gemini.keyPlaceholder": "8c87ba2043a4a89d63c90cae8a6dafd5cbd193652e923b97988e381a74773e10",
@@ -37868,7 +37873,10 @@
       "releaseNotes.items.sendSetting.title": "059a1272cd5a3191e6d622b85520c16cb6b77fe9df18e3ba71f90bfe26b40f28",
       "releaseNotes.items.sendSetting.body": "54bf13b45e7d8bb0c50ed4c353e668c52e8494151ab1e07b64be40d686efde6e",
       "automations.newBox.drawWorkflow": "e33b3a877c9d5a677578ab0a1229793e75a478b65144ebc49edeb2c029ba5fcc",
-      "activity.tool.team.workflow": "2e2d5c5649b718b542fae80e72768b9cfcfea9bcfa51ecc25bf6f3ce532eb5b3"
+      "activity.tool.team.workflow": "2e2d5c5649b718b542fae80e72768b9cfcfea9bcfa51ecc25bf6f3ce532eb5b3",
+      "phone.push.detail": "110ecd97683ca3e4e5f22c1f250027bc5185277353a82be879b3f8bc364873cf",
+      "phone.push.short": "b5d444d5b277680f123b48c7bc266b59b33e0b09f9f690c12357484986fde5af",
+      "phone.push.title": "e92adf8015a7dd9a488e5962d2639e49e6035a95b055be012fa199867be7ab0c"
     },
     "zh": {
       "pro.fromPrice": "d8188d4e671cf89854e625efbc479c60eb5db3af842a34fea84bb9b67ea39bc5",
@@ -47991,7 +47999,8 @@
       "apps.category.hr": "b721ff42cc1e87773997df5f9788557c4ab7b0ac5ff6065d6255a767064bf849",
       "apps.category.entertainment": "ceaa553e838fb9f12e3e473ec6a8fe0c53329041cdee871874a3e4b2769e36ea",
       "apps.category.education": "512ab3c6b9869577bd4474c56b88f9e3f1c40c54d18e8e5a2329821254d362d2",
-      "aiImport.title": "d2bba1cbb99d34656f4cf4571432dd5a1185cdccb2355882c765ed73bcda2ae9"
+      "aiImport.title": "d2bba1cbb99d34656f4cf4571432dd5a1185cdccb2355882c765ed73bcda2ae9",
+      "phone.push.title": "e92adf8015a7dd9a488e5962d2639e49e6035a95b055be012fa199867be7ab0c"
     },
     "zh-tw": {
       "hostedMcp.connect": "90af8c699b876e65cb575aecfa9b4001ab9476dccd259b0b40d0512bf18747d7",
@@ -58203,7 +58212,8 @@
       "apps.category.hr": "b721ff42cc1e87773997df5f9788557c4ab7b0ac5ff6065d6255a767064bf849",
       "apps.category.entertainment": "ceaa553e838fb9f12e3e473ec6a8fe0c53329041cdee871874a3e4b2769e36ea",
       "apps.category.education": "512ab3c6b9869577bd4474c56b88f9e3f1c40c54d18e8e5a2329821254d362d2",
-      "aiImport.title": "d2bba1cbb99d34656f4cf4571432dd5a1185cdccb2355882c765ed73bcda2ae9"
+      "aiImport.title": "d2bba1cbb99d34656f4cf4571432dd5a1185cdccb2355882c765ed73bcda2ae9",
+      "phone.push.title": "e92adf8015a7dd9a488e5962d2639e49e6035a95b055be012fa199867be7ab0c"
     },
     "uk": {
       "pro.fromPrice": "d8188d4e671cf89854e625efbc479c60eb5db3af842a34fea84bb9b67ea39bc5",
@@ -62354,7 +62364,8 @@
       "apps.category.hr": "b721ff42cc1e87773997df5f9788557c4ab7b0ac5ff6065d6255a767064bf849",
       "apps.category.entertainment": "ceaa553e838fb9f12e3e473ec6a8fe0c53329041cdee871874a3e4b2769e36ea",
       "apps.category.education": "512ab3c6b9869577bd4474c56b88f9e3f1c40c54d18e8e5a2329821254d362d2",
-      "aiImport.title": "d2bba1cbb99d34656f4cf4571432dd5a1185cdccb2355882c765ed73bcda2ae9"
+      "aiImport.title": "d2bba1cbb99d34656f4cf4571432dd5a1185cdccb2355882c765ed73bcda2ae9",
+      "phone.push.title": "e92adf8015a7dd9a488e5962d2639e49e6035a95b055be012fa199867be7ab0c"
     },
     "vi": {
       "hostedMcp.connect": "90af8c699b876e65cb575aecfa9b4001ab9476dccd259b0b40d0512bf18747d7",
@@ -68322,7 +68333,8 @@
       "apps.category.hr": "b721ff42cc1e87773997df5f9788557c4ab7b0ac5ff6065d6255a767064bf849",
       "apps.category.entertainment": "ceaa553e838fb9f12e3e473ec6a8fe0c53329041cdee871874a3e4b2769e36ea",
       "apps.category.education": "512ab3c6b9869577bd4474c56b88f9e3f1c40c54d18e8e5a2329821254d362d2",
-      "aiImport.title": "d2bba1cbb99d34656f4cf4571432dd5a1185cdccb2355882c765ed73bcda2ae9"
+      "aiImport.title": "d2bba1cbb99d34656f4cf4571432dd5a1185cdccb2355882c765ed73bcda2ae9",
+      "phone.push.title": "e92adf8015a7dd9a488e5962d2639e49e6035a95b055be012fa199867be7ab0c"
     },
     "tr": {
       "hostedMcp.connect": "90af8c699b876e65cb575aecfa9b4001ab9476dccd259b0b40d0512bf18747d7",
@@ -74290,7 +74302,8 @@
       "apps.category.hr": "b721ff42cc1e87773997df5f9788557c4ab7b0ac5ff6065d6255a767064bf849",
       "apps.category.entertainment": "ceaa553e838fb9f12e3e473ec6a8fe0c53329041cdee871874a3e4b2769e36ea",
       "apps.category.education": "512ab3c6b9869577bd4474c56b88f9e3f1c40c54d18e8e5a2329821254d362d2",
-      "aiImport.title": "d2bba1cbb99d34656f4cf4571432dd5a1185cdccb2355882c765ed73bcda2ae9"
+      "aiImport.title": "d2bba1cbb99d34656f4cf4571432dd5a1185cdccb2355882c765ed73bcda2ae9",
+      "phone.push.title": "e92adf8015a7dd9a488e5962d2639e49e6035a95b055be012fa199867be7ab0c"
     },
     "pl": {
       "hostedMcp.connect": "90af8c699b876e65cb575aecfa9b4001ab9476dccd259b0b40d0512bf18747d7",
@@ -81455,7 +81468,8 @@
       "apps.category.hr": "b721ff42cc1e87773997df5f9788557c4ab7b0ac5ff6065d6255a767064bf849",
       "apps.category.entertainment": "ceaa553e838fb9f12e3e473ec6a8fe0c53329041cdee871874a3e4b2769e36ea",
       "apps.category.education": "512ab3c6b9869577bd4474c56b88f9e3f1c40c54d18e8e5a2329821254d362d2",
-      "aiImport.title": "d2bba1cbb99d34656f4cf4571432dd5a1185cdccb2355882c765ed73bcda2ae9"
+      "aiImport.title": "d2bba1cbb99d34656f4cf4571432dd5a1185cdccb2355882c765ed73bcda2ae9",
+      "phone.push.title": "e92adf8015a7dd9a488e5962d2639e49e6035a95b055be012fa199867be7ab0c"
     },
     "ru": {
       "hostedMcp.connect": "90af8c699b876e65cb575aecfa9b4001ab9476dccd259b0b40d0512bf18747d7",
@@ -88673,7 +88687,8 @@
       "apps.category.hr": "b721ff42cc1e87773997df5f9788557c4ab7b0ac5ff6065d6255a767064bf849",
       "apps.category.entertainment": "ceaa553e838fb9f12e3e473ec6a8fe0c53329041cdee871874a3e4b2769e36ea",
       "apps.category.education": "512ab3c6b9869577bd4474c56b88f9e3f1c40c54d18e8e5a2329821254d362d2",
-      "aiImport.title": "d2bba1cbb99d34656f4cf4571432dd5a1185cdccb2355882c765ed73bcda2ae9"
+      "aiImport.title": "d2bba1cbb99d34656f4cf4571432dd5a1185cdccb2355882c765ed73bcda2ae9",
+      "phone.push.title": "e92adf8015a7dd9a488e5962d2639e49e6035a95b055be012fa199867be7ab0c"
     },
     "it": {
       "hostedMcp.connect": "90af8c699b876e65cb575aecfa9b4001ab9476dccd259b0b40d0512bf18747d7",
@@ -95706,7 +95721,8 @@
       "apps.category.hr": "b721ff42cc1e87773997df5f9788557c4ab7b0ac5ff6065d6255a767064bf849",
       "apps.category.entertainment": "ceaa553e838fb9f12e3e473ec6a8fe0c53329041cdee871874a3e4b2769e36ea",
       "apps.category.education": "512ab3c6b9869577bd4474c56b88f9e3f1c40c54d18e8e5a2329821254d362d2",
-      "aiImport.title": "d2bba1cbb99d34656f4cf4571432dd5a1185cdccb2355882c765ed73bcda2ae9"
+      "aiImport.title": "d2bba1cbb99d34656f4cf4571432dd5a1185cdccb2355882c765ed73bcda2ae9",
+      "phone.push.title": "e92adf8015a7dd9a488e5962d2639e49e6035a95b055be012fa199867be7ab0c"
     },
     "ko": {
       "connectedWorkspaces.localTitle": "7d6deafeab011d734c3fdd1bfd6f69544fbb746a004019269bdb48544b01164b",
@@ -103396,7 +103412,8 @@
       "apps.category.hr": "b721ff42cc1e87773997df5f9788557c4ab7b0ac5ff6065d6255a767064bf849",
       "apps.category.entertainment": "ceaa553e838fb9f12e3e473ec6a8fe0c53329041cdee871874a3e4b2769e36ea",
       "apps.category.education": "512ab3c6b9869577bd4474c56b88f9e3f1c40c54d18e8e5a2329821254d362d2",
-      "aiImport.title": "d2bba1cbb99d34656f4cf4571432dd5a1185cdccb2355882c765ed73bcda2ae9"
+      "aiImport.title": "d2bba1cbb99d34656f4cf4571432dd5a1185cdccb2355882c765ed73bcda2ae9",
+      "phone.push.title": "e92adf8015a7dd9a488e5962d2639e49e6035a95b055be012fa199867be7ab0c"
     }
   }
 }

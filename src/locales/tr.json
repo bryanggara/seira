@@ -5501,6 +5501,7 @@
   "phone.pair.turnOnShow": "Aç ve kodu göster",
   "phone.pair.withPlace": "{place} ile eşle",
   "phone.pair.withPlaceLine": "{place} her zaman açık, böylece telefonunuz botlarınıza her yerden ulaşır.",
+  "phone.push.title": "Telefon uygulaması kapalıyken uyarılar",
   "phone.reach.anywhereLine": "Evden uzaktayken de çalışır. Uçtan uca şifrelidir.",
   "phone.reach.awakeLine": "Telefonunuz ve zamanlanmış işler ona ulaşmaya devam edebilsin diye.",
   "phone.reach.foot": "Telefon eşle bunları sizin için açar. Daha sonra buradan değiştirebilirsiniz.",

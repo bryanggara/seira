@@ -36,7 +36,7 @@ function harness(options: { enabled?: boolean; live?: Set<string>; openAsks?: Se
   const live = options.live ?? new Set<string>();
   const push = new PhonePush({
     dataDir,
-    access: () => ({ controlPlane: "https://accounts.seira.test", credential: CREDENTIAL }),
+    access: () => ({ relay: "https://push.seira.test", credential: CREDENTIAL }),
     enabled: () => options.enabled ?? true,
     live: (key) => live.has(key),
     room: () => undefined,

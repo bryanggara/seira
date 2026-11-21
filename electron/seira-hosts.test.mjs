@@ -4,12 +4,12 @@ import { LIVE_SEIRA_SERVICES, SEIRA_HOSTS, seiraOrigin, seiraServiceLive } from 
 
 describe("seiraServiceLive", () => {
   it("lists the services that answer today", () => {
-    expect([...LIVE_SEIRA_SERVICES].sort()).toEqual(["apps", "cloud", "serverTunnel", "site", "updates"]);
+    expect([...LIVE_SEIRA_SERVICES].sort()).toEqual(["apps", "cloud", "push", "serverTunnel", "site", "updates"]);
     for (const name of LIVE_SEIRA_SERVICES) expect(seiraServiceLive(name)).toBe(true);
   });
 
   it("keeps a service that has no live host off", () => {
-    for (const name of ["admin", "accounts", "device", "stats", "pages", "companion", "push"]) expect(seiraServiceLive(name, {})).toBe(false);
+    for (const name of ["admin", "accounts", "device", "stats", "pages", "companion"]) expect(seiraServiceLive(name, {})).toBe(false);
   });
 
   it("turns a service on when the environment names an address for it", () => {
