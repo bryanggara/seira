@@ -6004,6 +6004,7 @@
   "phone.pair.turnOnShow": "Activar y mostrar el código",
   "phone.pair.withPlace": "Vincular con {place}",
   "phone.pair.withPlaceLine": "{place} está siempre encendido, así tu teléfono llega a tus bots desde cualquier sitio.",
+  "phone.push.title": "Alertas con la app del teléfono cerrada",
   "phone.reach.anywhereLine": "Funciona también fuera de casa. Cifrado de extremo a extremo.",
   "phone.reach.awakeLine": "Para que tu teléfono y el trabajo programado sigan llegando a él.",
   "phone.reach.foot": "«Vincular un teléfono» los activa por ti. Puedes cambiarlos aquí después.",

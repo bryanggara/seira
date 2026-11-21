@@ -146,6 +146,12 @@ export const APP_FEATURES: readonly AppFeature[] = [
     releaseNotes: ["personLook"],
   },
   {
+    id: "phone-push",
+    name: "Alerts when the phone app is closed",
+    place: "Settings → Phone & devices → Alerts when the phone app is closed",
+    does: "Wakes the closed phone app for approvals, questions, sign-ins and finished replies. Off until the person turns it on. The alert holds names and the kind of alert, never the message.",
+  },
+  {
     id: "computers",
     name: "Computers",
     place: "the Computer tab of a bot's panel",

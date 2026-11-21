@@ -32,6 +32,7 @@ export const SETTINGS_PLACES = [
   {"id":"page:appearance","path":"Settings → Appearance","words":["appearance","theme","skin","looks","dark mode","light mode","font","chat width","layout","threads","pins"]},
   {"id":"pair","path":"Settings → Phone & devices → Pair a phone","words":["phone","pair","pairing","qr","iphone","android","this server","pair a device","connect your phone","code","mobile","tablet","companion","get the phone app"]},
   {"id":"paired","path":"Settings → Phone & devices → Paired","words":["devices","remove","revoke","pair again"]},
+  {"id":"phone-push","path":"Settings → Phone & devices → Alerts when the phone app is closed","words":["push","push notifications","phone notifications","notifications","alerts","app closed","locked phone"]},
   {"id":"wifi","path":"Settings → Phone & devices → How your phone reaches this computer → Same Wi-Fi","words":["wifi","wi-fi","lan","local network"],"only":"the desktop app, on this computer's own page"},
   {"id":"relay","path":"Settings → Phone & devices → How your phone reaches this computer → Anywhere, through Seira","words":["anywhere","relay","away"],"only":"the desktop app, on this computer's own page"},
   {"id":"keep-awake","path":"Settings → Phone & devices → How your phone reaches this computer → Keep this computer awake","words":["sleep","awake","overnight","scheduled"],"only":"the desktop app, on this computer's own page"},
