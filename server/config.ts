@@ -29,7 +29,7 @@ import { helperStoredShape, type HelperConfig } from "./side-jobs.ts";
 import { loopGuardConfigSchema, type LoopGuardConfig } from "./host/loop-guard.ts";
 import { migrateLegacyFeatureFlags } from "./legacy-feature-flags.ts";
 import { settledFileCache, settledFileStamp } from "./settled-file.ts";
-import { isRemoteMcpServer, mcpServerServes, parseStoredMcpServer } from "./mcp-registry.ts"; import { postizKeyHeaders } from "./postiz/connection.ts";
+import { isRemoteMcpServer, mcpServerServes, parseStoredMcpServer } from "./mcp-registry.ts";
 import { parseJson, schemaIssue, type JsonObject, type JsonValue } from "./schema.ts";
 import { deciderConfigSchema, type DeciderConfig } from "./decider/config.ts";
 import { fishKeyFromLiveKey, liveConfigSchema, liveConfigWithEnv, liveSettingEnv, type LiveConfig } from "./live-config.ts";
@@ -318,7 +318,7 @@ const appConfigSchema = z.object({
     phone: z.enum(["ios", "android"]).optional(),
   }).optional(),
   mistral: z.object({ key: optionalText }).optional(),
-  cerebras: z.object({ key: optionalText }).optional(), treg: z.object({ key: optionalText }).optional(), postiz: z.object({ key: optionalText, url: optionalText }).optional(),
+  cerebras: z.object({ key: optionalText }).optional(), treg: z.object({ key: optionalText }).optional(),
   groq: z.object({ key: optionalText, url: optionalText }).optional(),
   greenference: z.object({ key: optionalText }).optional(), modelgo: z.object({ key: optionalText }).optional(),
   meta: z.object({ key: optionalText, url: optionalText }).optional(),
@@ -449,7 +449,7 @@ export interface AppConfig extends HelperConfig {
   language?: string; computerName?: string;
   xai?: { key?: string; url?: string };
   mistral?: { key?: string };
-  cerebras?: { key?: string }; treg?: { key?: string }; /** Postiz: an organisation API key and the server it belongs to (blank: Postiz Cloud). */ postiz?: { key?: string; url?: string };
+  cerebras?: { key?: string }; treg?: { key?: string };
   groq?: { key?: string; url?: string };
   greenference?: { key?: string }; modelgo?: { key?: string };
   meta?: { key?: string; url?: string };
@@ -729,7 +729,7 @@ export function loadConfig(): AppConfig {
     ["deepseek", "SEIRA_DEEPSEEK_API_KEY"], ["greenference", "SEIRA_GREENFERENCE_API_KEY"], ["modelgo", "SEIRA_MODELGO_API_KEY"], ["xai", "XAI_API_KEY"]] as const) {
     cfg[name] = { ...cfg[name], ...(process.env[env] !== undefined ? { key: process.env[env] } : {}) };
   }
-  if (process.env.SEIRA_TREG_KEY !== undefined) cfg.treg = { ...cfg.treg, key: process.env.SEIRA_TREG_KEY }; if (process.env.SEIRA_POSTIZ_API_KEY !== undefined) cfg.postiz = { ...cfg.postiz, key: process.env.SEIRA_POSTIZ_API_KEY };
+  if (process.env.SEIRA_TREG_KEY !== undefined) cfg.treg = { ...cfg.treg, key: process.env.SEIRA_TREG_KEY };
   // Never ANTHROPIC_API_KEY: an operator's stray variable must not move every Claude bot onto API billing.
   cfg.anthropic = { ...cfg.anthropic };
   if (process.env.SEIRA_ANTHROPIC_API_KEY !== undefined) cfg.anthropic.key = process.env.SEIRA_ANTHROPIC_API_KEY;
@@ -785,7 +785,7 @@ export function syncCredentialEnv(patch: Partial<Omit<AppConfig, "threads" | "ne
   const secrets: Array<[value: string | undefined, name: string]> = [
     [patch.xai?.key, "XAI_API_KEY"],
     [patch.mistral?.key, "MISTRAL_API_KEY"],
-    [patch.cerebras?.key, "CEREBRAS_API_KEY"], [patch.treg?.key, "SEIRA_TREG_KEY"], [patch.postiz?.key, "SEIRA_POSTIZ_API_KEY"],
+    [patch.cerebras?.key, "CEREBRAS_API_KEY"], [patch.treg?.key, "SEIRA_TREG_KEY"],
     [patch.groq?.key, "SEIRA_GROQ_API_KEY"],
     [patch.greenference?.key, "SEIRA_GREENFERENCE_API_KEY"], [patch.modelgo?.key, "SEIRA_MODELGO_API_KEY"],
     [patch.meta?.key, "SEIRA_META_API_KEY"],
@@ -883,6 +883,8 @@ export function onConfigSaved(listener: (before: JsonObject, after: JsonObject) 
   return () => { configSaveListeners.delete(listener); };
 }
 
+const RETIRED_CONFIG_SECTIONS = ["postiz"] as const;
+
 /** Secrets are never echoed back; callers report configured-or-not only. */
 export function saveConfig(
   patch: Partial<Omit<AppConfig, "threads" | "newBots" | "imageGen">> & {
@@ -901,7 +903,7 @@ export function saveConfig(
   const keepImageModels = keepKeysOutOfImageModels(disk, checkedPatch.imageGen);
   const storedProfiles = storedBrowserProfilesSchema.safeParse(disk.browserProfiles);
   if (storedProfiles.success) disk.browserProfiles = storedProfiles.data;
-  for (const key of ["xai", "anthropic", "mistral", "cerebras", "treg", "postiz", "groq", "greenference", "modelgo", "meta", "deepseek", "openai", "openrouter", "openaiCompat", "composio", "box", "opencodeGo", "tts", "decider", "imageGen", "live", "profile", "rooms", "mcp", "threads", "context", "memory", "localVm", "features", "budgets", "billing", "decisions", "loopGuard", "onboarding", "browserEngine", "newBots", "safetyFloor"] as const) {
+  for (const key of ["xai", "anthropic", "mistral", "cerebras", "treg", "groq", "greenference", "modelgo", "meta", "deepseek", "openai", "openrouter", "openaiCompat", "composio", "box", "opencodeGo", "tts", "decider", "imageGen", "live", "profile", "rooms", "mcp", "threads", "context", "memory", "localVm", "features", "budgets", "billing", "decisions", "loopGuard", "onboarding", "browserEngine", "newBots", "safetyFloor"] as const) {
     const section = checkedPatch[key];
     if (!section) continue;
     const current = jsonObjectSchema.safeParse(disk[key]);
@@ -914,6 +916,7 @@ export function saveConfig(
     disk[key] = merged;
   }
   keepImageModels();
+  for (const key of RETIRED_CONFIG_SECTIONS) delete disk[key];
   if (checkedPatch.vps !== undefined) disk.vps = normalizeVpsConfig(checkedPatch.vps);
   for (const key of ["language", "computerName", "everyBotRules"] as const) if (checkedPatch[key] !== undefined) disk[key] = checkedPatch[key];
   if (checkedPatch.customDomain !== undefined) disk.customDomain = checkedPatch.customDomain;
@@ -1232,7 +1235,7 @@ export function customMcpServers(cfg: AppConfig, only?: string[], botId?: string
     }
     if (!parsed.server.enabled || parsed.server.runsOn || !mcpServerServes(parsed.server, botId)) continue; // another computer's or bot's own
     out[name] = isRemoteMcpServer(parsed.server)
-      ? { type: parsed.server.type, url: parsed.server.url, headers: { ...parsed.server.headers, ...postizKeyHeaders(cfg.postiz, name, parsed.server) } }
+      ? { type: parsed.server.type, url: parsed.server.url, headers: parsed.server.headers }
       : { command: parsed.server.command, args: parsed.server.args, env: parsed.server.env };
   }
   return out;

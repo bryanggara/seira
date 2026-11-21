@@ -20,9 +20,9 @@ import type { RequestAuth } from "./request-auth.ts";
 import { createInternalMcpRoutes, type InternalMcpDeps } from "./routes/internal-mcp.ts";
 import type { RouteContext } from "./routes/table.ts";
 import type { Scope, SessionRecord } from "./sessions.ts";
-import { startFakePostiz, type FakePostiz } from "./testing/fake-postiz.ts";
+import { startFakeOauthMcp, type FakeOauthMcp } from "./testing/fake-oauth-mcp.ts";
 
-const SIGN_IN_PAGE = "https://postiz.example";
+const SIGN_IN_PAGE = "https://acme.example";
 const OLIVE = personKey({ id: "", email: "olive@acme.test" });
 const ADA = personKey({ id: "", email: "ada@acme.test" });
 const CLEO = personKey({ id: "", email: "cleo@acme.test" });
@@ -48,7 +48,7 @@ afterEach(async () => {
 });
 
 async function setup(options: { team?: boolean; origins?: string[]; lifetimeMs?: number } = {}) {
-  const provider: FakePostiz = await startFakePostiz({ signInPage: SIGN_IN_PAGE });
+  const provider: FakeOauthMcp = await startFakeOauthMcp({ signInPage: SIGN_IN_PAGE });
   const dataDir = mkdtempSync(join(tmpdir(), "seira-mcp-sign-in-card-"));
   const url = `${provider.url}/mcp-oauth-dynamic`;
   const cfg = { mcpServers: { linear: { type: "http", url, headers: {}, enabled: true } } } as unknown as AppConfig;

@@ -28,7 +28,6 @@ export const CREDENTIAL_PATCH = {
   geminiImageApiKey: (value) => ({ imageGen: { geminiKey: value } }),
   openaiLiveKey: (value) => ({ live: { key: value } }),
   tregApiKey: (value) => ({ treg: { key: value } }),
-  postizApiKey: (value) => ({ postiz: { key: value } }),
 };
 
 const DECIDER_ERRORS = Object.freeze({

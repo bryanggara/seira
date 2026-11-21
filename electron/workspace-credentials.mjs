@@ -26,7 +26,6 @@ export const WORKSPACE_CREDENTIALS = [
   { section: "imageGen", field: "geminiKey", name: "geminiImageApiKey", env: "SEIRA_GEMINI_IMAGE_KEY" },
   { section: "live", field: "key", name: "openaiLiveKey", env: "SEIRA_OPENAI_LIVE_KEY" },
   { section: "treg", field: "key", name: "tregApiKey", env: "SEIRA_TREG_KEY" },
-  { section: "postiz", field: "key", name: "postizApiKey", env: "SEIRA_POSTIZ_API_KEY" },
   { section: "opencodeGo", field: "apiKey", name: "opencodeGoApiKey", env: "OPENCODE_API_KEY" },
 ];
 

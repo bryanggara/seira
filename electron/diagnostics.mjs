@@ -34,6 +34,7 @@ export const CREDENTIAL_ENV_NAMES = [
   "SEIRA_GEMINI_IMAGE_KEY",
   "SEIRA_OPENAI_LIVE_KEY",
   "SEIRA_TREG_KEY",
+  // Retired: still stripped, because an old environment can still set it.
   "SEIRA_POSTIZ_API_KEY",
   "COMPOSIO_API_KEY",
   "SEIRA_COMPOSIO_BROKER_TOKEN",

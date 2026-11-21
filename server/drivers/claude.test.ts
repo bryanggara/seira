@@ -2125,7 +2125,7 @@ describe("ClaudeDriver turns (fake CLI)", () => {
       device: stdio("device"), dweb: { url: "http://127.0.0.1:1" },
       custom: {
         shop: { command: "npx", args: ["shop"], env: {} }, docs: { type: "http" as const, url: "https://docs.example.test/mcp", headers: {} },
-        postiz: { type: "http" as const, url: "https://api.postiz.com/mcp-oauth-dynamic", headers: { Authorization: "Bearer pos_fixture" } },
+        wiki: { type: "http" as const, url: "https://wiki.example.test/mcp", headers: { Authorization: "Bearer fixture" } },
       },
     };
     const mounted = async (threadId: string, preloadBrowserTools: boolean) => {
@@ -2148,7 +2148,7 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     const browsing = await mounted("t-tool-search", true);
     expect(browsing.toolSearch).toBe("true");
     expect(browsing.alwaysLoaded).toEqual(["agents", "browser", "ogb"]);
-    expect(browsing.onDemand).toEqual(["composio", "computer", "data", "device", "docs", "dweb", "email", "own_apps", "phone", "postiz", "shop"]);
+    expect(browsing.onDemand).toEqual(["composio", "computer", "data", "device", "docs", "dweb", "email", "own_apps", "phone", "shop", "wiki"]);
     const other = await mounted("t-tool-search-no-browse", false);
     expect(other.alwaysLoaded).toEqual(["agents", "ogb"]);
     expect(other.onDemand).toContain("browser");
