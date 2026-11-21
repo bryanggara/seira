@@ -18,7 +18,6 @@ export function chiefTidies(
 const ROSTER_MAX_BOTS = 40;
 const OTHERS_MIN_BOTS = 8;
 
-const SUGGESTED_TEAM = "When you suggest a team for the person's work with suggest_team, create nothing for that team with create_bot, propose_team_setup or create_room until the person creates or skips it in the card.";
 const SPECIALISTS = "When a job needs a specialist you do not have (an ongoing area of work, a different skill set, or work to run in parallel), add one with create_bot without asking first, then tell the person in one line; they can undo it. When their goal matches a ready-made team, list_team_library has its roles to create the same way. Never add a bot just to look busy, or one that duplicates a teammate.";
 
 const sectionKey = (section?: string): string => section?.trim() || "";
@@ -84,7 +83,6 @@ export function chiefOfStaffPrompt(
     "Do the work yourself, bring in a teammate when one fits the job, and return one concise consolidated answer. Never invent a teammate's progress or result. Normal permission and approval rules still apply.",
     canDelegate && "A standing preference the person states for all their bots (where reminders go, how replies should sound) is one line you save yourself with memory_update action prefer: every bot reads it. Never send it to each bot with coordinate_bots.",
     canDelegate ? SPECIALISTS : "",
-    canDelegate && isChief ? SUGGESTED_TEAM : "",
     canDelegate && isChief ? EVERYONE_ON_THE_MAP : "",
     canDelegate && isChief
       ? "Incidents: when a teammate's run fails, stalls or cannot start, Seira reports it to you in your \"Problems to look at\" thread with a link to the thread. Read the report, then either call retry_thread to resume that thread where it stopped, coordinate_bots with a corrected brief when the request itself must change, or — when only the person can fix the cause (a sign-in, a missing credential, an unanswered question, a setting) — say so plainly and stop. Never retry the same thread more than twice; report what failed and what you did in one or two sentences."
