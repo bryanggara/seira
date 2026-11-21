@@ -98,7 +98,7 @@ import * as boat from "./boat.ts"; import { keyHint, keyStatus, nestedKeyStatus,
 import { cloudComputerRpc } from "./cloud-computer-tools.ts"; import { createBoatRecovery } from "./boat-recovery.ts"; import { CLOUD_COMPUTER_PERSON_LINES, CLOUD_COMPUTER_REPLACING, CLOUD_COMPUTER_RESTARTING, CLOUD_COMPUTER_RESTORING, CLOUD_COMPUTER_WAKING, RUN_COMPUTER_LINES } from "../shared/cloud-computer-recovery.ts"; import { boatReadiness } from "./boat-ready.ts"; import { createRunComputerGate } from "./host/cloud-computer-run-gate.ts"; import { cloudComputerDisk } from "./cloud-computer-disk.ts"; import { runComputerMemory } from "./host/cloud-computer-run-memory.ts";
 import { chartRenderer, compileChart, dataEngine, validateVegaLite } from "./data/deps.ts";
 import { DATA_INTERNAL_MCP_PATH, dataRpc } from "./data/rpc.ts";
-import { removeRetiredAppFiles } from "./retired-apps.ts"; import { createEmailRoutes } from "./routes/email.ts"; import { createEmailHost, EMAIL_INTERNAL_MCP_PATH, emailAccess } from "./email/host.ts"; import { createEmailService } from "./email/service.ts"; import { createPostizRoutes } from "./routes/postiz.ts"; import { createPostiz } from "./postiz/service.ts";
+import { removeRetiredAppFiles } from "./retired-apps.ts"; import { createEmailRoutes } from "./routes/email.ts"; import { createEmailHost, EMAIL_INTERNAL_MCP_PATH, emailAccess } from "./email/host.ts"; import { createEmailService } from "./email/service.ts";
 import { createPhones } from "./host/phones.ts";
 import { NOT_THE_OWNER } from "./phones/owner.ts";
 import { PHONE_INTERNAL_MCP_PATH } from "./phones/rpc.ts";
@@ -11677,7 +11677,7 @@ function configStatus() {
     cerebras: keyStatus(cfg.cerebras?.key),
     groq: keyStatus(cfg.groq?.key), greenference: keyStatus(cfg.greenference?.key), modelgo: keyStatus(cfg.modelgo?.key),
     meta: keyStatus(cfg.meta?.key), deepseek: keyStatus(cfg.deepseek?.key),
-    xResearch: xResearchStatus(), pages: { offered: pagesOffered(CLOUD_HOME, !CLOUD_HOME && !HOSTED_WORKSPACE && utilityParentPort === undefined) }, treg: keyStatus(cfg.treg?.key), postiz: { ...keyStatus(cfg.postiz?.key), ...(cfg.postiz?.url ? { url: cfg.postiz.url } : {}) },
+    xResearch: xResearchStatus(), pages: { offered: pagesOffered(CLOUD_HOME, !CLOUD_HOME && !HOSTED_WORKSPACE && utilityParentPort === undefined) }, treg: keyStatus(cfg.treg?.key),
     anthropic: { ...keyStatus(cfg.anthropic?.key), everyClaudeBot: cfg.anthropic?.everyClaudeBot !== false },
     openai: keyStatus(cfg.openai?.key),
     openrouter: keyStatus(cfg.openrouter?.key),
@@ -12315,7 +12315,7 @@ const mcpConfig = createMcpConfig({
   connectionsChanged: (change) => void routineHolds?.connections(change), probeAs: mcpServersHost.probeAs, testElsewhere: (name, server, lender, signal) => lentMcp.test(name, server, lender, signal),
   changed: () => broadcast({ kind: "mcp.changed" }) });
 const persistAnnouncedMcpServers = (next: Record<string, unknown>) => { persistMcpServers(next); broadcast({ kind: "mcp.changed" }); };
-const postiz = createPostiz({ cfg: () => cfg, mcpOAuth, persistMcpServers: persistAnnouncedMcpServers, mcpConfigBusy: mcpConfig.busy, mcpPolicyRefusal, appCatalog: chatAppsMcp, team: teamConnections, loopback: !CLOUD_HOME && !HOSTED_WORKSPACE }); const configRoutes = createConfigRoutes({
+const configRoutes = createConfigRoutes({
   store, cfg, registry, sessions, browserCleanup, browserLive, browserRuntime, usedBrowserSessions, decider,
   sharedComputers, sharedComputerControl, closeBrowser, browserEngineSwitched,
   hostedModels: Boolean(hostedModels),
@@ -12329,8 +12329,8 @@ const postiz = createPostiz({ cfg: () => cfg, mcpOAuth, persistMcpServers: persi
   checkedModelSelection, policyModelRefusal, browserSessionSpec, configStatus,
   configForAccess: (status, auth) => configForAccess(status as ReturnType<typeof configStatus>, auth.scopes.includes("admin"), auth.kind === "session" ? auth.session : null),
   ...(CLOUD_TEAM ? { ownProfile: (auth: RequestAuth, profile: { name?: string; avatarUrl?: string; aboutMe?: string }) => auth.kind === "session" ? (teamHost.saveMemberProfile(auth.session, profile), true) : false, ownHints: (auth: RequestAuth, hints: string[]) => auth.kind === "session" ? (teamWelcome.save(personKey(auth.session), { hints }), true) : false } : {}),
-  resyncOpenCodeProviderKeys, revokeEngineCapabilities, reloadProviders, broadcast, drainQueuedSends, postiz,
-}); ROUTES.push(createPostizRoutes({ postiz }), configRoutes);
+  resyncOpenCodeProviderKeys, revokeEngineCapabilities, reloadProviders, broadcast, drainQueuedSends,
+}); ROUTES.push(configRoutes);
 const instanceRoutes = createInstanceRoutes({
   store, cfg, registry, sessions, providerAuthSessions,
   hostedModels: Boolean(hostedModels),

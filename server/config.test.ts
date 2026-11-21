@@ -749,6 +749,22 @@ describe("a config.json saved with a byte order mark", () => {
     }
   });
 
+  it("loads a config that still has a Postiz key, and drops the key at the next save", () => {
+    const path = join(DATA_DIR, "config.json");
+    mkdirSync(DATA_DIR, { recursive: true });
+    writeFileSync(path, JSON.stringify({ language: "en", postiz: { key: "old", url: "" } }));
+    try {
+      expect(loadConfig()).toMatchObject({ language: "en" });
+      expect(loadConfig()).not.toHaveProperty("postiz");
+      saveConfig({ budgets: { monthlyUsd: 25, warnAtPercent: 70 } });
+      const disk = JSON.parse(readFileSync(path, "utf8"));
+      expect(disk).not.toHaveProperty("postiz");
+      expect(disk).toMatchObject({ language: "en", budgets: { monthlyUsd: 25, warnAtPercent: 70 } });
+    } finally {
+      rmSync(path, { force: true });
+    }
+  });
+
   it("keeps the browser's allow-list when the owner flips its local-sites switch", () => {
     const path = join(DATA_DIR, "config.json");
     mkdirSync(DATA_DIR, { recursive: true });

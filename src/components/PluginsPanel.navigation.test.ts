@@ -57,9 +57,6 @@ vi.mock("./XCard", () => ({
 vi.mock("./EmailCard", () => ({
   EmailCard: () => createElement("div", { "data-email-card": true }, "Email"),
 }));
-vi.mock("./PostizCard", () => ({
-  PostizCard: () => createElement("div", { "data-postiz-card": true }, "Postiz"),
-}));
 import { HOSTED_MCP_APPS, type HostedConnections } from "@/lib/hosted-mcp-apps";
 import { APPS_PREVIEW_COUNT, PluginsPanel, USED_BY_AVATAR_SIZE, botsUsingService, hostedShown } from "./PluginsPanel";
 import { connectedInventoryCopy } from "@/lib/connector-status";
@@ -70,8 +67,7 @@ const STATUS = 6;
 const PHASE = 13;
 const X_CONNECTED = 21;
 const CATEGORY = 20;
-const POSTIZ_CONNECTED = 22;
-const EMAIL_CONNECTED = 23;
+const EMAIL_CONNECTED = 22;
 const MODE = 4;
 const SEARCH = 15;
 const HOSTED_CONNECTED = 18;
@@ -192,24 +188,6 @@ describe("Apps pop-up", () => {
     fixture.overrides.set(HOSTED_CONNECTED, Object.fromEntries(HOSTED_MCP_APPS.map((app) => [app.id, true])));
     const html = render().html;
     expect(html).toContain(`Connected: ${new Intl.ListFormat("en", { style: "long", type: "conjunction" }).format(HOSTED_MCP_APPS.map((app) => app.label))}.`);
-  });
-  it("hides the Postiz card until it is connected, then shows it in the grid and under Social", () => {
-    const wrapper = (tree: Node[]) => tree.find((node) => node.props["data-native-card"] === "postiz")!;
-    const { html, nodes: tree } = render();
-    expect(wrapper(tree).props.className).toBe("hidden");
-    expect(html).toContain("1 connected");
-    fixture.overrides.set(POSTIZ_CONNECTED, true);
-    expect(render().html).toContain("2 connected");
-    expect(wrapper(render().nodes).props.className).toBe("contents");
-    fixture.overrides.set(CATEGORY, "social");
-    expect(wrapper(render().nodes).props.className).toBe("contents");
-    fixture.overrides.set(CATEGORY, "productivity");
-    expect(wrapper(render().nodes).props.className).toBe("hidden");
-    fixture.overrides.set(CATEGORY, null);
-    fixture.overrides.set(SEARCH, "instagram");
-    expect(wrapper(render().nodes).props.className).toBe("contents");
-    fixture.overrides.set(SEARCH, "gmail");
-    expect(wrapper(render().nodes).props.className).toBe("hidden");
   });
   it("hides the X card until it is connected, then shows it in the grid and under Connected", () => {
     const wrapper = (tree: Node[]) => tree.find((node) => node.props["data-native-card"] === "x")!;
@@ -596,7 +574,7 @@ describe("Apps pop-up", () => {
     expect(fixture.overrides.get(20)).toBe("productivity");
   });
 
-  const MCP_SERVERS = 24, SUGGESTIONS = 28;
+  const MCP_SERVERS = 23, SUGGESTIONS = 27;
   const headings = (html: string) => [...html.matchAll(/<h3 id="[^"]*"[^>]*>([^<]*)/g)].map((match) => match[1]);
   const tiles = (html: string) => [...html.matchAll(/data-app-tile="([^"]*)"/g)].map((match) => match[1]).filter((slug) => !HOSTED_MCP_APPS.some((app) => app.id === slug));
   const server = (name: string, extra: Record<string, unknown> = {}) => ({ name, type: "http", url: `https://${name}.example/mcp`, headerKeys: [], enabled: true, ...extra });
@@ -686,7 +664,7 @@ describe("Apps pop-up", () => {
   it("doesn't call the Connected view empty while an MCP server is listed there", () => {
     fixture.overrides.set(STATUS, {});
     fixture.overrides.set(TAB, "connected");
-    fixture.overrides.set(21, false); fixture.overrides.set(22, false); fixture.overrides.set(23, false);
+    fixture.overrides.set(21, false); fixture.overrides.set(22, false);
     fixture.overrides.set(18, Object.fromEntries(HOSTED_MCP_APPS.map((app) => [app.id, false])));
     const emptyTitle = connectedInventoryCopy("ready").title;
     expect(render().html).toContain(emptyTitle);

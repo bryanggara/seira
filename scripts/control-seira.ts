@@ -194,9 +194,6 @@ export function verificationServerEnvironment(parentEnv: NodeJS.ProcessEnv, data
     childEnv.SEIRA_OPENAI_LIVE_URL = liveUrl;
     if (parentEnv.SEIRA_OPENAI_LIVE_KEY) childEnv.SEIRA_OPENAI_LIVE_KEY = parentEnv.SEIRA_OPENAI_LIVE_KEY;
   }
-  // A loopback stand-in for Postiz Cloud only (server/testing/fake-postiz.ts): no test signs in to the real one.
-  const postizUrl = parentEnv.SEIRA_POSTIZ_CLOUD_URL?.trim() ?? "";
-  if (/^http:\/\/127\.0\.0\.1:\d{1,5}$/.test(postizUrl)) childEnv.SEIRA_POSTIZ_CLOUD_URL = postizUrl;
   // A loopback stand-in for Netlify only (server/testing/fake-netlify.ts): the Published apps page then lists and
   // deletes sites there, never on Netlify.
   const netlifyUrl = parentEnv.SEIRA_NETLIFY_API_URL?.trim() ?? "";

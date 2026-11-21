@@ -278,7 +278,7 @@ describe("the person's own MCP servers in the Connected view", () => {
     expect(tile("off")).toBeNull();
     expect(tile(HOSTED_MCP_APPS[0]!.id)).toBeNull();
     expect(host.querySelectorAll(`[data-app-tile="${HOSTED_MCP_APPS[0]!.id}"]`)).toHaveLength(1);
-    expect(tile("postiz")).toBeNull();
+    expect(tile("postiz")).not.toBeNull();
   });
 
   it("lists a command-line server too", async () => {

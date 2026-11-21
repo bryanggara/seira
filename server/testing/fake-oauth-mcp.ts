@@ -1,28 +1,27 @@
-// A stand-in for a Postiz backend, written from Postiz's published behaviour (its OAuth metadata at
-// api.postiz.com, checked 2026-10-29, and its MCP docs), never from its code: RFC 8414 path-based issuer metadata for
+// A stand-in for an MCP provider that signs a person in with OAuth: RFC 8414 path-based issuer metadata for
 // /mcp-oauth-dynamic, dynamic client registration for https or loopback redirects, an authorize that approves at once
-// (or denies), a PKCE-checked token endpoint that hands out never-expiring `pos_` tokens with no refresh token, and
+// (or denies), a PKCE-checked token endpoint that hands out never-expiring `tok_` tokens with no refresh token, and
 // streamable-HTTP MCP at /mcp-oauth-dynamic (sign-in tokens and API keys) and /mcp (a bearer key).
 import { createHash, randomBytes } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 
-export const FAKE_POSTIZ_KEY = "fixture-postiz-org-key-0001";
+export const FAKE_OAUTH_MCP_KEY = "fixture-oauth-mcp-key-0001";
 
-export interface FakePostizCall { name: string; arguments: Record<string, unknown>; authorization: string }
+export interface FakeOauthMcpCall { name: string; arguments: Record<string, unknown>; authorization: string }
 
-export interface FakePostiz {
+export interface FakeOauthMcp {
   /** The backend address, as a person would enter it (no path). */
   url: string;
   /** Every Authorization header an MCP request carried. */
   authorizations: string[];
   /** Every tools/call, with the credential it came with. */
-  calls: FakePostizCall[];
-  /** `pos_` tokens issued by the token endpoint. */
+  calls: FakeOauthMcpCall[];
+  /** `tok_` tokens issued by the token endpoint. */
   issued: string[];
   counts: { register: number; token: number; mcp: number };
   options: { deny: boolean };
-  /** Revoke a token or key, as Postiz does when a person disconnects the app or regenerates the key. */
+  /** Revoke a token or key, as a provider does when a person disconnects the app or regenerates the key. */
   revoke(credential: string): void;
   /** Accept a credential again. */
   grant(credential: string): void;
@@ -56,12 +55,12 @@ const json = (res: ServerResponse, status: number, body: unknown, headers: Recor
 
 /** `signInPage`: an https origin to advertise the sign-in page at, as a real provider does; a test's browser visits that
  * page at `url` instead. */
-export async function startFakePostiz(options: { signInPage?: string } = {}): Promise<FakePostiz> {
+export async function startFakeOauthMcp(options: { signInPage?: string } = {}): Promise<FakeOauthMcp> {
   let base = "";
   const clients = new Map<string, string[]>();
   const codes = new Map<string, { clientId: string; redirectUri: string; challenge: string }>();
-  const valid = new Set<string>([FAKE_POSTIZ_KEY]);
-  const fake: Omit<FakePostiz, "url" | "close"> = {
+  const valid = new Set<string>([FAKE_OAUTH_MCP_KEY]);
+  const fake: Omit<FakeOauthMcp, "url" | "close"> = {
     authorizations: [], calls: [], issued: [], counts: { register: 0, token: 0, mcp: 0 }, options: { deny: false },
     revoke: (credential) => { valid.delete(credential); },
     grant: (credential) => { valid.add(credential); },
@@ -72,7 +71,7 @@ export async function startFakePostiz(options: { signInPage?: string } = {}): Pr
     fake.authorizations.push(authorization);
     const token = authorization.replace(/^Bearer /u, "");
     if (!valid.has(token)) {
-      // The OAuth path points a client at its sign-in; the key path only refuses (Postiz 2.25 does the same).
+      // The OAuth path points a client at its sign-in; the key path only refuses.
       if (path === "/mcp-oauth-dynamic") {
         return json(res, 401, { error: "invalid_token", error_description: "Invalid API Key or OAuth token" },
           { "www-authenticate": `Bearer resource_metadata="${base}/.well-known/oauth-protected-resource/mcp-oauth-dynamic"` });
@@ -84,7 +83,7 @@ export async function startFakePostiz(options: { signInPage?: string } = {}): Pr
     const frame = JSON.parse(await readBody(req) || "{}") as { id?: unknown; method?: string; params?: { name?: string; arguments?: Record<string, unknown> } };
     if (frame.id === undefined) { res.writeHead(202).end(); return; }
     const answer = (result: unknown) => json(res, 200, { jsonrpc: "2.0", id: frame.id, result });
-    if (frame.method === "initialize") return answer({ protocolVersion: "2025-06-18", capabilities: { tools: {} }, serverInfo: { name: "Postiz MCP", version: "1.0.0" } });
+    if (frame.method === "initialize") return answer({ protocolVersion: "2025-06-18", capabilities: { tools: {} }, serverInfo: { name: "Example MCP", version: "1.0.0" } });
     if (frame.method === "tools/list") return answer({ tools: TOOLS });
     if (frame.method === "tools/call") {
       const name = frame.params?.name ?? "";
@@ -153,7 +152,7 @@ export async function startFakePostiz(options: { signInPage?: string } = {}): Pr
         const verified = code && code.clientId === form.get("client_id") && code.redirectUri === form.get("redirect_uri")
           && createHash("sha256").update(form.get("code_verifier") ?? "").digest("base64url") === code.challenge;
         if (!verified) return json(res, 400, { error: "invalid_grant" });
-        const token = `pos_${randomBytes(20).toString("hex")}`;
+        const token = `tok_${randomBytes(20).toString("hex")}`;
         valid.add(token);
         fake.issued.push(token);
         return json(res, 200, { id: "org_fixture", access_token: token, token_type: "bearer", scope: "mcp:read mcp:write" });

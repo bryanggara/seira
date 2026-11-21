@@ -12,7 +12,7 @@ import { useStore, type Bot } from "@/state/store";
 
 const APP_LABELS: Record<string, string> = {
   gmail: "Gmail", github: "GitHub", discord: "Discord", slack: "Slack", googlecalendar: "Google Calendar",
-  notion: "Notion", linear: "Linear", figma: "Figma", gong: "Gong", hubspot: "HubSpot", postiz: "Postiz",
+  notion: "Notion", linear: "Linear", figma: "Figma", gong: "Gong", hubspot: "HubSpot", repliz: "Repliz",
 };
 
 const CATEGORY_KEYS: Record<ReadyBotCategory, LocaleKey> = {

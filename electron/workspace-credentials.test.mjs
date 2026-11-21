@@ -164,6 +164,12 @@ describe("workspace credential env", () => {
     expect(workspaceCredentialEnv(undefined)).toEqual({});
   });
 
+  it("ignores a stored credential whose name the app no longer knows", () => {
+    expect(workspaceCredentialEnv({ postizApiKey: "old", xaiApiKey: "x" })).toEqual({ XAI_API_KEY: "x" });
+    const migrated = migrateWorkspaceCredentials({ xai: { key: "k" } }, { postizApiKey: "old" });
+    expect(migrated.credentials).toEqual({ postizApiKey: "old", xaiApiKey: "k" });
+  });
+
   it("covers every credential the migration table declares", () => {
     const credentials = Object.fromEntries(WORKSPACE_CREDENTIALS.map((c) => [c.name, `v-${c.name}`]));
     const env = workspaceCredentialEnv(credentials);

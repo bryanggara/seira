@@ -35,7 +35,6 @@ vi.mock("@/lib/connector-oauth", () => ({
 vi.mock("@/lib/product-events", () => ({ connectorConnect: vi.fn() }));
 vi.mock("./McpServersPanel", () => ({ McpServersPanel: () => null }));
 vi.mock("./XCard", () => ({ X_CARD_SEARCH: "x", XCard: () => null }));
-vi.mock("./PostizCard", () => ({ PostizCard: () => null }));
 vi.mock("./EmailCard", () => ({ EmailCard: () => null }));
 vi.mock("./Avatar", () => ({ BotAvatar: () => null }));
 
