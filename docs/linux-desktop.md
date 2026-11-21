@@ -208,6 +208,8 @@ commands. See `packaging/flatpak/README.md` for the build steps and the permissi
 
 - Agent programs (`claude`, `codex` and the others) stay on the host. The server starts them through
   `flatpak-spawn --host`, so install them on the host first.
+- The Flatpak keeps its data in `~/.seira`, the same folder as the AppImage and the Debian package.
+  Do not run two of these packages at the same time.
 - Local control of the computer is off in the Flatpak.
 - The bundled bot browser, the computer-tools bundle and the tunnel program are not part of the Flatpak.
 
