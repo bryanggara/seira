@@ -7,6 +7,7 @@ import { CREDENTIAL_TARGETS, credentialConfigPatch, desktopCredentialSlot, isCon
 import { KEY_CATALOG, KEY_SECTIONS, keyEntry, keyForInstance, keyHidden, keyMatches, looksLikeOtherKey, savedState, shownKeyEntry, type KeyId } from "./key-catalog";
 
 const NOT_A_PERSONS_KEY: Record<string, string> = {
+  SEIRA_POSTIZ_API_KEY: "a retired key, still stripped from every engine"
   SEIRA_ANTHROPIC_API_URL: "the address the Anthropic key goes to, set by a hosted install",
   SEIRA_HOSTED_MODEL_TOKEN: "a hosted install's model token",
   SEIRA_HOSTED_MODELS: "a hosted install's model list",
