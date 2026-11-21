@@ -574,7 +574,7 @@ describe("Apps pop-up", () => {
     expect(fixture.overrides.get(20)).toBe("productivity");
   });
 
-  const MCP_SERVERS = 24, SUGGESTIONS = 28;
+  const MCP_SERVERS = 23, SUGGESTIONS = 27;
   const headings = (html: string) => [...html.matchAll(/<h3 id="[^"]*"[^>]*>([^<]*)/g)].map((match) => match[1]);
   const tiles = (html: string) => [...html.matchAll(/data-app-tile="([^"]*)"/g)].map((match) => match[1]).filter((slug) => !HOSTED_MCP_APPS.some((app) => app.id === slug));
   const server = (name: string, extra: Record<string, unknown> = {}) => ({ name, type: "http", url: `https://${name}.example/mcp`, headerKeys: [], enabled: true, ...extra });
