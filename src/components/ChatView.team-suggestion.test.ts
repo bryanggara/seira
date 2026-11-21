@@ -77,7 +77,8 @@ describe("the suggested team card", () => {
     const fields = [...section()!.querySelectorAll<HTMLInputElement>('input:not([type="checkbox"])')];
     type(fields[0]!, "Corner Bakery");
     type(fields[2]!, "Ledger");
-    reply = { bots: [], intro };
+    const added = { id: "b1", name: "Baker" };
+    reply = { bots: [added], intro };
     sent.length = 0;
     flushSync(() => section()!.querySelector<HTMLButtonElement>("[data-team-create]")!.click());
     await settle();
@@ -86,6 +87,8 @@ describe("the suggested team card", () => {
     expect(body).toMatchObject({ threadId: "seira-thread", department: "Corner Bakery" });
     expect(body.keep).toHaveLength(2);
     expect(Object.values(body.names)).toContain("Ledger");
+    expect(dispatch).toHaveBeenCalledWith({ type: "botAdded", bot: added, preserveSelection: true });
+    expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: "select" }));
     expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "messageAdded", message: intro }));
   });
 

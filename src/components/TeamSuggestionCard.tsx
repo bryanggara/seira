@@ -81,7 +81,7 @@ function TeamSuggestionCard({ message, threadId }: { message: Message; threadId:
         method: "POST",
         body: JSON.stringify({ threadId, keep: [...kept], names, department: department.trim() || undefined }),
       })) as { bots?: Bot[]; groups?: Group[]; routines?: Routine[]; intro?: Message };
-      for (const bot of result.bots ?? []) dispatch({ type: "botAdded", bot });
+      for (const bot of result.bots ?? []) dispatch({ type: "botAdded", bot, preserveSelection: true });
       for (const group of result.groups ?? []) dispatch({ type: "groupPatched", group });
       for (const routine of result.routines ?? []) dispatch({ type: "routinePatched", routine });
       settle("created");
