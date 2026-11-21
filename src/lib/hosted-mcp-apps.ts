@@ -121,7 +121,7 @@ export function hostedConnections(
 }
 
 /** A server of the person's own: a hosted app's server shows as that app's card instead. */
-export function ownMcpServer(server: ServerAddress): boolean {
+export function ownMcpServer(server: ServerAddress & { name: string }): boolean {
   return server.url === undefined || !hostedMcpApp(server);
 }
 
