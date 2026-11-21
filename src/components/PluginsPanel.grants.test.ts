@@ -164,7 +164,7 @@ describe("after connecting an app", () => {
     await open();
     await connectApollo();
     expect(writes()).toEqual([{ type: "updateBot", botId: "ada", patch: { composio: true, connectorScopes: { apps: { apollo: "write" } } } }]);
-    expect(toast()?.textContent).toContain("Your bots can now use Apollo.");
+    expect(toast()?.textContent).toBe("1 bot can't use Apollo yet.Change");
   });
 
   it("counts the bots that still cannot use it when their apps are off, and Change opens the switches", async () => {
