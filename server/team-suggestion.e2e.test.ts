@@ -38,7 +38,7 @@ it("suggests a team, creates only what is kept, and honors Skip and a newer card
     await call("PATCH", `/api/bots/${chief.id}`, { chiefOfStaff: true });
     const thread = chief.mainThreadId ?? chief.threadId;
     const ask = await call<{ message: Line }>("POST", `/api/bots/${chief.id}/team-ask`, { threadId: thread });
-    expect(ask.status).toBe(200);
+    expect(ask.status, JSON.stringify([ask.body, chief])).toBe(200);
     expect(ask.body.message.teamAsk).toBe(true);
 
     rmSync(fixture.fixtureDumpPath, { force: true });
