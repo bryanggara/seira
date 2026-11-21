@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, PlugZap, RefreshCw, X } from "lucide-react";
 
 import { FIRST_HOUR_OFFER_KEY } from "../../shared/person-wait";
+import { announceAppConnected } from "@/lib/app-connected";
 import { api, type Bot, type Message } from "@/state/store";
 import { ApiError } from "@/state/api";
 import { t } from "@/lib/i18n";
@@ -83,6 +84,15 @@ export function ConnectorCard({ botId, color, threadId, message }: { botId: stri
       document.removeEventListener("visibilitychange", onReturn);
     };
   }, [checkStatus, gone, connector.status]);
+
+  const wasConnected = useRef(connector.status === "connected");
+  useEffect(() => {
+    if (connector.status !== "connected") wasConnected.current = false;
+    else if (!wasConnected.current) {
+      wasConnected.current = true;
+      if (!isMcp) announceAppConnected(connector.slug, connector.label);
+    }
+  }, [connector.status, connector.slug, connector.label, isMcp]);
 
   if (gone) return null;
 

@@ -167,12 +167,12 @@ describe("after connecting an app", () => {
     expect(toast()?.textContent).toContain("Your bots can now use Apollo.");
   });
 
-  it("says plainly when every bot's apps are off, and Change opens the switches", async () => {
+  it("counts the bots that still cannot use it when their apps are off, and Change opens the switches", async () => {
     fixture.state.bots = [bot("scout", { composio: false }), bot("ada", { composio: false })];
     await open();
     await connectApollo();
     expect(writes()).toEqual([]);
-    expect(toast()?.textContent).toBe("No bot uses Apollo yet.Change");
+    expect(toast()?.textContent).toBe("2 bots can't use Apollo yet.Change");
     await click(toast()!.querySelector("button")!);
     await flush();
     expect(fixture.dispatch).toHaveBeenCalledWith({ type: "togglePlugins", open: true, surface: "apps" });

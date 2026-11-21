@@ -76,3 +76,17 @@ it("does not watch a card that is not waiting for a sign-in", async () => {
   await act(async () => { await vi.advanceTimersByTimeAsync(60_000); window.dispatchEvent(new Event("focus")); });
   expect(statusChecks()).toBe(0);
 });
+
+it("announces the app once when the card turns connected, and not for a card that was already connected", async () => {
+  const { takeAppConnections } = await import("@/lib/app-connected");
+  takeAppConnections();
+  await render({ status: "authorizing" });
+  expect(takeAppConnections()).toEqual([]);
+  await render({ status: "connected" });
+  await render({ status: "connected", resumed: true });
+  expect(takeAppConnections()).toEqual([{ slug: "whatsapp", app: "WhatsApp" }]);
+  await act(async () => root.unmount());
+  root = createRoot(host);
+  await render({ status: "connected" });
+  expect(takeAppConnections()).toEqual([]);
+});
