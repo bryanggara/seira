@@ -119,6 +119,7 @@ it("refuses a member and creates nothing (AC-09)", async () => {
   const member = (await team.pair({ email: "ada@acme.test", role: "member" })).token!;
   const count = async () => ((await team.as(member, "GET", "/api/bots?messages=0")).body.bots as unknown[]).length;
   const before = await count();
+  expect((await team.as(member, "POST", `/api/bots/${(await team.as(member, "GET", "/api/bots?messages=0")).body.bots[0]?.id ?? "none"}/team-ask`, { threadId: "some-thread" })).status).toBe(403);
   const answer = await team.as(member, "POST", "/api/teams/suggestion/some-message", { threadId: "some-thread", keep: [] });
   expect(answer.status).toBe(403);
   expect((await team.as(member, "POST", "/api/teams/suggestion/some-message/skip", { threadId: "some-thread", keep: [] })).status).toBe(403);

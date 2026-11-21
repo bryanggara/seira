@@ -250,6 +250,9 @@ export function createTeamRoutes(deps: TeamRouteDeps): RouteHandler {
       const body = await readBody(req, 2048);
       const threadId = typeof body?.threadId === "string" && THREAD_ID.test(body.threadId) ? body.threadId : "";
       if (!threadId) return json(res, 400, { error: "threadId is required" });
+      if (!ownerOrAdmin(auth)) return json(res, 403, { error: "Only an admin can create or skip a suggested team." });
+      const shown = deps.threadShown?.(auth);
+      if (shown && !shown(threadId)) return json(res, 404, { error: "This conversation was not found." });
       const message = askForTeam(store, m[1]!, threadId, conversationLanguage(threadId));
       return message ? json(res, 200, { message }) : json(res, 404, { error: "This conversation was not found." });
     }
@@ -260,10 +263,9 @@ export function createTeamRoutes(deps: TeamRouteDeps): RouteHandler {
       if (!parsed.success) return json(res, 400, { error: "Send the conversation and the bots to keep." });
       const { threadId, ...pick } = parsed.data;
       const language = conversationLanguage(threadId);
-      const deps = m[2] ? null : { ...packageImportDeps(await defaultSelection()), ...teamCreator(auth) };
       const open = openSuggestion(store, threadId, m[1]!);
       if (!open) return json(res, 409, { error: "This suggestion is no longer open." });
-      if (!deps) {
+      if (m[2]) {
         settleSuggestion(store, threadId, open, "skipped", language);
         return json(res, 200, { ok: true });
       }
@@ -274,9 +276,10 @@ export function createTeamRoutes(deps: TeamRouteDeps): RouteHandler {
         if (error instanceof TeamSuggestionError) return json(res, 400, { error: error.message });
         throw error;
       }
+      const importDeps = { ...packageImportDeps(await defaultSelection()), ...teamCreator(auth) };
       let imported: PackageImportResult;
       try {
-        const result = importPackageDocument(document, { mode: "add", cwd: null, trust: "file" }, deps);
+        const result = importPackageDocument(document, { mode: "add", cwd: null, trust: "file" }, importDeps);
         if (result.alreadyAdded) return json(res, 409, { error: "This team is already here." });
         imported = result;
       } catch (error) {

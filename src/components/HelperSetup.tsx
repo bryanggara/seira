@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AppWindow, Bot as BotIcon, Cloud, Download, Mail, Smartphone, Sparkles, Users, type LucideIcon } from "lucide-react";
 
 import { track } from "@/lib/analytics";
 import { INTRO_CHIPS, myDefaultBot, setupSteps, useViewerEmail, type IntroChip, type SetupStep } from "@/lib/default-bot";
 import { t } from "@/lib/i18n";
 import { phonePairingSettingsAction } from "@/lib/phone-pairing";
+import { isOwnerOrAdmin, readSessionState } from "@/lib/session";
 import type { LocaleKey } from "@/locales";
 import { api, useStore, type Action, type Bot, type InstanceInfo, type Message } from "@/state/store";
 import { returnFocusToComposer } from "./AskCard";
@@ -32,8 +33,21 @@ export function setupAction(step: Exclude<SetupStep, "team">): Action {
 }
 
 /** Seira leads here and its AI can run agent tools, which a team suggestion needs. */
-export function seiraSuggestsTeams(bot: Pick<Bot, "chiefOfStaff" | "modelSelection"> | undefined, instances: readonly InstanceInfo[]): boolean {
-  return Boolean(bot?.chiefOfStaff && instances.find((instance) => instance.instanceId === bot.modelSelection?.instanceId)?.capabilities?.agentsMcp === true);
+export function seiraSuggestsTeams(bot: Pick<Bot, "chiefOfStaff" | "modelSelection"> | undefined, instances: readonly InstanceInfo[], admin: boolean): boolean {
+  return Boolean(admin && bot?.chiefOfStaff && instances.find((instance) => instance.instanceId === bot.modelSelection?.instanceId)?.capabilities?.agentsMcp === true);
+}
+
+/** Only an owner or admin can create the suggested team, so only they see the chip. */
+export function useIsAdmin(): boolean {
+  const [admin, setAdmin] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    void readSessionState().then((session) => {
+      if (alive) setAdmin(isOwnerOrAdmin(session));
+    });
+    return () => { alive = false; };
+  }, []);
+  return admin;
 }
 
 /** Seira's question about the person's work, which the server posts and the chat shows. */
@@ -54,8 +68,9 @@ export function HelperSetup() {
   const { state, dispatch } = useStore();
   const seira = myDefaultBot(state.bots, useViewerEmail());
   const askForTeam = useAskForTeam(seira?.id, seira?.threadId);
+  const admin = useIsAdmin();
   const steps = setupSteps({
-    agentTools: seiraSuggestsTeams(seira, state.instances),
+    agentTools: seiraSuggestsTeams(seira, state.instances, admin),
     aiReady: state.instances.some(engineReady),
     ownBots: state.bots.filter((bot) => !bot.hidden && !bot.defaultBot).length,
     onCloud: state.config?.cloudHome === true,
