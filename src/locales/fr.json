@@ -3379,6 +3379,7 @@
   "phone.pair.turnOnShow": "Activer et afficher le code",
   "phone.pair.withPlace": "Associer à {place}",
   "phone.pair.withPlaceLine": "{place} est toujours allumé, donc votre téléphone atteint vos bots partout.",
+  "phone.push.title": "Alertes quand l’app du téléphone est fermée",
   "phone.reach.anywhereLine": "Fonctionne aussi hors de chez vous. Chiffré de bout en bout.",
   "phone.reach.awakeLine": "Pour que votre téléphone et le travail programmé puissent toujours l'atteindre.",
   "phone.reach.foot": "« Associer un téléphone » les active pour vous. Vous pourrez les changer ici plus tard.",

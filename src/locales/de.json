@@ -3584,6 +3584,7 @@
   "phone.pair.turnOnShow": "Einschalten und Code zeigen",
   "phone.pair.withPlace": "Mit {place} koppeln",
   "phone.pair.withPlaceLine": "{place} ist immer an, so erreicht dein Telefon deine Bots überall.",
+  "phone.push.title": "Benachrichtigungen bei geschlossener Telefon-App",
   "phone.reach.anywhereLine": "Funktioniert auch unterwegs. Ende-zu-Ende-verschlüsselt.",
   "phone.reach.awakeLine": "Damit dein Telefon und geplante Arbeit ihn weiter erreichen.",
   "phone.reach.foot": "„Telefon koppeln“ schaltet das für dich ein. Du kannst es hier später ändern.",

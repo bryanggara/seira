@@ -7622,6 +7622,7 @@
   "phone.pair.turnOnShow": "オンにしてコードを表示",
   "phone.pair.withPlace": "{place} とペアリング",
   "phone.pair.withPlaceLine": "{place} は常にオンなので、スマホからどこでもボットにつながります。",
+  "phone.push.title": "スマートフォンのアプリを閉じているときの通知",
   "phone.reach.anywhereLine": "外出先でも使えます。エンドツーエンドで暗号化されます。",
   "phone.reach.awakeLine": "スマホや予定した作業から引き続きつながるようにします。",
   "phone.reach.foot": "「スマホをペアリング」がこれらをオンにします。あとでここから変更できます。",
