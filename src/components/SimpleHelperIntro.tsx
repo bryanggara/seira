@@ -13,7 +13,7 @@ import { BotAvatar } from "./Avatar";
 import { joinedCorners, SIMPLE_BOT_BUBBLE, SIMPLE_BUBBLE_MAX } from "./chat-bubble";
 import { loadAppCards } from "./bot-settings/useBotApps";
 import { engineReady } from "./EngineLibrary";
-import { IntroChips } from "./HelperSetup";
+import { IntroChips, seiraSuggestsTeams, useIsAdmin } from "./HelperSetup";
 import { usePrefersReducedMotion } from "./mascot-clock";
 import { preloadConnectedApps } from "@/lib/connected-apps";
 
@@ -117,6 +117,7 @@ export function SimpleHelperIntro({ botId, threadId, message, answered, followup
   botId: string; threadId: string; message: Message; answered: boolean; followup?: Message;
 }) {
   const { state } = useStore();
+  const admin = useIsAdmin();
   const welcoming = useWelcomingBot();
   const hidden = welcoming === botId;
   const bot = state.bots.find((candidate) => candidate.id === botId);
@@ -166,6 +167,7 @@ export function SimpleHelperIntro({ botId, threadId, message, answered, followup
     appsConnected: Boolean(look.apps?.length),
     phonePaired: look.phonePaired,
     importFound: look.importFound,
+    agentTools: seiraSuggestsTeams(bot, state.instances, admin),
   });
   const typing = staged && ai !== "none" && shown === 4 && Boolean(bot);
   return (
@@ -188,7 +190,7 @@ export function SimpleHelperIntro({ botId, threadId, message, answered, followup
           <span className="text-[14px] leading-5 text-ink-tertiary">{t("helperIntro.typing")}</span>
         </div>
       )}
-      <IntroChips chips={chips} />
+      <IntroChips chips={chips} botId={botId} threadId={threadId} />
     </div>
   );
 }
