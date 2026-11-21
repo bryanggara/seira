@@ -116,7 +116,7 @@ describe("the social media manager", () => {
     expect(social).toMatchObject({ title: "Social media manager", category: "work", apps: ["repliz"] });
     expect(social.soul).toContain("Schedule each post for the time the user gives; with no time, ask for one before scheduling.");
     expect(social.soul).toContain("Never publish a post straight away unless the user asks for that post to go out now.");
-    expect(social.soul).toContain("show a preview of it with show_html, then add it to Repliz without waiting for a reply.");
+    expect(social.soul).toContain("show a preview of it with show_html before you schedule it.");
     expect(social.soul).toContain("If the repliz tools are missing, say in one line that the user can connect Repliz in Apps");
     expect(social.routines).toEqual([expect.objectContaining({ name: "Weekly post plan", enabled: false })]);
     expect(social.routines![0]!.prompt).toContain("Schedule them in Repliz after I agree.");
