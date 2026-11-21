@@ -44,6 +44,20 @@ Want to try again?*
 If you are offline, or too many reports went out in the last hour, the report is
 saved. It goes on its own later.
 
+## A website says to update Chrome
+
+Seira ships a recent Chrome for the bot browser. A website can still refuse it as too old or too new. On Linux, you can make the bot browser use a Chrome or Chromium that you installed.
+
+1. Install Google Chrome or Chromium with your package manager.
+2. Find its path. For example, run `which chromium`.
+3. Start Seira with `SEIRA_CHROME_PATH` set to that path.
+
+```bash
+SEIRA_CHROME_PATH=/usr/bin/chromium ./Seira-<version>-x86_64.AppImage
+```
+
+Quit Seira completely before you start it again. The bot browser uses the browser that you named until you start Seira without `SEIRA_CHROME_PATH`. Use a full Chrome or Chromium. A headless shell is not accepted. If the path does not exist, Seira ignores it and uses its own browser.
+
 ## Collect useful evidence
 
 Before opening an issue, record:
