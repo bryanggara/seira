@@ -39,7 +39,7 @@ const REAL = [...new Set((SETTINGS_PLACES as readonly SettingsPlace[]).flatMap((
   return parts.map((_, index) => parts.slice(0, index + 1).join(ARROW));
 }))].sort((a, b) => b.length - a.length);
 /** Another app's settings named in our text: the system's, ChatGPT's, a provider's own site. */
-const OTHER_APP = /(?:System|ChatGPT|GitHub|Postiz (?:→|under)|Windows|macOS|iOS|Android|phone's|(?:iPhone|phone) app's|Chrome|Bot|bot's) $/;
+const OTHER_APP = /(?:System|ChatGPT|GitHub|Windows|macOS|iOS|Android|phone's|(?:iPhone|phone) app's|Chrome|Bot|bot's) $/;
 /** Where people and bots read our words: code, skills, and the English catalog (its translations follow it). */
 const SCANNED = ["server", "shared", "packages/phone-protocol/src", "skills", "electron", "src"];
 const SOURCE = /\.(?:ts|tsx|mjs|md)$|(?:^|\/)en\.json$/;

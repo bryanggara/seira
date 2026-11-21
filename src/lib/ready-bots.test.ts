@@ -112,13 +112,14 @@ describe("readyBotCopy", () => {
 describe("the social media manager", () => {
   const social = readyBot("social")!;
 
-  it("puts posts in Postiz as drafts or scheduled, and publishes at once only when asked", () => {
-    expect(social).toMatchObject({ title: "Social media manager", category: "work", apps: ["postiz"] });
-    expect(social.soul).toContain("Add every post to Postiz as a draft, unless the user gave it a time to go out: then schedule it for that time.");
-    expect(social.soul).toContain("Never publish a post straight away (type now) unless the user asks for that post to go out now.");
-    expect(social.soul).toContain("show a preview of it with show_html, then add it to Postiz without waiting for a reply.");
+  it("schedules posts in Repliz at the time given, and publishes at once only when asked", () => {
+    expect(social).toMatchObject({ title: "Social media manager", category: "work", apps: ["repliz"] });
+    expect(social.soul).toContain("Schedule each post for the time the user gives; with no time, ask for one before scheduling.");
+    expect(social.soul).toContain("Never publish a post straight away unless the user asks for that post to go out now.");
+    expect(social.soul).toContain("show a preview of it with show_html, then add it to Repliz without waiting for a reply.");
+    expect(social.soul).toContain("If the repliz tools are missing, say in one line that the user can connect Repliz in Apps");
     expect(social.routines).toEqual([expect.objectContaining({ name: "Weekly post plan", enabled: false })]);
-    expect(social.routines![0]!.prompt).toContain("as drafts");
+    expect(social.routines![0]!.prompt).toContain("Schedule them in Repliz after I agree.");
   });
 
   it("brings its notes and leaves the person's approval level, so publishing asks as their other bots do", () => {

@@ -68,7 +68,7 @@ describe("rankCategories", () => {
   });
 
   it("keeps a group Seira's own app lives in among the inline ones, taking the last place", () => {
-    const cards = [card("a", "Productivity"), card("b", "Productivity"), card("c", "Design"), card("d", "Design"), card("e", "Files"), card("postiz", "Social")];
+    const cards = [card("a", "Productivity"), card("b", "Productivity"), card("c", "Design"), card("d", "Design"), card("e", "Files"), card("buffer", "Social")];
     expect(rankCategories(cards, 2, ["social"])).toEqual({ inline: ["design", "social"], more: ["files", "productivity"] });
     expect(rankCategories(cards, 3, ["social"]).inline).toEqual(["design", "productivity", "social"]);
     expect(rankCategories(cards, 4, ["social"]).inline).toEqual(["design", "productivity", "files", "social"]);

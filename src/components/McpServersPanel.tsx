@@ -105,7 +105,7 @@ export interface HostedCardsProps {
 }
 
 /** `hostedCards`: render the one-click card of each hosted MCP app (one instance, one server load, one sign-in at a time)
- * instead of the server list. `hideHosted`: leave hosted apps' servers (and Postiz's) out of the list, since their cards show them. */
+ * instead of the server list. `hideHosted`: leave hosted apps' servers out of the list, since their cards show them. */
 export function McpServersPanel({ embedded = false, hostedCards, hideHosted = false, refreshKey = 0 }: {
   embedded?: boolean;
   hostedCards?: HostedCardsProps;

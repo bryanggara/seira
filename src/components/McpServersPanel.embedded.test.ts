@@ -125,7 +125,7 @@ describe("Your MCP servers inside the Apps pop-up", () => {
     expect(html).not.toContain(`Connect ${app.label}`);
   });
 
-  it("hides every hosted app's server and Postiz from the All list, and shows them again under MCP", () => {
+  it("hides every hosted app's server from the All list, and shows them again under MCP", () => {
     fixture.servers = [
       ...HOSTED_MCP_APPS.map((app) => ({ name: app.id, type: "http", url: app.url, headerKeys: [], enabled: true, auth: "signed-in" })),
       { name: "docs", type: "http", url: "https://mcp.example.com/mcp", headerKeys: [], enabled: false },

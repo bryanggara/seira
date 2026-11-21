@@ -700,7 +700,6 @@
     "server/places-elsewhere.e2e.test.ts": 16,
     "server/portable-hermes.e2e.test.ts": 1,
     "server/post-to-room.test.ts": 17,
-    "server/postiz.e2e.test.ts": 8,
     "server/presets.e2e.test.ts": 13,
     "server/proactive-routines.e2e.test.ts": 15,
     "server/procs.test.ts": 8,

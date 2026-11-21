@@ -6,7 +6,6 @@ import coretLogo from "@/assets/coret/logo.png";
 import konektorLogo from "@/assets/konektor/logo.png";
 import termiloLogo from "@/assets/termilo/logo.png";
 import type { LocaleKey } from "@/locales";
-import { POSTIZ_SERVER } from "../../shared/postiz";
 
 export interface HostedMcpApp {
   /** The card's id (`data-app-tile`) and the name the server is added under (then `-2`, `-3`…): a valid server name. */
@@ -121,9 +120,9 @@ export function hostedConnections(
   ])) as HostedConnections;
 }
 
-/** A server of the person's own: a hosted app's, and Postiz's, show as their own cards instead. */
-export function ownMcpServer(server: ServerAddress & { name: string }): boolean {
-  return server.url === undefined || !(hostedMcpApp(server) || server.name === POSTIZ_SERVER);
+/** A server of the person's own: a hosted app's server shows as that app's card instead. */
+export function ownMcpServer(server: ServerAddress): boolean {
+  return server.url === undefined || !hostedMcpApp(server);
 }
 
 /** The one rule for "connected" for such a server: on, and signed in if it takes a sign-in. */

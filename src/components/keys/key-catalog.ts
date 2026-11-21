@@ -1,4 +1,4 @@
-import { AudioLines, Blocks, CalendarClock, Fingerprint, Image, LockKeyhole, Monitor, Phone, Search, Server, Zap, type LucideIcon } from "lucide-react";
+import { AudioLines, Blocks, Fingerprint, Image, LockKeyhole, Monitor, Phone, Search, Server, Zap, type LucideIcon } from "lucide-react";
 import type { AppSettingsSection, ConfigStatus } from "@/state/store";
 import type { SavedKey } from "@/state/config-status";
 import type { KeyProvider } from "@/lib/analytics-allowlist";
@@ -46,7 +46,7 @@ export interface KeyTarget {
 
 export type KeyId =
   | "openai" | "anthropic" | "xai" | "openrouter" | "mistral" | "cerebras" | "groq" | "greenference" | "modelgo" | "meta" | "deepseek" | "opencodeGo" | "opencodeProviders"
-  | "ollama" | "lmStudio" | "openaiCompat" | "liveCalls" | "liveKey" | "elevenlabs" | "fishAudio" | "geminiTts" | "box" | "vps" | "onePassword" | "composio" | "treg" | "postiz"
+  | "ollama" | "lmStudio" | "openaiCompat" | "liveCalls" | "liveKey" | "elevenlabs" | "fishAudio" | "geminiTts" | "box" | "vps" | "onePassword" | "composio" | "treg"
   | "jev" | "openrouterHelper" | "workersAi" | "customDecider" | "imageOpenai" | "imageGemini" | "imageCustom";
 
 export type KeyMark = { driverKind: string; preset?: ProviderIconPreset } | { icon: LucideIcon };
@@ -177,10 +177,6 @@ export const KEY_CATALOG: readonly KeyEntry[] = [
     words: ["treg", "research", "x", "twitter", "companies", "people", "funding", "news"], mark: { icon: Search }, kind: "key",
     target: { ...providerKey("treg", { slot: "tregApiKey", placeholder: "…", placeholderKey: "keys.treg.placeholder", href: "https://treg.to", test: "treg", analytics: "treg" }),
       saved: (config) => ({ ...flag(config.treg), ...(config.xResearch?.included && !config.treg?.configured ? { included: true } : {}) }) } },
-  { id: "postiz", section: "apps", labelKey: "keys.postiz.label", purposeKey: "keys.purpose.postiz", name: "Postiz", env: ["SEIRA_POSTIZ_API_KEY"],
-    words: ["postiz", "social", "social media", "posts", "schedule", "linkedin", "instagram", "x", "twitter"], mark: { icon: CalendarClock }, kind: "key",
-    target: { patch: (value) => ({ postiz: { key: value } }), slot: "postizApiKey", verifiedOnSave: true, saved: (config) => flag(config.postiz),
-      placeholder: "…", placeholderKey: "keys.postiz.placeholder", href: "https://platform.postiz.com/settings", analytics: "postiz" } },
   { id: "jev", section: "helpers", labelKey: "decider.key.label", purposeKey: "keys.purpose.jev", name: "Jev", env: ["SEIRA_JEV_API_KEY"],
     words: ["jev", "typesafe", "decisions", "extraction", "helper", "rooms"], mark: { icon: Zap }, kind: "key",
     target: { patch: (value) => ({ decider: { key: value } }), slot: "jevApiKey", verifiedOnSave: true,
