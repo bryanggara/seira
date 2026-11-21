@@ -35,14 +35,20 @@ describe("the team question", () => {
     expect(askForTeam(s.store, "missing", s.threadId, "en")).toBeNull();
   });
 
-  it("marks the person's next line, once, and leaves commands and relayed lines alone", () => {
+  it("marks the person's next line, once", () => {
+    const s = setup();
+    askForTeam(s.store, s.bot.id, s.threadId, "en");
+    expect(s.take(s.say("I run a bakery"))?.teamRequest).toBe(true);
+    expect(s.take(s.say("and another thing"))).toBeNull();
+  });
+
+  it("leaves a command and a relayed line alone", () => {
     const s = setup();
     askForTeam(s.store, s.bot.id, s.threadId, "en");
     expect(s.take(s.say("/help"))).toBeNull();
-    expect(s.take(s.say("hi", { relayed: true } as Partial<Message>))).toBeNull();
-    const answer = s.say("I run a bakery");
-    expect(s.take(answer)?.teamRequest).toBe(true);
-    expect(s.take(s.say("and another thing"))).toBeNull();
+    const t = setup();
+    askForTeam(t.store, t.bot.id, t.threadId, "en");
+    expect(t.take(t.say("hi", { relayed: true } as Partial<Message>))).toBeNull();
   });
 
   it("does not mark when the AI has no tools or the line is not the person's", () => {

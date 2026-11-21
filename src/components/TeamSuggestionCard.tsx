@@ -86,6 +86,7 @@ function TeamSuggestionCard({ message, threadId }: { message: Message; threadId:
       for (const routine of result.routines ?? []) dispatch({ type: "routinePatched", routine });
       settle("created");
       if (result.intro) dispatch({ type: "messageAdded", threadId, message: result.intro });
+      setBusy(null);
     } catch {
       setError(t("chat.teamCard.failed"));
       setBusy(null);
@@ -98,6 +99,7 @@ function TeamSuggestionCard({ message, threadId }: { message: Message; threadId:
     try {
       await api(`/api/teams/suggestion/${encodeURIComponent(message.id)}/skip`, { method: "POST", body: JSON.stringify({ threadId, keep: [] }) });
       settle("skipped");
+      setBusy(null);
     } catch {
       setError(t("chat.teamCard.failed"));
       setBusy(null);
