@@ -21,6 +21,7 @@ import { SEIRA_TOOL_DEFINITIONS } from "./agents-seira-tools.ts";
 import { PERSON_TOOL_DEFINITIONS } from "./agents-person-tools.ts";
 import { RESEARCH_TOOL_DEFINITIONS, RESEARCH_TOOL_NAMES, X_TOOL_NAMES } from "./agents-research-tools.ts";
 import { SHARE_TOOL_DEFINITIONS } from "./agents-share-tool.ts";
+import { TEAM_TOOL_DEFINITIONS } from "./agents-team-tool.ts";
 import type { CatalogProfile } from "./agents-catalog-profile.ts";
 import { advertisedSchema } from "./agents-schema.ts"; import { withoutToolsOff } from "./agents-tool-groups.ts";
 export { catalogProfileFromEnv, type CatalogProfile } from "./agents-catalog-profile.ts";
@@ -512,7 +513,7 @@ const TOOL_DEFINITIONS = [
       required: ["text"],
     },
   },
-  ...RESEARCH_TOOL_DEFINITIONS, ...HELPER_TOOL_DEFINITIONS, ...IMAGE_TOOL_DEFINITIONS, ...MEETING_TOOL_DEFINITIONS, ...PERSON_TOOL_DEFINITIONS, ...DEVS_TOOL_DEFINITIONS, ...HOSTING_TOOL_DEFINITIONS, ...SHARE_TOOL_DEFINITIONS,
+  ...RESEARCH_TOOL_DEFINITIONS, ...HELPER_TOOL_DEFINITIONS, ...IMAGE_TOOL_DEFINITIONS, ...MEETING_TOOL_DEFINITIONS, ...PERSON_TOOL_DEFINITIONS, ...DEVS_TOOL_DEFINITIONS, ...HOSTING_TOOL_DEFINITIONS, ...SHARE_TOOL_DEFINITIONS, ...TEAM_TOOL_DEFINITIONS,
   {
     name: "memory_update",
     description:
@@ -805,7 +806,7 @@ const SKILL_TOOL_NAMES = new Set(["skills_list", "skill_manage"]);
 export const SHARED_COMPUTER_TOOL_NAMES = new Set(["list_shared_computers", "shared_computer"]);
 const VOICE_TOOL_NAMES = new Set(["send_voice_note"]);
 const CHIEF_ONLY_TOOL_NAMES = new Set([
-  "create_bot", "list_team_setup", "list_team_library", "propose_team_setup", "propose_bot_deletion", "manage_room", "retry_thread",
+  "create_bot", "list_team_setup", "list_team_library", "propose_team_setup", "propose_bot_deletion", "manage_room", "retry_thread", "suggest_team",
 ]);
 const CHIEF_TARGET_TOOL_NAMES = new Set(["propose_profile", "propose_model", "reset_cloud_computer"]);
 const CHIEF_TARGET_FIELDS = new Set(["for_bot_id", "browserProfile"]);

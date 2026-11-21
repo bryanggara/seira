@@ -88,21 +88,22 @@ export function createChiefPatch(seira: DefaultBotFields, chief: { id: string } 
   return { welcomed: true, ...(seira.sidebarHidden ? { sidebarHidden: false as const } : {}), ...(chief ? {} : { chiefOfStaff: true as const }) };
 }
 
-export type SetupStep = "ai" | "bots" | "apps" | "phone" | "cloud";
+export type SetupStep = "team" | "ai" | "bots" | "apps" | "phone" | "cloud";
 
 /** What Seira's intro offers to set up in Advanced mode, each optional: only what is still to do, and on a place with
  * bots of the person's own only an AI, which nothing works without. On a Team Cloud the team's admins set those up. */
-export function setupSteps(input: { aiReady: boolean; ownBots: number; onCloud: boolean; team: boolean; remote: boolean }): SetupStep[] {
+export function setupSteps(input: { aiReady: boolean; ownBots: number; onCloud: boolean; team: boolean; remote: boolean; agentTools?: boolean }): SetupStep[] {
   if (input.team) return [];
   const fresh = input.ownBots === 0;
   return [
+    ...(fresh && input.aiReady && input.agentTools ? ["team" as const] : []),
     ...(input.aiReady ? [] : ["ai" as const]),
     ...(fresh ? ["bots" as const, "apps" as const, "phone" as const] : []),
     ...(fresh && !input.onCloud && !input.remote && cloudSells() ? ["cloud" as const] : []),
   ];
 }
 
-export type IntroChip = "ai" | "apps" | "import" | "phone" | "cloud";
+export type IntroChip = "team" | "ai" | "apps" | "import" | "phone" | "cloud";
 
 export interface IntroFacts {
   aiReady: boolean;
@@ -115,6 +116,8 @@ export interface IntroFacts {
   phonePaired?: boolean;
   /** This computer has skills or MCP servers from another AI tool to bring in. */
   importFound?: boolean;
+  /** Seira leads and its AI can run agent tools, so it can suggest a team. */
+  agentTools?: boolean;
 }
 
 /** At most this many chips under Seira's look around: a step done or tapped leaves, and the next takes its place. */
@@ -126,6 +129,7 @@ export function introChips(input: IntroFacts): IntroChip[] {
   if (input.team) return [];
   const fresh = input.ownBots === 0;
   return [
+    ...(fresh && input.aiReady && input.agentTools ? ["team" as const] : []),
     ...(input.aiReady ? [] : ["ai" as const]),
     ...(fresh && !input.appsConnected ? ["apps" as const] : []),
     ...(fresh && input.importFound ? ["import" as const] : []),
