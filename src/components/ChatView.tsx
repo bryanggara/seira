@@ -139,7 +139,7 @@ import { pendingApprovals } from "./PendingApproval";
 import { TranscriptAnnouncer } from "./TranscriptAnnouncer";
 import { JumpToLatestButton } from "./JumpToLatestButton";
 import { BOT_STACKED, BOT_TURN_INDENT, bubbleGroup, isBotTextRow, joinedCorners, needsStamp, quietRow, simpleRowLayout, SIMPLE_BOT_BUBBLE, SIMPLE_BUBBLE_MAX, SIMPLE_BUBBLE_TEXT, SIMPLE_STACKED, SIMPLE_USER_BUBBLE, SIMPLE_USER_MAX, type BubbleJoin } from "./chat-bubble";
-import { BotTurnHead } from "./BotTurnHead"; import { VersionSwitch } from "./VersionSwitch";
+import { BotTurnHead } from "./BotTurnHead"; import { VersionSwitch } from "./VersionSwitch"; import { TeamBlocks } from "./TeamSuggestionCard";
 
 const USER_COLLAPSE_CHARS = 600;
 const USER_COLLAPSE_LINES = 8;
@@ -792,7 +792,7 @@ const MessagesList = memo(function MessagesList({
             {newDay && <DaySeparator at={m.at} today={today} simple={simple} />}
             {divider}
             {m.automation && <AutomationCaption message={m} line={m.automation} botId={botId} />}{m.inbox && <InboxCaption message={m} />}
-            {isLiveReply(m) ? <StreamingReplyContext value>{row}</StreamingReplyContext> : row}<PublishedSiteCards message={m} />{m.inbox?.answers && <InboxAnswers message={m} />}{m.inbox && <InboxCardSlot threadId={threadId} messageId={m.id} />}{m.setupOffer && <SetupOffer botId={botId} threadId={threadId} message={m} transcript={transcript} />}{m.bugOffer && m.role !== "user" && <BugOfferLine message={m} hideOfferLine={m.kind === "activity" && !!m.tool && failedTurnCause(m.tool.name) !== null} />}{m.savedSteps && <SavedStepsChip botId={botId} message={m} />}
+            {isLiveReply(m) ? <StreamingReplyContext value>{row}</StreamingReplyContext> : row}<PublishedSiteCards message={m} />{m.inbox?.answers && <InboxAnswers message={m} />}{m.inbox && <InboxCardSlot threadId={threadId} messageId={m.id} />}{m.setupOffer && <SetupOffer botId={botId} threadId={threadId} message={m} transcript={transcript} />}{(m.teamSuggestion || m.teamIntro) && <TeamBlocks message={m} botId={botId} threadId={threadId} />}{m.bugOffer && m.role !== "user" && <BugOfferLine message={m} hideOfferLine={m.kind === "activity" && !!m.tool && failedTurnCause(m.tool.name) !== null} />}{m.savedSteps && <SavedStepsChip botId={botId} message={m} />}
           </div>
         );
       })}

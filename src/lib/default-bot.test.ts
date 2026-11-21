@@ -63,6 +63,17 @@ describe("what Seira offers to set up", () => {
     expect(INTRO_CHIPS).toBe(3);
   });
 
+  it("offers the team chip first, only to a new person whose AI can run agent tools (AC-01, AC-02)", () => {
+    const ready = { ...fresh, aiReady: true, agentTools: true };
+    expect(introChips(ready)).toEqual(["team", "apps", "phone", "cloud"]);
+    expect(setupSteps(ready)[0]).toBe("team");
+    expect(introChips({ ...ready, agentTools: false })).not.toContain("team");
+    expect(introChips({ ...fresh, agentTools: true })).not.toContain("team");
+    expect(introChips({ ...ready, ownBots: 2 })).not.toContain("team");
+    expect(introChips({ ...ready, team: true })).toEqual([]);
+    expect(setupSteps({ ...ready, ownBots: 2 })).not.toContain("team");
+  });
+
   it("never offers a bot (the sidebar's + adds one), nor nags a person who is set up or a Team Cloud member", () => {
     expect(introChips(fresh)).not.toContain("bots");
     expect(introChips({ ...fresh, aiReady: true, ownBots: 3, importFound: true })).toEqual([]);

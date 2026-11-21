@@ -71,7 +71,7 @@ export const APP_FEATURES: readonly AppFeature[] = [
     name: "Bots and teams",
     place: "the Bots list in the sidebar; New bot",
     does: "Each bot has its own name, instructions, model and folder. A Chief of Staff adds specialists and sets up teams. A department groups bots.",
-    tools: ["list_bots", "create_bot", "list_team_setup", "list_team_library", "propose_team_setup", "propose_bot_deletion", "propose_profile", "propose_team_memory", "share"],
+    tools: ["list_bots", "create_bot", "list_team_setup", "list_team_library", "propose_team_setup", "propose_bot_deletion", "suggest_team", "propose_profile", "propose_team_memory", "share"],
   },
   {
     id: "handoffs",

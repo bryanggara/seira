@@ -393,7 +393,7 @@ import { skillExport } from "./skill-export.ts";
 import { pickBotName } from "./names.ts";
 import { botSkillTemplateSchema, newBotDefaultsSchema } from "./new-bot-defaults.ts";
 import { expandLearnTurnText, learnSource } from "./skill-learn.ts";
-import { connectedAppsForSetup, expandSetupTurnText, setupModeActive, setupSystemPrompt, type SetupConnectedApps } from "./setup-mode.ts"; import { forgetSetupPresser, setupPresser, setupTurnText, takeSetupRequest } from "./setup-request.ts"; import { setupSuggestionsFor } from "./setup-suggestions.ts"; import { createSetupRequestRoutes } from "./routes/setup-request.ts";
+import { connectedAppsForSetup, expandSetupTurnText, setupModeActive, setupSystemPrompt, type SetupConnectedApps } from "./setup-mode.ts"; import { forgetSetupPresser, setupPresser, setupTurnText, takeSetupRequest } from "./setup-request.ts"; import { setupSuggestionsFor } from "./setup-suggestions.ts"; import { createSetupRequestRoutes } from "./routes/setup-request.ts"; import { postTeamSuggestion, takeTeamRequest, teamTurnText } from "./team-request.ts";
 import { isSkillSwitchAction, type SkillRequestCardData } from "../shared/skill-request.ts"; import { createSkillSwitchHost } from "./host/skill-switch-host.ts";
 import { checkSoulDrift, readSoulDrift, soulFile, writeSoulMirror } from "./bot-folder.ts";
 import {
@@ -7666,7 +7666,7 @@ async function beginTurn(
     queueMicrotask(drainQueuedSends);
     return userMessage;
   }
-  const setupLine = takeSetupRequest(store, { botId: bot.id, threadId, line: userMessage, person: personLine, editedFrom: opts?.editedMessageId, mounted: instance.adapter.capabilities.agentsMcp === true }); if (setupLine) { userMessage = setupLine; providerText = setupTurnText(setupLine, usesNativeImageInput); } if (route.quickModel && !opts?.cardContinuation && userMessage.quickModel !== route.quickModel) userMessage = store.patchMessage(threadId, userMessage.id, { quickModel: route.quickModel }) ?? userMessage;
+  const setupLine = takeSetupRequest(store, { botId: bot.id, threadId, line: userMessage, person: personLine, editedFrom: opts?.editedMessageId, mounted: instance.adapter.capabilities.agentsMcp === true }); if (setupLine) { userMessage = setupLine; providerText = setupTurnText(setupLine, usesNativeImageInput); } const teamLine = setupLine ? null : takeTeamRequest(store, { threadId, line: userMessage, person: personLine, editedFrom: opts?.editedMessageId, mounted: instance.adapter.capabilities.agentsMcp === true }); if (teamLine) { userMessage = teamLine; providerText = teamTurnText(teamLine, usesNativeImageInput); } if (route.quickModel && !opts?.cardContinuation && userMessage.quickModel !== route.quickModel) userMessage = store.patchMessage(threadId, userMessage.id, { quickModel: route.quickModel }) ?? userMessage;
   const recoveryUserMessageId = opts?.coordination
     ? store.activePath(threadId).findLast(m => m.role === "user" && m.kind === "text")?.id
     : userMessage.id;
@@ -13384,7 +13384,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         return json(res, 201, proposed);
       }
       if (await dispatchRoutes([createBurstProposalRoutes({ requireActive: requireActiveInternalCapability, readBody: readInternalBody, refusal: () => burstProposalRefusal({ owner: connectorThread(internalSender.id, internalCapability.threadId), outside: outsideWorkStaysHere(internalCapability.threadId), self: selfThreadRefusal({ handoff: Boolean(internalCapability.roomHandoffId), requestLine: store.activePath(internalCapability.threadId).findLast((line) => line.role === "user" && line.kind === "text") }) }), model: () => burst.model(internalSender, internalCapability.threadId), propose: (plan) => burst.propose({ ...plan, botId: internalSender.id, threadId: internalCapability.threadId }) }), createInternalChiefTeamRoutes({ bot: () => store.bot(internalCapability.botId), requireActive: requireActiveInternalCapability,
-        teams: teamSetupTeams, bots: () => store.bots, instances: () => registry.describe() }), createInternalModelRoutes({ requireActive: requireActiveInternalCapability, menu: (search) => ownThreads.menu(internalCapability.botId, internalCapability.threadId, search) })], { req, res, url, path, method, auth, json, readBody })) return;
+        teams: teamSetupTeams, bots: () => store.bots, instances: () => registry.describe(), suggest: (input) => { postTeamSuggestion(store, internalCapability.threadId, threadLanguage(internalCapability.threadId), input); } }), createInternalModelRoutes({ requireActive: requireActiveInternalCapability, menu: (search) => ownThreads.menu(internalCapability.botId, internalCapability.threadId, search) })], { req, res, url, path, method, auth, json, readBody })) return;
       if (method === "POST" && path === "/api/internal/team-setup-requests") {
         const parsed = z.object({ fromBotId: z.string().optional(), fromThreadId: z.string().optional(), plan: z.unknown() }).strict().safeParse(await readInternalBody());
         if (!parsed.success) return json(res, 400, { error: "Invalid team setup request" });

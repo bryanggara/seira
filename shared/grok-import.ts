@@ -21,7 +21,7 @@ const OLD_EXPORT_FORMAT = "seira.grok/1";
 export const GROK_EXPORT_FILE = /^grok-bot-export[^/\\]*\.(?:json|md|txt)$/i;
 export const GROK_EXPORT_MAX_CHARS = 4 * 1024 * 1024;
 const MAX_ROUTINES = 50;
-const BOT_COLORS = ["green", "blue", "red", "orange", "purple", "cyan", "pink", "yellow", "teal", "coral"] as const;
+export const BOT_COLORS = ["green", "blue", "red", "orange", "purple", "cyan", "pink", "yellow", "teal", "coral"] as const;
 /** Failed brace matches before a reply stops being searched: each one scans to the end of the text. */
 const MAX_UNBALANCED = 50;
 
@@ -104,7 +104,7 @@ function oneLine(value: string): string {
   }
   return out.replace(/\s+/g, " ").trim();
 }
-const clip = (value: string, max: number) => (value.length <= max ? value : `${value.slice(0, max - 1).trimEnd()}…`);
+export const clip = (value: string, max: number) => (value.length <= max ? value : `${value.slice(0, max - 1).trimEnd()}…`);
 
 const CREDENTIAL_KEY = /(?:^|_)(?:api_?key|apikey|token|secret|passwd|passphrase|credentials?|auth|authorization|bearer|cookies?|private_?key|access_?key|session_?(?:id|key|token))(?:_|$)|key$/i;
 /** Named value slots of an app: their values are never read, so their names are listed rather than refused. */
@@ -314,7 +314,7 @@ export function grokExportDocument(bots: readonly GrokBot[]): Record<string, unk
 const slug = (value: string, max: number) =>
   value.normalize("NFKD").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, max).replace(/-+$/, "");
 
-function uniqueSlug(value: string, fallback: string, taken: Set<string>, max = 64): string {
+export function uniqueSlug(value: string, fallback: string, taken: Set<string>, max = 64): string {
   const base = slug(value, max - 3) || fallback;
   let candidate = base;
   for (let n = 2; taken.has(candidate); n += 1) candidate = `${base}-${n}`;

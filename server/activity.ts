@@ -89,6 +89,7 @@ const TEAM_ACTION_KEYS: Record<string, string> = {
   rename_thread: "activity.tool.team.renameThread",
   coordinate_bots: "activity.tool.team.coordinateBots",
   create_bot: "activity.tool.team.createBot",
+  suggest_team: "activity.tool.team.suggestTeam",
   create_room: "activity.tool.team.createRoom",
   create_trigger: "activity.tool.team.createTrigger",
   decide: "activity.tool.team.decide",
