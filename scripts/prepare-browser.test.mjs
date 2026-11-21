@@ -13,7 +13,7 @@ afterEach(() => { vi.unstubAllGlobals(); for (const root of fixtures.splice(0)) 
 
 describe("pinned desktop browser preparation", () => {
   it("pins the exact headless vendor archives for only shipped targets", () => {
-    expect(CHROME_VERSION).toBe("153.0.8010.47");
+    expect(CHROME_VERSION).toBe("158.0.8127.36");
     expect(SUPPORTED_BROWSER_TARGETS).toEqual(["darwin-arm64", "darwin-x64", "linux-arm64", "linux-x64", "win32-x64"]);
     const pins = {
       "darwin-arm64": [98668949, "6d28839675b6f22dbd7ba8775dbdabcae7a5be37b482380b27b12f05b748b955"],
