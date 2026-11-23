@@ -75,6 +75,12 @@ describe("the plain sentence", () => {
     expect(doesPhrase("Tulis ringkasan pesan masuk setiap pagi")).toBe("tulis ringkasan pesan masuk setiap pagi");
     expect(doesPhrase("Kirim laporan mingguan ke tim")).toBe("kirim laporan mingguan ke tim");
     expect(doesPhrase("Envía un resumen al equipo")).toBe("envía un resumen al equipo");
+    expect(doesPhrase("Envía un resumen a Ana")).toBe("envía un resumen a Ana");
+  });
+
+  it("conjugates a short English instruction that has no small English word", () => {
+    expect(doesPhrase("Post a kickoff note")).toBe("posts a kickoff note");
+    expect(doesPhrase("Draft a follow-up")).toBe("drafts a follow-up");
   });
 
   it("says how often a step cron runs, as the bot writes one for every 2 minutes", () => {
