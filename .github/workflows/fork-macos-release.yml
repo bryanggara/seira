@@ -1,0 +1,202 @@
+# Fork-only: builds the latest upstream Seira release for macOS with the upstream
+# "Package macOS" workflow and publishes the DMGs as an unofficial release in this fork.
+#
+# - Runs every 2 hours, or by hand (`tag` to pick an upstream tag, `dry_run` to build without publishing).
+# - Skips a tag that already has a `<tag>-mac.1` release here.
+# - Uses only GITHUB_TOKEN. That token cannot push workflow files, so this workflow does not sync
+#   the fork: when upstream changes package-macos.yml, it stops and asks for "Sync fork" on GitHub.
+# - Releases made with GITHUB_TOKEN do not trigger other workflows (npm-publish, milestones).
+# - Turn off: `gh workflow disable fork-macos-release.yml -R bryanggara/seira`.
+name: Fork macOS release
+
+on:
+  schedule:
+    - cron: "17 */2 * * *"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Upstream tag to build, like v0.1.191. Empty takes the latest upstream release.
+        required: false
+        default: ""
+        type: string
+      dry_run:
+        description: Build and check the DMGs without publishing a release.
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: fork-macos-release
+  cancel-in-progress: false
+
+env:
+  UPSTREAM: seira-bot/seira
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+  DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+
+jobs:
+  release:
+    if: github.repository == 'bryanggara/seira'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - name: Pick the upstream release
+        id: pick
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          tag="${INPUT_TAG:-}"
+          if [ -z "$tag" ]; then
+            tag=$(gh api "repos/$UPSTREAM/releases/latest" --jq .tag_name)
+          fi
+          if ! [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Upstream tag '$tag' does not look like v1.2.3."
+            exit 1
+          fi
+          ours="$tag-mac.1"
+          sha=$(gh api "repos/$UPSTREAM/commits/$tag" --jq .sha)
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::No commit for $tag upstream."; exit 1; }
+          skip=false
+          if [ "$DRY_RUN" != true ] && gh release view "$ours" >/dev/null 2>&1; then
+            skip=true
+            echo "\`$ours\` is already published; nothing to do." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          {
+            echo "tag=$tag"
+            echo "version=${tag#v}"
+            echo "ours=$ours"
+            echo "sha=$sha"
+            echo "skip=$skip"
+          } >> "$GITHUB_OUTPUT"
+          echo "Upstream $tag is commit $sha; release $ours; skip=$skip; dry_run=${DRY_RUN:-false}"
+
+      - name: Check that this fork has upstream's package-macos.yml
+        if: steps.pick.outputs.skip != 'true'
+        env:
+          TAG: ${{ steps.pick.outputs.tag }}
+        run: |
+          set -euo pipefail
+          path=.github/workflows/package-macos.yml
+          ours=$(gh api "repos/$GH_REPO/contents/$path?ref=$DEFAULT_BRANCH" --jq .sha)
+          theirs=$(gh api "repos/$UPSTREAM/contents/$path?ref=$TAG" --jq .sha)
+          if [ "$ours" != "$theirs" ]; then
+            msg="package-macos.yml on $DEFAULT_BRANCH differs from upstream $TAG. Click \"Sync fork\" on https://github.com/$GH_REPO, then run this workflow again."
+            echo "::error::$msg"
+            echo "$msg" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - name: Build with Package macOS
+        id: build
+        if: steps.pick.outputs.skip != 'true'
+        env:
+          SHA: ${{ steps.pick.outputs.sha }}
+        run: |
+          set -euo pipefail
+          since=$(date -u -d '-60 seconds' +%Y-%m-%dT%H:%M:%SZ)
+          gh workflow run package-macos.yml --ref "$DEFAULT_BRANCH" -f ref="$SHA"
+          run=""
+          for _ in $(seq 1 30); do
+            sleep 10
+            run=$(gh run list -w package-macos.yml --event workflow_dispatch -L 5 \
+              --json databaseId,createdAt --jq "[.[] | select(.createdAt >= \"$since\")] | first | .databaseId // empty")
+            [ -n "$run" ] && break
+          done
+          if [ -z "$run" ]; then
+            echo "::error::The Package macOS run did not show up within 5 minutes."
+            exit 1
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "Package macOS run: https://github.com/$GH_REPO/actions/runs/$run" >> "$GITHUB_STEP_SUMMARY"
+          gh run watch "$run" --interval 60 --exit-status > /dev/null
+
+      - name: Collect and check the DMGs
+        if: steps.pick.outputs.skip != 'true'
+        env:
+          RUN: ${{ steps.build.outputs.run }}
+          VERSION: ${{ steps.pick.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh run download "$RUN" -n "seira-$VERSION-macos-NOT-FOR-RELEASE" -D artifact
+          mkdir dist
+          for arch in arm64 x64; do
+            name="Seira-$VERSION-$arch.dmg"
+            f=$(find artifact -type f -name "$name" -print -quit)
+            if [ -z "$f" ]; then
+              echo "::error::The artifact has no $name."
+              exit 1
+            fi
+            # A UDIF disk image ends with a 512-byte trailer that starts with "koly".
+            if [ "$(tail -c 512 "$f" | head -c 4)" != koly ]; then
+              echo "::error::$name is not a disk image."
+              exit 1
+            fi
+            cp "$f" "dist/$name"
+          done
+          (cd dist && sha256sum Seira-*.dmg > SHA256SUMS-macos.txt)
+          ls -l dist
+          cat dist/SHA256SUMS-macos.txt
+
+      - name: Publish the release
+        if: steps.pick.outputs.skip != 'true' && inputs.dry_run != true
+        env:
+          TAG: ${{ steps.pick.outputs.tag }}
+          VERSION: ${{ steps.pick.outputs.version }}
+          OURS: ${{ steps.pick.outputs.ours }}
+          SHA: ${{ steps.pick.outputs.sha }}
+          RUN: ${{ steps.build.outputs.run }}
+        run: |
+          set -euo pipefail
+          # The tag points at the upstream commit. GITHUB_TOKEN may not create a ref whose commit
+          # changes workflow files, so fall back to this fork's default branch in that case.
+          if ! gh api "repos/$GH_REPO/git/ref/tags/$OURS" >/dev/null 2>&1; then
+            if ! gh api "repos/$GH_REPO/git/refs" -f ref="refs/tags/$OURS" -f sha="$SHA" >/dev/null; then
+              head=$(gh api "repos/$GH_REPO/commits/$DEFAULT_BRANCH" --jq .sha)
+              echo "::warning::Tagging $OURS at $DEFAULT_BRANCH ($head) instead of $SHA."
+              gh api "repos/$GH_REPO/git/refs" -f ref="refs/tags/$OURS" -f sha="$head" >/dev/null
+            fi
+          fi
+          base="https://github.com/$GH_REPO/releases/download/$OURS"
+          cat > notes.md <<EOF
+          > [!WARNING]
+          > **Unofficial build.** This is not a release from the Seira team. It is built automatically from the unmodified upstream source of [$UPSTREAM $TAG](https://github.com/$UPSTREAM/releases/tag/$TAG) (commit \`${SHA:0:7}\`) by the upstream \`Package macOS\` workflow, running in this fork: [run $RUN](https://github.com/$GH_REPO/actions/runs/$RUN). For official releases and support, see [$UPSTREAM](https://github.com/$UPSTREAM).
+
+          ## Downloads
+
+          | File | For |
+          |---|---|
+          | [**Seira-$VERSION-arm64.dmg**]($base/Seira-$VERSION-arm64.dmg) | Apple Silicon Macs (M1 and later) |
+          | [**Seira-$VERSION-x64.dmg**]($base/Seira-$VERSION-x64.dmg) | Intel Macs |
+
+          Check the download against [\`SHA256SUMS-macos.txt\`]($base/SHA256SUMS-macos.txt):
+
+          \`\`\`sh
+          shasum -a 256 -c SHA256SUMS-macos.txt --ignore-missing
+          \`\`\`
+
+          ## Before you install
+
+          - The app is **ad-hoc signed and not notarized by Apple** (no Apple Developer ID). macOS blocks it the first time. To open it: open the app once, then go to **System Settings → Privacy & Security** and click **Open Anyway**.
+          - **No automatic updates.** These builds carry no update feed. Download a newer build by hand: [latest release](https://github.com/$GH_REPO/releases/latest).
+          - This build is published automatically and was not tested by hand.
+          - Computer control needs the Accessibility and Screen Recording permissions, which macOS asks for when you turn it on.
+
+          ## License
+
+          Seira is licensed under the [Apache License 2.0](https://github.com/$UPSTREAM/blob/$TAG/LICENSE). The app bundle includes the license and NOTICE files under \`Seira.app/Contents/Resources/licenses/\`. "Seira" is the name of the upstream project; this build does not imply endorsement by its authors.
+
+          ---
+
+          **Bahasa Indonesia:** build tidak resmi Seira $TAG untuk macOS, dibuat otomatis dari source upstream tanpa perubahan. App belum dinotarisasi Apple: setelah dibuka pertama kali, buka **System Settings → Privacy & Security → Open Anyway**. Tidak ada update otomatis.
+          EOF
+          gh release create "$OURS" --verify-tag --latest \
+            --title "Seira $TAG for macOS (unofficial build)" \
+            --notes-file notes.md dist/*
+          echo "Published https://github.com/$GH_REPO/releases/tag/$OURS" >> "$GITHUB_STEP_SUMMARY"
