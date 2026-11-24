@@ -37939,6 +37939,9 @@
       "power.toast.resumed": "bdd09e2a3442374f8c4fc5627a194d79e8fa04dd359d41568f2bb600e3ff75ea",
       "power.toast.restarted": "82121eec7c06ab644482be2daba765379e74ca4a956a3a26d3ad75e39bf4c7f3",
       "power.toast.updated": "da0fcccdc519425a9c333fda0838bbdd50d67fb0266194753bd1044abd0ecbb4",
+      "remote.devices.allowWorkspaces": "6869eabb91e58720b5eb5c2071a0ddb529fe9efeb76c7a95c05ef69460ffdcc1",
+      "remote.devices.allowWorkspacesDetail": "2d1592fd03e80cdd039d82f3e4794bff3da794e89eb7ffedb2ea8b3a3cd3a098",
+      "remote.devices.workspacesAria": "2dbb594dec2b5d1366ca92d86e027cf6a7236529a4ef8f2802f905dc0ebc9e28",
       "aiImport.drop.backup": "ed9ad239c8e8552237ab7db26c296a8f8b32212d9eea0bb47fab1e22d7811207"
     },
     "zh": {
