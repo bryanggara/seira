@@ -13,6 +13,7 @@ import { githubAppEnabled } from "./flag.ts";
 import { decideGithubCall, githubAllowedFor, type GithubBotSwitches } from "./policy.ts";
 import type { GithubStore, GithubStoreData } from "./store.ts";
 import { GITHUB_INSTRUCTIONS, GITHUB_NOT_FOUND_MESSAGE, GITHUB_TOOLS, githubError, githubText, githubToolCallProblem, isGithubToolName, runGithubTool, type GithubTool, type GithubToolResult } from "./tools.ts";
+import { PublicError } from "../public-error.ts";
 
 export const GITHUB_INTERNAL_MCP_PATH = "/api/internal/github/mcp";
 
@@ -162,7 +163,7 @@ export function createGithubHost(deps: GithubHostDeps) {
         const bot = liveBot();
         return { tools: bot && mounts(bot) ? listed(bot) : [], instructions: GITHUB_INSTRUCTIONS };
       }
-      if (request.method !== "tools/call") throw Object.assign(new Error("unsupported github method"), { status: 400 });
+      if (request.method !== "tools/call") throw new PublicError("unsupported github method", 400);
       const params = (request.params && typeof request.params === "object" ? request.params : {}) as { name?: unknown; arguments?: unknown };
       const args = (params.arguments ?? {}) as Record<string, unknown>;
       const problem = githubToolCallProblem(params.name, args);
