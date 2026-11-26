@@ -41,6 +41,7 @@ import { parseMentionPicks } from "../../shared/room-mentions.ts";
 import { pinnedClientThreadGuard } from "./pinned-client-thread.ts";
 import { refusalBody, refusalText, userError } from "../user-errors.ts";
 import { PASS, type RouteHandler } from "./table.ts";
+import { ownerReview as sharedOwnerReview } from "./owner-review.ts";
 import { PublicError } from "../public-error.ts";
 
 type RunningInstance = ReturnType<ProviderRegistry["get"]>;
@@ -100,6 +101,10 @@ export interface BotMessageRouteDeps {
   answeringCardAs(auth: RequestAuth, threadId: string, requestId: string, work: () => Promise<unknown>): Promise<void>;
   resolveAndSendTrust(res: ServerResponse, threadId: string, requestId: string, behavior: Behavior): boolean;
   resolveAndSendTeamSetup(res: ServerResponse, args: { botId: string; threadId: string; requestId: string; behavior: string }, ownerReview: boolean): Promise<boolean>;
+  /** A settings card's Apply or Not now; false when the card is no settings card. */
+  resolveAndSendAppSetting(res: ServerResponse, args: { threadId: string; requestId: string; behavior: string }, ownerReview: boolean): Promise<boolean>;
+  /** The full current and new value of a waiting settings card, for the owner; null when the card is no settings card. */
+  reviewAppSetting(args: { threadId: string; requestId: string }, ownerReview: boolean): { status: number; body: Record<string, unknown> } | null;
   resolveAndSendMcp(res: ServerResponse, args: { botId: string; threadId: string; requestId: string; behavior: string }, ownerReview: boolean): Promise<boolean>;
   resolveAndSendRoutine(res: ServerResponse, args: CardAnswer): boolean;
   resolveAndSendProfile(res: ServerResponse, args: CardAnswer): boolean;
@@ -174,17 +179,13 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
     acceptDirectSend, directSendRefusal, startTurn, usageTriggerFor, messageSender, cloudGuestSendRefusal, cloudThreadRefusal,
     cardAnswerRefusal, commandRememberRefusal, requestBehavior, requestedTaskBot, botForThread, threadBusy,
     botAtThreadCapacity, parksBehindCoordination, activeGroupTurnForBot, runningTurnInstance, engineSteersImages, resolveReplyTarget,
-    turnSelection, policyModelRefusal, clearUnattended, drainQueuedSends, answeringCardAs, resolveAndSendTrust, resolveAndSendTeamSetup, resolveAndSendMcp,
+    turnSelection, policyModelRefusal, clearUnattended, drainQueuedSends, answeringCardAs, resolveAndSendTrust, resolveAndSendTeamSetup, resolveAndSendAppSetting, reviewAppSetting, resolveAndSendMcp,
     resolveAndSendRoutine, resolveAndSendProfile, resolveAndSendModel, resolveSkillRequest, sendSkillResolution, answerRequest,
     deliverLateQuestionAnswer, stopThreadForPerson, cancelDirectTurnDispatch, revokeInternalCapabilitiesForThread,
     cancelGroupTurnOperations, closeOpenApprovals, harnessCardOutcome, pressRecords, serverPress, relayedReaction, answeredIn, fromPhone, notePhoneSend, goals,
   } = deps; const owners = routeRunOwners(deps.runOwners, deps.runActor);
   const pinnedClientThread = pinnedClientThreadGuard(store);
-  /** Security: a bot's own shell must never approve its own card, so a local request counts only from the desktop app, or
-   * from a browser while every bot is idle. */
-  const ownerReview = (auth: RequestAuth, req: IncomingMessage) => auth.kind === "loopback"
-    ? DESKTOP_MANAGED || Boolean(req.headers.origin) && !store.bots.some((bot) => bot.busy || activeGroupTurnForBot(bot.id))
-    : auth.scopes.includes("admin");
+  const ownerReview = (auth: RequestAuth, req: IncomingMessage) => sharedOwnerReview(auth, req, { desktopManaged: DESKTOP_MANAGED, anyBotWorking: () => store.bots.some((bot) => bot.busy || activeGroupTurnForBot(bot.id)) });
   /** widget -> sendId of a press on its way in: a second tap before acceptance must not send a second answer. */
   const pressesInFlight = new Map<string, string | undefined>();
   const appMessageRate = new AppMessageRate();
@@ -605,6 +606,7 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
         if (resolveAndSendTrust(res, bot.threadId, String(body.requestId), behavior)) return;
         const answer = { botId: bot.id, threadId: bot.threadId, requestId: String(body.requestId), behavior };
         if (await resolveAndSendTeamSetup(res, answer, ownerReview(auth, req))) return;
+        if (await resolveAndSendAppSetting(res, answer, ownerReview(auth, req))) return;
         if (await resolveAndSendMcp(res, answer, ownerReview(auth, req))) return;
         if (resolveAndSendRoutine(res, {
           botId: bot.id,
@@ -656,6 +658,13 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
         return json(res, 200, { ok: true, outcome });
       });
     }
+    m = path.match(/^\/api\/threads\/([\w-]+)\/app-settings\/([\w-]+)\/review$/);
+    if (m && method === "POST") {
+      const refusal = cardAnswerRefusal(auth, m[1], m[2], "allow");
+      if (refusal) return json(res, 403, refusalText(refusal));
+      const review = reviewAppSetting({ threadId: m[1], requestId: m[2] }, ownerReview(auth, req));
+      return review ? json(res, review.status, review.body) : json(res, 404, { error: "No settings card with that id." });
+    }
     m = path.match(/^\/api\/threads\/([\w-]+)\/respond$/);
     if (m && method === "POST") {
       const body = await readBody(req);
@@ -706,6 +715,7 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
             behavior,
           })) return;
         }
+        if (await resolveAndSendAppSetting(res, { threadId, requestId, behavior }, ownerReview(auth, req))) return;
         const setupCard = store.messagesFor(threadId).find((message) => message.card?.requestId === requestId && message.card.teamSetupRequest);
         if (setupCard) {
           const setupBotId = setupCard.from?.botId ?? store.botByThread(threadId)?.id;
