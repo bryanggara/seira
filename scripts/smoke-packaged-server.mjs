@@ -84,6 +84,9 @@ const fixtureEnv = {
     SEIRA_RESOURCES_PATH: staging,
     // A global engine on the developer's PATH must not make this test pass.
     PATH: process.platform === "win32" ? join(process.env.SystemRoot ?? "C:\\Windows", "System32") : "/usr/bin:/bin",
+    // The engine under test is the bundle's. With no saved choice, a host with its own Chrome (the macOS
+    // runners have one) would otherwise get Seira's Chrome driver instead (server/browser/config.ts).
+    SEIRA_BROWSER_ENGINE_DEFAULT: "agent-browser",
   } : {}),
 };
 
