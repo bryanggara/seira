@@ -13,13 +13,19 @@ import { PREMIUM_UPGRADE_URL } from "../shared/plan-keys.ts";
 import { allowedScopes, parseAllowList, type SignInAllowList } from "./account-signin.ts";
 import { writeFileAtomic } from "./atomic.ts";
 import { ensurePrivateDir } from "./data-dir.ts";
+import { PEOPLE_LOCK_FILE, withDataLock } from "./data-lock.ts";
 import { entitled, hostedWorkspaceConfigured, loadEnterpriseLayer } from "./enterprise.ts";
+import { acquireFileLock, type FileLockOptions } from "./file-lock.ts";
 import { premiumKeyStatus, premiumUnlimited, savePlanKey, TEAM_KEY_ENV, type PlanKeyOptions, type PlanKeyRefusal } from "./plan-key.ts";
 import { signInFromEnv } from "./sign-in-env.ts";
 
 /** Everyone who holds a place: each address that signed in with an email here or that Settings or the CLI added, and,
  * on a data folder from an earlier version, everyone who could sign in when this file was first written. */
 export const PEOPLE_FILE = "sign-in-people.json";
+
+/** Held by every writer of the places, the removal record and config.json, in the server and in `seira access`: two processes must
+ * not both pass the free limit, and one must not write over the other's change. */
+export { PEOPLE_LOCK_FILE };
 
 /** Addresses that an admin removed in Settings → People. An `@domain` entry does not let them in again. */
 export const REMOVED_FILE = "sign-in-removed.json";
@@ -131,6 +137,8 @@ export interface PeopleLimitOptions extends PlanKeyOptions {
    * session then counts, no place is dropped, and a missing sign-in-people.json stays for the server's first start. */
   partialLists?: boolean;
   now?: () => number;
+  /** How long to wait for another process that holds the lock; tests shorten it. */
+  lock?: FileLockOptions;
 }
 
 export interface PeopleLimit {
@@ -162,8 +170,33 @@ export function createPeopleLimit(options: PeopleLimitOptions): PeopleLimit {
     const read = readKept(options.dataDir);
     return read.state === "ok" ? read.people : read.state === "unreadable" || options.partialLists ? [...listed(lists)] : [];
   };
+  const lockFile = join(options.dataDir, PEOPLE_LOCK_FILE);
+  const locked = <T>(run: () => T): T => {
+    ensurePrivateDir(options.dataDir);
+    const release = acquireFileLock(lockFile, options.lock);
+    try {
+      return run();
+    } finally {
+      release();
+    }
+  };
+  /** Takes the lock until the current run of synchronous code ends, or until the step that is given back runs. A caller
+   * that checks, then changes, with no `await` between them, is covered without a try/finally around the whole run. */
+  const lockedThisRun = (): (() => void) => {
+    ensurePrivateDir(options.dataDir);
+    const release = acquireFileLock(lockFile, options.lock);
+    // A release that fails must not end the process: the lock stays with this process and the next release tries again.
+    queueMicrotask(() => {
+      try {
+        release();
+      } catch (error) {
+        console.error(`people lock not given back: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    });
+    return release;
+  };
   /** Changes the saved places; never writes over a file it could not read, so no place in it is lost. */
-  const keep = (change: (people: string[]) => string[]) => {
+  const keep = (change: (people: string[]) => string[]) => locked(() => {
     const read = readKept(options.dataDir);
     if (read.state === "unreadable" || (read.state === "missing" && options.partialLists)) return;
     const was = read.state === "ok" ? read.people : [];
@@ -174,7 +207,7 @@ export function createPeopleLimit(options: PeopleLimitOptions): PeopleLimit {
     } catch (error) {
       console.warn(`could not save who holds a place to sign in: ${error instanceof Error ? error.message : String(error)}`);
     }
-  };
+  });
   const key = () => premiumKeyStatus(options, now());
   const enterprise = () => options.applies && options.enterpriseUnlimited();
   const limited = () => options.applies && !enterprise() && !premiumUnlimited(key());
@@ -197,9 +230,13 @@ export function createPeopleLimit(options: PeopleLimitOptions): PeopleLimit {
 
   // The first start on this version: a data folder an earlier version used keeps everyone who could sign in there. A new
   // data folder keeps only who has a live session, so a long list in the environment or config.json gets no places.
+  // Checked again under the lock: another process may have written the file, and its places must not be replaced.
   if (options.applies && readKept(options.dataDir).state === "missing") {
-    const lists = options.lists();
-    keep(() => [...peopleHolding(lists, options.sessions(), existsSync(join(options.dataDir, EARLIER_RUN_FILE)) ? [...listed(lists)] : [])]);
+    locked(() => {
+      if (readKept(options.dataDir).state !== "missing") return;
+      const lists = options.lists();
+      keep(() => [...peopleHolding(lists, options.sessions(), existsSync(join(options.dataDir, EARLIER_RUN_FILE)) ? [...listed(lists)] : [])]);
+    });
   }
   prune(options.lists());
 
@@ -241,13 +278,18 @@ export function createPeopleLimit(options: PeopleLimitOptions): PeopleLimit {
     refuses,
     wasRemoved,
     admit(email) {
-      if (refuses(email)) return "full";
-      const person = address(email);
-      if (options.applies && allowedScopes(person, options.lists())) keep((people) => [...people, person]);
-      return null;
+      return locked(() => {
+        if (refuses(email)) return "full";
+        const person = address(email);
+        if (options.applies && allowedScopes(person, options.lists())) keep((people) => [...people, person]);
+        return null;
+      });
     },
     listsChanging(asked) {
       if (!asked || !options.applies) return { saved() {} };
+      // The check and the step that records the places stay one unit for other processes: the lock lasts until `saved`
+      // runs, or until the code that asked ends its synchronous run, whichever comes first.
+      const release = lockedThisRun();
       const before = options.lists();
       const pinned = signInFromEnv(options.env ?? process.env);
       // A save replaces the whole section: a list left out is empty afterwards, unless the environment names it.
@@ -266,27 +308,36 @@ export function createPeopleLimit(options: PeopleLimitOptions): PeopleLimit {
       const next = holdingOf(after, sessions.filter((session) => !session.email || !removed.has(address(session.email))), people.filter((email) => !removed.has(email)));
       for (const email of added) next.add(email);
       const adds = [...next].some((email) => !current.has(email));
-      if (adds && next.size > FREE_PEOPLE_LIMIT && limited()) return { refusal: { limit: FREE_PEOPLE_LIMIT } };
+      if (adds && next.size > FREE_PEOPLE_LIMIT && limited()) {
+        release();
+        return { refusal: { limit: FREE_PEOPLE_LIMIT } };
+      }
       return {
         saved() {
-          if (removed.size) endSessions(removed);
-          const lists = options.lists();
-          keep((was) => [...was, ...added].filter((email) => !removed.has(email) && (options.partialLists || allowedScopes(email, lists))));
-          if (added.length) bar((was) => was.filter((email) => !added.includes(email)));
+          try {
+            if (removed.size) endSessions(removed);
+            const lists = options.lists();
+            keep((was) => [...was, ...added].filter((email) => !removed.has(email) && (options.partialLists || allowedScopes(email, lists))));
+            if (added.length) bar((was) => was.filter((email) => !added.includes(email)));
+          } finally {
+            release();
+          }
         },
       };
     },
     removeJoined(email) {
-      const person = address(email);
-      if (listed(options.lists()).has(person)) return "listed";
-      const people = kept();
-      const hadSession = options.sessions().some((session) => session.email && !session.token && address(session.email) === person);
-      if (!people.includes(person) && !hadSession) return "unknown";
-      // Recorded first: when the record cannot be saved, nothing else changes and the caller says so.
-      if (!bar((was) => [...was, person])) return "failed";
-      endSessions(new Set([person]));
-      keep((was) => was.filter((entry) => entry !== person));
-      return "removed";
+      return locked(() => {
+        const person = address(email);
+        if (listed(options.lists()).has(person)) return "listed";
+        const people = kept();
+        const hadSession = options.sessions().some((session) => session.email && !session.token && address(session.email) === person);
+        if (!people.includes(person) && !hadSession) return "unknown";
+        // Recorded first: when the record cannot be saved, nothing else changes and the caller says so.
+        if (!bar((was) => [...was, person])) return "failed";
+        endSessions(new Set([person]));
+        keep((was) => was.filter((entry) => entry !== person));
+        return "removed";
+      });
     },
     saveKey(raw) {
       if ((options.env ?? process.env)[TEAM_KEY_ENV]?.trim()) return { ok: false, reason: "environment" };
@@ -329,17 +380,28 @@ export function peopleLimitApplies(env: NodeJS.ProcessEnv = process.env): boolea
 
 /** For `seira access add`, which edits config.json beside a running server or without one: why the new lists would pass
  * the free limit, else the step to run once config.json is saved (it gives each added address its place, once the server
- * has started on this version). `before` and `after` are config.json's lists; a list the environment names stays in force. */
-export async function accessChange(dataDir: string, before: SignInAllowList, after: SignInAllowList, env: NodeJS.ProcessEnv = process.env): Promise<string | { saved(): void }> {
+ * has started on this version). `before` and `after` are config.json's lists; a list the environment names stays in force.
+ * With `commit`, the check, the save of config.json and the places happen in one step that no other process can split:
+ * `commit` writes config.json and returns null, or returns why it did not (the lists changed after `before` was read).
+ * The step has run when this returns, so `saved` has nothing left to do. */
+export async function accessChange(dataDir: string, before: SignInAllowList, after: SignInAllowList, env: NodeJS.ProcessEnv = process.env, commit?: () => string | null): Promise<string | { saved(): void }> {
   const pinned = signInFromEnv(env);
   const inForce = (lists: SignInAllowList): SignInAllowList => ({ admins: pinned.admins ?? lists.admins, members: pinned.members ?? lists.members });
   await loadEnterpriseLayer({ env });
-  let lists = inForce(before);
-  const people = createPeopleLimit({
-    dataDir, env, lists: () => lists, sessions: () => sessionsFromFile(dataDir), revoke() {}, partialLists: true,
-    applies: peopleLimitApplies(env), enterpriseUnlimited: () => entitled("people-unlimited"),
+  // The lock covers the check, `commit` and the places, with or without the free limit: the other writers of config.json take it too.
+  return withDataLock(dataDir, () => {
+    let lists = inForce(before);
+    const people = createPeopleLimit({
+      dataDir, env, lists: () => lists, sessions: () => sessionsFromFile(dataDir), revoke() {}, partialLists: true,
+      applies: peopleLimitApplies(env), enterpriseUnlimited: () => entitled("people-unlimited"),
+    });
+    const change = people.listsChanging(inForce(after));
+    if ("refusal" in change) return `this server's free plan includes ${change.refusal.limit} people; add a Premium key in Settings → People (or set ${TEAM_KEY_ENV}) to add more`;
+    const saved = () => { lists = inForce(after); change.saved(); };
+    if (!commit) return { saved };
+    const refused = commit();
+    if (refused) return refused;
+    saved();
+    return { saved() {} };
   });
-  const change = people.listsChanging(inForce(after));
-  if ("refusal" in change) return `this server's free plan includes ${change.refusal.limit} people; add a Premium key in Settings → People (or set ${TEAM_KEY_ENV}) to add more`;
-  return { saved() { lists = inForce(after); change.saved(); } };
 }
