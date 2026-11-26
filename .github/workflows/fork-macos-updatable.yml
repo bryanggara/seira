@@ -1,0 +1,230 @@
+# Fork-only: builds an upstream Seira release for macOS that can update itself from this fork's releases.
+#
+# - Same source as upstream: the commit of the upstream tag, unchanged. Two build settings differ:
+#   the update feed (electron-builder.yml `publish`) names this fork, and the apps are signed with
+#   this fork's own self-signed certificate (secrets FORK_MAC_CERT_P12_BASE64 + FORK_MAC_CERT_PASSWORD).
+# - macOS installs an update only when the new app satisfies the running app's designated requirement.
+#   Ad-hoc signatures change with every build; one certificate kept for every build does not.
+# - Not notarized: macOS still asks for "Open Anyway" on the first install. Updates installed by the
+#   app itself carry no quarantine flag.
+# - `publish: true` makes `<tag>-<suffix>` the Latest release here, with the files the updater reads
+#   (latest-mac.yml, the zips and their blockmaps) beside the DMGs.
+name: Fork macOS updatable build
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Upstream tag to build, like v0.1.194.
+        required: true
+        type: string
+      publish:
+        description: Publish the build as the Latest release in this fork.
+        required: false
+        default: false
+        type: boolean
+      suffix:
+        description: Release name suffix, like mac.2. The release is <tag>-<suffix>.
+        required: false
+        default: mac.2
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fork-macos-updatable-${{ inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  UPSTREAM: seira-bot/seira
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+  IDENTITY: Seira Fork Code Signing
+
+jobs:
+  build:
+    if: github.repository == 'bryanggara/seira'
+    runs-on: macos-15
+    timeout-minutes: 150
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Pick the upstream commit
+        id: pick
+        env:
+          TAG: ${{ inputs.tag }}
+          SUFFIX: ${{ inputs.suffix }}
+          PUBLISH: ${{ inputs.publish }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::tag '$TAG' does not look like v1.2.3"; exit 1; }
+          [[ "$SUFFIX" =~ ^mac\.[0-9]+$ ]] || { echo "::error::suffix '$SUFFIX' does not look like mac.2"; exit 1; }
+          sha=$(gh api "repos/$UPSTREAM/commits/$TAG" --jq .sha)
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::no commit for $TAG upstream"; exit 1; }
+          ours="$TAG-$SUFFIX"
+          if [ "$PUBLISH" = true ] && gh release view "$ours" >/dev/null 2>&1; then
+            echo "::error::release $ours already exists"; exit 1
+          fi
+          { echo "sha=$sha"; echo "ours=$ours"; echo "version=${TAG#v}"; } >> "$GITHUB_OUTPUT"
+          echo "Upstream $TAG is commit $sha; release $ours; publish=$PUBLISH"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.pick.outputs.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Check the version
+        env:
+          VERSION: ${{ steps.pick.outputs.version }}
+        run: |
+          set -euo pipefail
+          got=$(node -p "require('./package.json').version")
+          [ "$got" = "$VERSION" ] || { echo "::error::package.json holds $got, not $VERSION"; exit 1; }
+
+      - run: pnpm install --frozen-lockfile
+      - name: Clean generated output
+        run: rm -rf dist dist-server dist-companion dist-native release
+
+      - name: Point the update feed at this fork
+        run: |
+          set -euo pipefail
+          perl -0pi -e 's/(publish:\n  - provider: github\n    owner: )seira-bot(\n    repo: seira\n)/${1}bryanggara${2}/' electron-builder.yml
+          grep -A3 '^publish:' electron-builder.yml
+          grep -q '^    owner: bryanggara$' electron-builder.yml || { echo "::error::the publish owner was not replaced"; exit 1; }
+
+      - name: Import the fork's code signing certificate
+        env:
+          P12_BASE64: ${{ secrets.FORK_MAC_CERT_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.FORK_MAC_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          [ -n "$P12_BASE64" ] && [ -n "$P12_PASSWORD" ] || { echo "::error::set FORK_MAC_CERT_P12_BASE64 and FORK_MAC_CERT_PASSWORD"; exit 1; }
+          keychain="$RUNNER_TEMP/fork-signing.keychain-db"
+          keychain_password="$(uuidgen)"
+          trap 'rm -f "$RUNNER_TEMP/cert.p12"' EXIT
+          echo "$P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$RUNNER_TEMP/cert.p12" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$keychain"
+          security set-key-partition-list -S apple-tool:,apple: -k "$keychain_password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" login.keychain
+          # A self-signed identity is valid for codesign only once the runner trusts its certificate.
+          security find-certificate -c "$IDENTITY" -p "$keychain" > "$RUNNER_TEMP/cert.pem"
+          sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain "$RUNNER_TEMP/cert.pem"
+          security find-identity -v -p codesigning "$keychain"
+          security find-identity -v -p codesigning "$keychain" | grep -q "\"$IDENTITY\"" || { echo "::error::no valid identity $IDENTITY"; exit 1; }
+
+      - name: Package both architectures
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: pnpm package:mac -c.mac.identity="$IDENTITY" -c.dmg.sign=false
+
+      - name: "Gate: signature, designated requirement and update feed"
+        env:
+          VERSION: ${{ steps.pick.outputs.version }}
+        run: |
+          set -euo pipefail
+          for app in release/mac-arm64/Seira.app release/mac/Seira.app; do
+            codesign --verify --deep --strict "$app"
+            codesign -dv --verbose=2 "$app" 2>&1 | grep -q "^Authority=$IDENTITY$" || { echo "::error::$app is not signed by $IDENTITY"; exit 1; }
+            req=$(codesign -d -r- "$app" 2>&1)
+            echo "$req"
+            grep -q 'certificate leaf' <<< "$req" || grep -q 'certificate root' <<< "$req" || { echo "::error::$app has no certificate in its designated requirement"; exit 1; }
+            update="$app/Contents/Resources/app-update.yml"
+            cat "$update"
+            grep -Eq '^owner: bryanggara$' "$update" || { echo "::error::$update does not name owner bryanggara"; exit 1; }
+            grep -Eq '^repo: seira$' "$update" || { echo "::error::$update does not name repo seira"; exit 1; }
+          done
+          feed=release/latest-mac.yml
+          cat "$feed"
+          grep -q "^version: $VERSION$" "$feed" || { echo "::error::$feed does not name $VERSION"; exit 1; }
+          for f in "Seira-$VERSION-arm64.zip" "Seira-$VERSION-x64.zip" "Seira-$VERSION-arm64.dmg" "Seira-$VERSION-x64.dmg"; do
+            test -f "release/$f" || { echo "::error::missing release/$f"; exit 1; }
+            grep -q "url: $f" "$feed" || { echo "::error::$feed does not list $f"; exit 1; }
+          done
+
+      - name: Stage the files
+        env:
+          VERSION: ${{ steps.pick.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir dist-release
+          cp release/latest-mac.yml dist-release/
+          for arch in arm64 x64; do
+            for ext in dmg zip zip.blockmap; do
+              cp "release/Seira-$VERSION-$arch.$ext" dist-release/
+            done
+            test -f "release/Seira-$VERSION-$arch.dmg.blockmap" && cp "release/Seira-$VERSION-$arch.dmg.blockmap" dist-release/ || true
+          done
+          (cd dist-release && shasum -a 256 Seira-*.dmg Seira-*.zip > SHA256SUMS-macos.txt && cat SHA256SUMS-macos.txt)
+          ls -l dist-release
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: seira-${{ steps.pick.outputs.version }}-macos-fork-updatable
+          path: dist-release
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Publish the release
+        if: inputs.publish
+        env:
+          TAG: ${{ inputs.tag }}
+          VERSION: ${{ steps.pick.outputs.version }}
+          OURS: ${{ steps.pick.outputs.ours }}
+          SHA: ${{ steps.pick.outputs.sha }}
+        run: |
+          set -euo pipefail
+          if ! gh api "repos/$GH_REPO/git/ref/tags/$OURS" >/dev/null 2>&1; then
+            if ! gh api "repos/$GH_REPO/git/refs" -f ref="refs/tags/$OURS" -f sha="$SHA" >/dev/null; then
+              head=$(gh api "repos/$GH_REPO/commits/${{ github.event.repository.default_branch }}" --jq .sha)
+              echo "::warning::Tagging $OURS at the default branch ($head) instead of $SHA."
+              gh api "repos/$GH_REPO/git/refs" -f ref="refs/tags/$OURS" -f sha="$head" >/dev/null
+            fi
+          fi
+          base="https://github.com/$GH_REPO/releases/download/$OURS"
+          run="https://github.com/$GH_REPO/actions/runs/$GITHUB_RUN_ID"
+          cat > notes.md <<EOF
+          > [!WARNING]
+          > **Unofficial build.** This is not a release from the Seira team. It is built from the unmodified upstream source of [$UPSTREAM $TAG](https://github.com/$UPSTREAM/releases/tag/$TAG) (commit \`${SHA:0:7}\`) in this fork ([run]($run)). Two build settings differ from upstream: the update feed points to this fork, and the app is signed with this fork's self-signed certificate "$IDENTITY". For official releases and support, see [$UPSTREAM](https://github.com/$UPSTREAM).
+
+          ## Downloads
+
+          | File | For |
+          |---|---|
+          | [**Seira-$VERSION-arm64.dmg**]($base/Seira-$VERSION-arm64.dmg) | Apple Silicon Macs (M1 and later) |
+          | [**Seira-$VERSION-x64.dmg**]($base/Seira-$VERSION-x64.dmg) | Intel Macs |
+
+          Check the download against [\`SHA256SUMS-macos.txt\`]($base/SHA256SUMS-macos.txt):
+
+          \`\`\`sh
+          shasum -a 256 -c SHA256SUMS-macos.txt --ignore-missing
+          \`\`\`
+
+          ## Before you install
+
+          - **Not notarized by Apple.** macOS blocks the first launch. Open the app once, then go to **System Settings → Privacy & Security** and click **Open Anyway**.
+          - **Updates itself.** From this build on, the app finds newer builds from this fork in Settings and installs them. A build from before \`$TAG-mac.2\` (ad-hoc signed) cannot update to this one by itself: install this one by hand once.
+          - The \`.zip\` files and \`latest-mac.yml\` are for the app's updater; download a \`.dmg\` to install.
+
+          ## License
+
+          Seira is licensed under the [Apache License 2.0](https://github.com/$UPSTREAM/blob/$TAG/LICENSE). The app bundle includes the license and NOTICE files under \`Seira.app/Contents/Resources/licenses/\`. "Seira" is the name of the upstream project; this build does not imply endorsement by its authors.
+
+          ---
+
+          **Bahasa Indonesia:** build tidak resmi Seira $TAG untuk macOS dari source upstream tanpa perubahan, ditandatangani sertifikat self-signed fork ini dan bisa update sendiri dari rilis fork. Instal pertama: **System Settings → Privacy & Security → Open Anyway**.
+          EOF
+          gh release create "$OURS" --verify-tag --latest \
+            --title "Seira $TAG for macOS (unofficial build, updates itself)" \
+            --notes-file notes.md dist-release/*
+          echo "Published https://github.com/$GH_REPO/releases/tag/$OURS" >> "$GITHUB_STEP_SUMMARY"
