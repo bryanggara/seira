@@ -3,7 +3,7 @@ import { FolderOpen } from "lucide-react";
 
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
-import { type DepartmentFolders, folderAccessOrNull, limitedBy, shownFolders, type FolderAccess } from "@/lib/folder-access";
+import { type DepartmentFolders, folderAccessOrNull, INSTALL_BWRAP, limitedBy, shownFolders, type FolderAccess } from "@/lib/folder-access";
 import { Segmented, TrashButton } from "./bot-panel/rows";
 import { Switch } from "./SettingsPrimitives";
 import { inputCls } from "./bot-settings/field";
@@ -30,9 +30,11 @@ interface Props {
   /** Who the list is for, for the empty line and the hint. */
   subject: "bot" | "department";
   enforcement: DepartmentFolders["enforcement"];
+  boxMissing?: DepartmentFolders["boxMissing"];
 }
 
-export function FolderAccessEditor({ access, save, department, subject, enforcement }: Props) {
+
+export function FolderAccessEditor({ access, save, department, subject, enforcement, boxMissing }: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [path, setPath] = useState("");
@@ -145,6 +147,12 @@ export function FolderAccessEditor({ access, save, department, subject, enforcem
       {error && <div role="alert" className="text-[12px] text-danger">{error}</div>}
       {!boxed && (limited || readOnlyFolder) && (
         <div className="text-[12px] text-ink-secondary">{t("folderAccess.aiNote", { approval: t("approvalMode.ask.label") })}</div>
+      )}
+      {!boxed && (limited || readOnlyFolder) && boxMissing === "no-bwrap" && (
+        <div className="text-[12px] text-ink-secondary">
+          <div>{t("folderAccess.noBwrap")}</div>
+          <code dir="ltr" className="mt-1 block select-all rounded-md bg-control px-2 py-1 text-ink">{INSTALL_BWRAP}</code>
+        </div>
       )}
       {enforcement === "limited" && limited && (
         <div className="text-[12px] text-ink-secondary">{t("folderAccess.boxNote")}</div>

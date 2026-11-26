@@ -24,7 +24,7 @@ export interface AppFeature {
 export const APP_FEATURE_DOES_MAX = 240;
 
 /** Agent tools that no person sees or asks about by name. */
-export const INTERNAL_AGENT_TOOLS: ReadonlySet<string> = new Set(["tool_result_read"]);
+export const INTERNAL_AGENT_TOOLS: ReadonlySet<string> = new Set(["tool_result_read", "suggest_replies"]);
 
 export const APP_FEATURES: readonly AppFeature[] = [
   {
@@ -55,6 +55,7 @@ export const APP_FEATURES: readonly AppFeature[] = [
     does: "Routines decide when a bot works: on a schedule, on an app event, or on a webhook call. A routine can also run a workflow. It is not the steps of the work; those belong to a workflow.",
     tools: ["trigger_info", "trigger", "delete_trigger"],
     automationViews: ["list", "calendar"],
+    releaseNotes: ["sleepWhenIdle"],
   },
   {
     id: "workflows",
@@ -106,9 +107,16 @@ export const APP_FEATURES: readonly AppFeature[] = [
   {
     id: "people-access",
     name: "People and access",
+    place: "Settings → People; a department's menu, Invite to this department; a bot's menu, Invite to this bot",
+    does: "An admin invites a person by email or @domain, as admin or user. Access is the whole team, chosen departments or chosen bots, each Can chat or Can view. A user sees only what was chosen.",
+    releaseNotes: ["departmentAccess", "inviteChosen", "emailCodes", "removedStaysOut"],
+  },
+  {
+    id: "premium-key",
+    name: "Premium key",
     place: "Settings → People",
-    does: "An admin invites a person by email or a whole @domain, as admin or member. A member can be kept to chosen departments: they see only the bots and chats of those departments, and bots there reach only each other.",
-    releaseNotes: ["departmentAccess"],
+    does: "A self-hosted server lets up to 5 people sign in by email for free. An admin adds a Premium key there for unlimited people. Every feature is the same on every plan.",
+    releaseNotes: ["peopleLimit"],
   },
   {
     id: "handoffs",
@@ -166,13 +174,14 @@ export const APP_FEATURES: readonly AppFeature[] = [
     place: "the menu under the person's name at the bottom of the sidebar",
     does: "Appearance, language, defaults for new bots, AI engines and keys. A bot reads and changes safe settings itself; the person changes the rest.",
     tools: ["app_settings"],
-    releaseNotes: ["updateCheckHonest", "uiMap"],
+    releaseNotes: ["updateCheckHonest", "uiMap", "placeCard"],
   },
   {
     id: "text-size",
     name: "Text size",
     place: "Settings → Appearance → Text size (desktop app); the View menu; Ctrl or Cmd with plus, minus or 0",
     does: "Makes the whole app larger or smaller, from 90 % to 200 %, on this device. A bot can read and set it as appearance.textSize, with a number such as 1.25.",
+    releaseNotes: ["textSize"],
   },
   {
     id: "ai-engines",
@@ -222,7 +231,7 @@ export const APP_FEATURES: readonly AppFeature[] = [
     place: "the Computer tab of a bot's panel",
     does: "Where a bot works with a screen, a browser or files: this computer, a Cloud desktop, a shared desktop or its own Local VM.",
     tools: ["select_computer", "list_shared_computers", "shared_computer", "vm_exec", "ask_for_computer"],
-    releaseNotes: ["boatGone"],
+    releaseNotes: ["boatGone", "browserSignIn"],
   },
   {
     id: "pages-apps",
@@ -343,7 +352,7 @@ export const APP_FEATURES: readonly AppFeature[] = [
     name: "Backups",
     place: "Settings → Import & export → Take things out → Export full backup",
     does: "A full backup of chats, bots and settings. Backup files end in .seirabackup, and older backup files still open.",
-    releaseNotes: ["backupName", "backupParts"],
+    releaseNotes: ["backupName", "backupParts", "backupCheck", "backupSizes", "restoreChecklist"],
   },
   {
     id: "whats-new",
@@ -357,7 +366,7 @@ export const APP_FEATURES: readonly AppFeature[] = [
     name: "The Seira app",
     place: "the whole app",
     does: "The app is named Seira everywhere. Chats, bots and settings carry over from earlier names. The window shows right away at start.",
-    releaseNotes: ["seiraName", "fasterStart", "linuxDesktop", "windowRecovers"],
+    releaseNotes: ["seiraName", "fasterStart", "linuxDesktop", "windowRecovers", "appIcon"],
   },
   {
     id: "crash-reports",
@@ -370,7 +379,7 @@ export const APP_FEATURES: readonly AppFeature[] = [
     name: "Glance",
     place: "The top centre of the screen while a bot works (a tray icon only when Linux has no X11 support); turn it on or off with View → Glance in the desktop app",
     does: "Shows which bots work, need you, failed or just finished, outside the Seira window. Click it to see the card and answer an approval or a question without opening the window. Desktop notifications are separate.",
-    releaseNotes: ["glance"],
+    releaseNotes: ["glance", "glanceWayland"],
   },
 ];
 

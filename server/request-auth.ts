@@ -556,7 +556,7 @@ export const CLIENT_ALLOW: ReadonlyArray<{ methods: readonly string[]; path: Reg
   { methods: ["GET"], path: /^\/api\/team\/people$/ },
   // the workspace's banner picture: everyone signed in here sees it; changing it (PUT, DELETE) is an admin's
   { methods: ["GET"], path: /^\/api\/workspace\/banner$/ },
-  // the project's announcement cards, the same public file for everyone (routes/announcements.ts)
+  // the announcement cards, the same public feeds for everyone (routes/announcements.ts)
   { methods: ["GET"], path: /^\/api\/announcements$/ },
   // a teammate's picture: the handler serves it to the team's own members only
   { methods: ["GET"], path: /^\/api\/team\/people\/p_[\w-]{22}\/picture$/ },
@@ -647,9 +647,10 @@ export function memberBotPatchViolation(body: unknown, level: "view" | "chat" | 
 
 /** What a Team Cloud member may say of a bot they make: what someone who can edit a bot may change, and nothing else.
  * Its sharing, its department, whom it answers to, what it may do and where it runs are not theirs to set at creation:
- * the bot starts private to them with the server's own defaults. The first field beyond that; null when there is none. */
+ * the bot starts private to them with the server's own defaults. A `retryKey` is not a setting: it only lets the same member
+ * send one creation again. The first field beyond that; null when there is none. */
 export function memberBotCreateViolation(body: Record<string, unknown>): string | null {
-  const { settings, useDefaults: _useDefaults, ...asked } = body;
+  const { settings, useDefaults: _useDefaults, retryKey: _retryKey, ...asked } = body;
   const nested = settings && typeof settings === "object" && !Array.isArray(settings) ? Object.keys(settings) : settings === undefined ? [] : ["settings"];
   return [...Object.keys(asked), ...nested].find((key) => key === "threadId" || !EDITOR_BOT_PATCH_FIELDS.has(key)) ?? null;
 }
