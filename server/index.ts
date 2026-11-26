@@ -11688,7 +11688,7 @@ const workspaceBackupAccess = {
   }, keepLocked),
   status: () => ({ busy: workspaceMaintenance.active, pendingRestore: workspaceMaintenance.pendingRestore }),
 };
-const workspaceCopyAccess = { dataDir: DATA_DIR, appVersion: serverVersion(), readBody, restored: workspaceRestore, ...workspaceBackupAccess, ...(CLOUD_HOME ? { restart: () => { restartRequested = true; gracefulShutdown(); } } : {}) };
+const workspaceCopyAccess = { dataDir: DATA_DIR, appVersion: serverVersion(), readBody, restored: workspaceRestore, moveOut: { issue: (exportId: string, expiresAt: number) => sessions.issueMoveOut({ exportId, expiresAt }), revoke: (exportId: string) => sessions.revokeMoveOuts(exportId), watch: (sessionId: string, ended: () => void) => sessions.onSessionRevoked((id) => { if (id === sessionId) ended(); }) }, ...workspaceBackupAccess, ...(CLOUD_HOME ? { restart: () => { restartRequested = true; gracefulShutdown(); } } : {}) };
 const workspaceBackupRoutes = createWorkspaceBackupRoutes(workspaceCopyAccess);
 let restartRequested = false;
 const cloudMoveRoutes = createCloudMoveRoutes();
