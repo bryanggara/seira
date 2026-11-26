@@ -122,6 +122,10 @@ A `gate` job with read-only permissions runs the release gate (see
 [The release gate](#the-release-gate)). The `redispatch` job of
 `npm-publish.yml` has `actions: write` and no environment. It starts the
 workflow again on `main`.
+One more workflow reads a secret outside the `release` environment:
+`snap-publish.yml` reads `SNAPCRAFT_STORE_CREDENTIALS` in its `publish` job,
+which uses the `snap-store` environment (see [Snap publish workflow](#snap-publish-workflow)).
+
 Two workflows read secrets in the `release` environment:
 
 - `package-macos.yml` reads the Apple signing secrets;
@@ -467,3 +471,32 @@ Do not add a bot account to it.
 - A published release starts `npm-publish.yml` again on `main`. The
   `redispatch` job does it with the workflow token. GitHub makes a new run for
   this kind of start.
+
+## Snap publish workflow
+
+`snap-publish.yml` is the one workflow that uploads a package to a store without
+the `release` environment. It follows `npm-publish.yml`. A published release (not
+a draft, not a prerelease) starts it through a `redispatch` job that runs it again
+on `main`. A person can also start it by hand from `main` with a tag and a channel.
+`scripts/ci-workflow.test.ts` holds these rules, and runs the shell of the
+`commit` job with fake `gh` and `git` commands to test them:
+
+- The `commit` job fails on any ref other than `main`. It resolves the tag once
+  to a commit SHA, and fails when the SHA is not in the history of `main`. For the
+  `stable` channel it also fails without a published release that is not a draft
+  and not a prerelease.
+- The `gate` job runs the release gate on the SHA. The `approval` job holds the
+  wait of a flagged run in the `release-approval` environment.
+- The `build` and `publish` jobs run only on `main`, after the gate passed or
+  after an approval in the same attempt. They use the SHA, never the tag name.
+- The `build` job has `contents: read`, no secret and no environment. It runs
+  `scripts/check-snap.mjs`.
+- The `publish` job uses the `snap-store` environment. It does no checkout, so
+  it runs no code of the repository. It reads `SNAPCRAFT_STORE_CREDENTIALS` in
+  the `env` of one step, and fails when the value is empty.
+- The channel is `stable`, `candidate`, `beta` or `edge`. A release always
+  uses `stable`.
+- Every action is pinned to a full commit SHA, and every checkout drops its
+  credentials.
+
+See [Releasing](releasing.md#publish-to-the-snap-store) for the one-time setup.
