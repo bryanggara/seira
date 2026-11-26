@@ -1,7 +1,7 @@
 import { existsSync, rmSync, unlinkSync } from "node:fs"; import { ensurePrivateDir } from "./data-dir.ts";
 import { join } from "node:path"; import { isDeepStrictEqual } from "node:util";
 
-import { removeDeadTempFiles, writeFileAtomic } from "./atomic.ts"; import { BOTS_FILE, JsonRegistry, persistedPin, type RegistryDurability, type RegistryStore } from "./registry-store.ts"; import { discardNativeLog } from "./drivers/native.ts"; import { loadBotsOrRefuse } from "./unreadable-bots.ts";
+import { removeDeadTempFiles, writeFileAtomic } from "./atomic.ts"; import { BOTS_FILE, GROUPS_FILE, JsonRegistry, persistedPin, type RegistryDurability, type RegistryStore } from "./registry-store.ts"; import { discardNativeLog } from "./drivers/native.ts"; import { loadBotsOrRefuse, refuseUnreadableBots } from "./unreadable-bots.ts";
 import { commitRegistryChange, deferrablePatch, keptRevocation, saveRegistryFor, touchesPermissions } from "./registry-save.ts";
 import { parseToolScope, toolScopeWidens } from "../shared/tool-scope.ts"; import { grantScopedApps } from "../shared/connector-scopes.ts"; import { dropRetiredApps } from "./retired-apps.ts";
 import { reorderInPlace } from "../shared/bot-order.ts"; import { trimOutboundPolicy } from "../shared/outbound.ts";
@@ -295,8 +295,8 @@ export class Store {
     const botsLoaded = loadedBots !== undefined; this.bots = loadedBots ?? [];
     try {
       this.groups = this.registry.loadGroups();
-    } catch {
-      this.groups = [];
+    } catch (error) {
+      this.groups = []; if (existsSync(GROUPS_FILE)) refuseUnreadableBots(error, GROUPS_FILE);
     }
     this.rememberSections([...this.bots, ...this.groups].map((record) => record.section));
     let botsMigrated = false;
