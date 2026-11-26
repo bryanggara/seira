@@ -213,7 +213,7 @@ jobs:
           ## Before you install
 
           - **Not notarized by Apple.** macOS blocks the first launch. Open the app once, then go to **System Settings → Privacy & Security** and click **Open Anyway**.
-          - **Updates itself.** From this build on, the app finds newer builds from this fork in Settings and installs them. A build from before \`$TAG-mac.2\` (ad-hoc signed) cannot update to this one by itself: install this one by hand once.
+          - **Updates itself.** From this build on, the app finds newer builds from this fork in Settings and installs them. Builds released here before \`v0.1.194-mac.2\` were ad-hoc signed and cannot update by themselves: install this one by hand once. After the update, macOS may ask once for "Seira Safe Storage" in the Keychain: choose **Always Allow**.
           - The \`.zip\` files and \`latest-mac.yml\` are for the app's updater; download a \`.dmg\` to install.
 
           ## License
