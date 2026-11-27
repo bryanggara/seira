@@ -303,7 +303,7 @@ describe("the Bot API door on the webhook receiver", () => {
   });
 
   it("holds the maintenance claim only until the turn has started, and answers a refused claim in plain JSON", async () => {
-    let held = 0, refuse = false;
+    let held = 0, refuse: false | "public" | "internal" = false;
     const release = { count: 0 };
     const fake = fakeStore();
     const dir = mkdtempSync(join(tmpdir(), "seira-bot-api-claim-"));
@@ -312,7 +312,12 @@ describe("the Bot API door on the webhook receiver", () => {
       store: fake.store, manager: new BotApiManager({ file: join(dir, "bot-api.json") }), waitMs: 5_000,
       startTurn: async (_botId, _prompt, opts) => { held = release.count; setTimeout(() => { expect(release.count).toBe(1); opts.onSettled({ ok: true, text: "" }); }, 60); },
       threadBusy: () => false, canStart: () => true, canConfine: () => true, hooksBaseUrl: () => "https://x", manageRefusal: () => null,
-      claimRequest: () => { if (refuse) throw Object.assign(new Error("This Cloud moved"), { status: 409 }); return () => { release.count += 1; }; },
+      claimRequest: () => {
+        // The real claim refuses with a PublicError (a moved Cloud, a backup running); anything else is unexpected.
+        if (refuse === "public") throw Object.assign(new PublicError("This Cloud moved", 409), { code: "moved" });
+        if (refuse === "internal") throw new Error("EACCES: permission denied, open '/Users/someone/.seira/workspace-maintenance.lock'");
+        return () => { release.count += 1; };
+      },
     });
     const key = host.manager.enable("b1").key;
     const server = createServer((req, res) => { void createWebhookIngressHandler({} as WebhookManager, undefined, host.door)(req, res); });
@@ -323,10 +328,17 @@ describe("the Bot API door on the webhook receiver", () => {
     expect((await send()).status).toBe(200);
     expect(held).toBe(0);
     expect(release.count).toBe(1);
-    refuse = true;
+    refuse = "public";
     const refused = await send();
     expect(refused.status).toBe(409);
     expect(await refused.json()).toEqual({ error: "This Cloud moved" });
+    refuse = "internal";
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    const failed = await send();
+    expect(failed.status).toBe(500);
+    expect(await failed.json()).toEqual({ error: "Try again soon" });
+    expect(quiet.mock.calls.flat().join(" ")).toMatch(/Bot API request claim/);
+    quiet.mockRestore();
   });
 
   it("answers the licensed monthly spend limit with 429 and a Retry-After up to the next UTC month", async () => {

@@ -257,6 +257,8 @@ describe("workflow routes", () => {
       .toMatchObject({ status: 409, body: { error: expect.stringMatching(/Choose where it runs/) } });
     expect(await fixture({ again: () => { throw new PublicError("That step is no longer in the workflow.", 409); } }).call("POST", again))
       .toMatchObject({ status: 409, body: { error: "That step is no longer in the workflow." } });
+    expect(await fixture({ again: () => { throw new PublicError("Wait for the backup to finish.", 423); } }).call("POST", again))
+      .toMatchObject({ status: 423, body: { error: "Wait for the backup to finish." } });
     const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
     expect(await fixture({ again: () => { throw new Error("EACCES: permission denied, open '/Users/someone/.seira/workflows/runs.json'"); } }).call("POST", again))
       .toMatchObject({ status: 500, body: { error: "The run could not start." } });

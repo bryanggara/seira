@@ -270,7 +270,8 @@ export function createWorkflowRoutes(deps: WorkflowRoutesDeps): RouteHandler {
       return started ? json(res, 201, { run: started }) : json(res, 409, { error: "The routine can't run now." });
     } catch (error) {
       if (error instanceof PlaceLostError) return json(res, 409, { error: error.message });
-      if (isPublicError(error)) return json(res, 409, { error: error.message });
+      // A public refusal keeps the status it declares; one with none is a conflict with the run's state.
+      if (isPublicError(error)) return json(res, typeof (error as { status?: unknown }).status === "number" ? (error as { status: number }).status : 409, { error: error.message });
       return json(res, 500, { error: publicErrorText(error, "POST workflow step run again", "The run could not start.") });
     }
   };

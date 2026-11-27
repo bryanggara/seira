@@ -223,7 +223,7 @@ export function createBotApiHost(deps: BotApiHostDeps) {
     try {
       claim = deps.claimRequest?.();
     } catch (error) {
-      json(res, statusOf(error), { error: error instanceof Error ? error.message : "Try again soon" });
+      json(res, statusOf(error), { error: publicErrorText(error, "Bot API request claim", "Try again soon") });
       return true;
     }
     // A call can wait minutes for its reply: the claim that holds off maintenance ends once the turn has started.
