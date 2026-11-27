@@ -80,6 +80,8 @@ export interface Routine extends RoutineTroubleCode {
   checkedAt?: number;
   checkTrouble?: string;
   wakeAt?: number;
+  /** Its next run was put after an engine's limit reset: a clock set right does not pull it earlier than this (routine-clock-back.ts). */
+  notBefore?: number;
   skippedRuns?: number;
   lastSkippedAt?: number;
   failureStreak?: number;
@@ -946,13 +948,15 @@ export class RoutineManager {
     return held!.paused.length ? held!.began : [];
   }
 
-  deferNextRun(id: string, until: number): Routine | null {
+  /** Moves the next run to `until`; `notBefore` is the instant the wait is for, kept if the clock is later set right. */
+  deferNextRun(id: string, until: number, notBefore = until): Routine | null {
     const routine = this.routines.find((candidate) => candidate.id === id);
     if (!routine) return null;
     if (!routine.enabled || routine.nextRunAt === null || routine.nextRunAt >= until || routine.schedule.type === "limit_reset") return this.routineWithHealth(routine);
     this.commitMutation(() => {
       if (routine.schedule.type === "once") routine.schedule = { type: "once", at: until };
       routine.nextRunAt = until;
+      routine.notBefore = notBefore;
     });
     this.emitRoutine(routine);
     return this.routineWithHealth(routine);

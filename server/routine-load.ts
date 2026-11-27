@@ -121,12 +121,13 @@ export function loadRoutine(routine: Routine, now: number): Routine | null {
     checkTrouble: typeof routine.checkTrouble === "string" && routine.checkTrouble ? routine.checkTrouble.slice(0, 300) : undefined,
     checkTroubleCode: typeof routine.checkTrouble === "string" && routine.checkTrouble && typeof routine.checkTroubleCode === "string" ? routine.checkTroubleCode.slice(0, 80) : undefined,
     wakeAt: instant(routine.wakeAt),
+    notBefore: instant(routine.notBefore),
     heldFor: isRoutineHoldCause(routine.heldFor) ? routine.heldFor : undefined,
     ...loadWorkflowLink(routine, target),
   };
   delete loaded.failureStreak;
   delete loaded.noStartStreak;
-  const checked = withCheckFields(withoutUndefined(loaded, ["timeoutMinutes", "runOnStartup", "modelSelection", "installedPackage", "checkedAt", "checkTrouble", "checkTroubleCode", "wakeAt", "heldFor", "workflowId", "workflowBotIds"]));
+  const checked = withCheckFields(withoutUndefined(loaded, ["timeoutMinutes", "runOnStartup", "modelSelection", "installedPackage", "checkedAt", "checkTrouble", "checkTroubleCode", "wakeAt", "notBefore", "heldFor", "workflowId", "workflowBotIds"]));
   if (checked.workflowId !== undefined && workflowRefusal({ ...checked, scheduleType: checked.schedule.type }) !== null) {
     delete checked.workflowId;
     delete checked.workflowBotIds;
