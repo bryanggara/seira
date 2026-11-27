@@ -7,6 +7,8 @@ export const SIGNIN_CODE_RESEND_MS = 30_000;
 export const SIGNIN_CODE_TRIES = 5;
 export const SIGNIN_CODES_PER_ADDRESS = 3;
 export const SIGNIN_CODES_PER_ADDRESS_ALL = 10;
+/** Codes one source may ask for, across all addresses, in ten minutes, so the shared pending list stays free for everyone. */
+export const SIGNIN_CODES_PER_SOURCE = 20;
 const MAX_PENDING = 1_000;
 
 export interface MailMessage {
@@ -68,9 +70,10 @@ export function createSignInMail(options: { url: string; from?: string; now?: ()
   };
   const sentAt = new Map<string, number[]>();
   const sentAtAll = new Map<string, number[]>();
+  const sentBySource = new Map<string, number[]>();
   const prune = () => {
     for (const [email, entry] of pending) if (now() - entry.sentAt >= SIGNIN_CODE_TTL_MS) pending.delete(email);
-    for (const map of [sentAt, sentAtAll]) {
+    for (const map of [sentAt, sentAtAll, sentBySource]) {
       for (const [key, times] of map) {
         const recent = times.filter((time) => now() - time < SIGNIN_CODE_TTL_MS);
         if (recent.length) map.set(key, recent);
@@ -87,12 +90,14 @@ export function createSignInMail(options: { url: string; from?: string; now?: ()
       if (!open && pending.size >= MAX_PENDING) return "tooSoon";
       if ((sentAt.get(quota)?.length ?? 0) >= SIGNIN_CODES_PER_ADDRESS) return "tooSoon";
       if ((sentAtAll.get(email)?.length ?? 0) >= SIGNIN_CODES_PER_ADDRESS_ALL) return "tooSoon";
+      if (source && (sentBySource.get(source)?.length ?? 0) >= SIGNIN_CODES_PER_SOURCE) return "tooSoon";
       const sender = from();
       transport ??= import("nodemailer").then(({ createTransport }) => createTransport(smtpOptions(options.url)));
       const code = String(randomInt(0, 100_000_000)).padStart(8, "0");
       pending.set(email, { hash: digest(code), sentAt: now(), tries: 0 });
       sentAt.set(quota, [...(sentAt.get(quota) ?? []), now()]);
       sentAtAll.set(email, [...(sentAtAll.get(email) ?? []), now()]);
+      if (source) sentBySource.set(source, [...(sentBySource.get(source) ?? []), now()]);
       try {
         await (await transport).sendMail({
           from: sender, to: email, subject: target ? `Your Seira sign-in code for ${target}` : "Your Seira sign-in code",
