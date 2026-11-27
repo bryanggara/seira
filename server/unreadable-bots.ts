@@ -7,6 +7,11 @@ import { BOTS_FILE } from "./registry-store.ts";
 /** bots.json or groups.json is there, and it does not read as a list. */
 export class UnreadableBotsError extends Error {}
 
+/** A list of bots: every element is an object (not a list) with an `id` that is a text that is not empty. Other fields are the work of the migrations. */
+export function isListOfBots(value: unknown): value is Array<{ id: string }> {
+  return Array.isArray(value) && value.every((bot) => typeof bot === "object" && bot !== null && !Array.isArray(bot) && typeof (bot as { id?: unknown }).id === "string" && (bot as { id: string }).id !== "");
+}
+
 /** Keeps the bytes of the file under a name of their own, once for each content. A file that cannot be read has no copy. */
 export function keepUnreadableBots(file = BOTS_FILE): string | undefined {
   let copy: string | undefined;
@@ -36,7 +41,7 @@ export function refuseUnreadableBots(cause: unknown, file = BOTS_FILE): never {
 export function loadBotsOrRefuse<T>(load: () => unknown, file = BOTS_FILE): T[] | undefined {
   try {
     const loaded = load();
-    if (!Array.isArray(loaded)) throw new TypeError("bots.json is not a list");
+    if (!isListOfBots(loaded)) throw new TypeError("bots.json is not a list of bots");
     return loaded as T[];
   } catch (error) {
     if (existsSync(file)) refuseUnreadableBots(error, file);
