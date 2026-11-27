@@ -79,9 +79,15 @@ export const APP_FEATURES: readonly AppFeature[] = [
     id: "slash-menu",
     name: "The / list",
     place: "the chat box: type /",
-    does: "Lists the skills of the bot and the built-in commands: /goal, /learn, /setup and /burst. A skill runs for one message when its name follows the slash.",
-    slashCommands: ["goal", "learn", "setup", "burst"],
+    does: "Lists the skills of the bot and the built-in commands: /goal, /learn, /setup, /burst and /todo. A skill runs for one message when its name follows the slash. /todo adds a todo to the Board.",
+    slashCommands: ["goal", "learn", "setup", "burst", "todo"],
     tools: ["burst"],
+  },
+  {
+    id: "todo-from-message",
+    name: "Todo from a message",
+    place: "the Message actions menu of a message, or /todo in the chat box",
+    does: "Make a todo from selection and Make a todo from message put a todo on the Board, with the message as its source. A chip under the message shows its place. /todo adds one without a message.",
   },
   {
     id: "mention-menu",
@@ -329,8 +335,8 @@ export const APP_FEATURES: readonly AppFeature[] = [
     id: "board",
     name: "Board",
     place: "Board in the sidebar, above Automations",
-    does: "Shows every piece of work your bots have, in To do, Working, Needs you and Done. Open a card to answer, stop the work, move it to Done or open its conversation, or add a new task.",
-    tools: ["board_close"],
+    does: "Shows all bot work in To do, Working, Needs you and Done, by column or by bot. New todo adds work for a bot, now, later or on chosen days. Open a card to answer, start, stop, finish or follow up.",
+    tools: ["board_close", "todo_add", "todo_list", "todo_assign", "todo_update"],
     releaseNotes: ["board", "boardDone"],
   },
   {
