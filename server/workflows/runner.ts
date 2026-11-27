@@ -9,6 +9,7 @@ import {
   type WorkflowStepErrorCode,
   type WorkflowStepRun,
 } from "../../shared/workflows.ts";
+import { PublicError } from "../public-error.ts";
 import { redactSecretsInText } from "../redact.ts";
 import { continuityCarry } from "../routine-execution.ts";
 import type { Routine, RoutineRun } from "../routines.ts";
@@ -473,7 +474,7 @@ export function createWorkflowRunner(deps: WorkflowRunnerDeps): WorkflowRunner {
     prepareFrom(routineRun, from, stepId, workflow) {
       const graph = structuredClone({ steps: workflow.steps, connections: workflow.connections });
       const start = stepById(graph, stepId);
-      if (!start || !runnable(start)) throw new Error("That step is no longer in the workflow.");
+      if (!start || !runnable(start)) throw new PublicError("That step is no longer in the workflow.", 409);
       const old = from.stepRuns.find((candidate) => candidate.stepId === stepId);
       const giver = old?.fromStepId === undefined ? undefined : from.stepRuns.find((candidate) => candidate.stepId === old.fromStepId);
       const carried = from.stepRuns
