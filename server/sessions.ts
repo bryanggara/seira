@@ -174,8 +174,30 @@ const sha256 = (value: string) => createHash("sha256").update(value).digest("hex
 /** The English fallback's clock; a client words `until` in its own time zone. */
 const utcClock = (at: number) => `${new Date(at).toISOString().slice(11, 16)} UTC`;
 
+const LABEL_MAX = 80;
+/** Controls, direction marks, invisible fillers and code points that are not valid text (lone surrogates, noncharacters).
+ * Joiners (U+200C, U+200D) and variation selectors stay inside a name: scripts and emoji need them. */
+const HIDDEN_IN_LABEL = /[\p{Cc}\p{Cs}\p{Noncharacter_Code_Point}\u00ad\u061c\u115f\u1160\u17b4\u17b5\u180e\u200b\u200e\u200f\u2028-\u202e\u2060-\u206f\u3164\ufeff\uffa0\ufff9-\ufffb\u{e0000}-\u{e007f}]|\u034f|[\u{e0100}-\u{e01ef}]/gu;
+const SHOWN_IN_LABEL = /[\p{L}\p{N}\p{P}\p{S}]/u;
+/** Nothing to attach to at the start (marks, joiners, variation selectors), and nothing to join at the end. */
+const LOOSE_AT_START = /^(?:\s|\p{M}|\u200c|\u200d)+/u;
+const LOOSE_AT_END = /(?:\s|\u200c|\u200d)+$/u;
+
+/** Every rule below runs on the text that is stored, so a cut or a trim cannot bring back what an earlier step removed. */
+const tidyLabel = (text: string) => text.replace(HIDDEN_IN_LABEL, "").normalize("NFC").replace(LOOSE_AT_START, "").replace(LOOSE_AT_END, "");
+
+/** A device label for display only: who the device belongs to comes from the session's email and id, never from this text.
+ * Empty when nothing a person can see is left. The cut is by whole characters, so it never splits an emoji.
+ * Running it on its own result changes nothing. */
 function deviceLabel(value: string | undefined): string {
-  return (value ?? "").replace(/[\p{Cc}\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu, "").trim();
+  const clean = tidyLabel(value ?? "");
+  let cut = "";
+  for (const character of clean) {
+    if (cut.length + character.length > LABEL_MAX) break;
+    cut += character;
+  }
+  const label = tidyLabel(cut);
+  return SHOWN_IN_LABEL.test(label) ? label : "";
 }
 
 function sameDigest(a: string, b: string): boolean {
@@ -466,7 +488,7 @@ export class SessionRegistry {
       codeHash: sha256(code),
       credentialHash: sha256(credential),
       scopes,
-      label: (input.label ?? "").trim().slice(0, 80),
+      label: deviceLabel(input.label),
       createdAt: now,
       expiresAt: now + (input.ttlMs ?? PAIRING_CODE_TTL_MS),
       ...(input.browser ? { browser: true as const, ...(input.owner ? { owner: input.owner } : {}) } : {}),
@@ -568,7 +590,7 @@ export class SessionRegistry {
     const record: SessionRecord = {
       id: randomUUID(),
       tokenHash: sha256(token),
-      label: (deviceLabel(input.label) || deviceLabel(pairing.label) || deviceLabel(input.fallbackLabel) || "Unnamed device").slice(0, 80),
+      label: deviceLabel(input.label) || deviceLabel(pairing.label) || deviceLabel(input.fallbackLabel) || "Unnamed device",
       scopes: [...pairing.scopes],
       createdAt: now,
       lastSeenAt: now,
@@ -645,7 +667,7 @@ export class SessionRegistry {
     const now = this.now();
     const token = `${sentWireName("sessionTokenPrefix")}${randomBytes(32).toString("base64url")}`;
     const record: SessionRecord = {
-      id: randomUUID(), tokenHash: sha256(token), label: (deviceLabel(input.label) || "Moving a bot in").slice(0, 80), scopes: ["admin", "client"],
+      id: randomUUID(), tokenHash: sha256(token), label: deviceLabel(input.label) || "Moving a bot in", scopes: ["admin", "client"],
       createdAt: now, lastSeenAt: now, expiresAt: teamSessionExpiresAt(now, now + SESSION_TTL_MS),
       email: input.email, teamRole: input.teamRole, membershipAuthority: "team", moveIn: input.bot,
     };
@@ -705,7 +727,7 @@ export class SessionRegistry {
     const record: SessionRecord = {
       id: randomUUID(),
       tokenHash: sha256(token),
-      label: (deviceLabel(input.label) || "Unnamed device").slice(0, 80),
+      label: deviceLabel(input.label) || "Unnamed device",
       scopes: [...new Set(input.scopes)],
       createdAt: now,
       lastSeenAt: now,
@@ -891,7 +913,7 @@ export class SessionRegistry {
     this.prune();
     const record = this.record(id);
     if (!record) return "missing";
-    const next = deviceLabel(label).slice(0, 80);
+    const next = deviceLabel(label);
     if (!next) return "invalid";
     const previous = record.label;
     record.label = next;
